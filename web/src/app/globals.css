@@ -1,0 +1,348 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-noto-sans-kr), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono);
+  /* === Figma Untitled UI Typography Scale === */
+  /* Display */
+  --text-display-2xl: 4.5rem;
+  --text-display-2xl--line-height: 5.625rem;
+  --text-display-2xl--letter-spacing: -0.02em;
+  --text-display-xl: 3.75rem;
+  --text-display-xl--line-height: 4.5rem;
+  --text-display-xl--letter-spacing: -0.02em;
+  --text-display-lg: 3rem;
+  --text-display-lg--line-height: 3.75rem;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-md: 2.25rem;
+  --text-display-md--line-height: 2.75rem;
+  --text-display-md--letter-spacing: -0.02em;
+  --text-display-sm: 1.875rem;
+  --text-display-sm--line-height: 2.375rem;
+  --text-display-xs: 1.5rem;
+  --text-display-xs--line-height: 2rem;
+  /* Text */
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 2rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.875rem;
+  --text-md: 1.125rem;
+  --text-md--line-height: 1.625rem;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.375rem;
+  --text-xs: 0.875rem;
+  --text-xs--line-height: 1.25rem;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-neutral: var(--neutral);
+  /* Semantic status — muted backgrounds, text, borders */
+  --color-destructive-muted: var(--destructive-muted);
+  --color-destructive-muted-foreground: var(--destructive-muted-foreground);
+  --color-destructive-border: var(--destructive-border);
+  --color-success-muted: var(--success-muted);
+  --color-success-muted-foreground: var(--success-muted-foreground);
+  --color-success-border: var(--success-border);
+  --color-warning-muted: var(--warning-muted);
+  --color-warning-muted-foreground: var(--warning-muted-foreground);
+  --color-warning-border: var(--warning-border);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-muted: var(--info-muted);
+  --color-info-muted-foreground: var(--info-muted-foreground);
+  --color-info-border: var(--info-border);
+  --color-orange-muted: var(--orange-muted);
+  --color-orange-muted-foreground: var(--orange-muted-foreground);
+  --color-orange-border: var(--orange-border);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  /* 팔레트 색상(blue, sky, red, orange, yellow, green, slate, neutral)은
+     Tailwind v4 기본값과 동일하므로 별도 선언하지 않음.
+     amber, purple 등도 Tailwind 기본 팔레트에서 직접 사용 가능. */
+  /* === Figma Untitled UI Spacing Scale === */
+  --spacing-0_5: 0.125rem;
+  --spacing-1: 0.25rem;
+  --spacing-1_5: 0.375rem;
+  --spacing-2: 0.5rem;
+  --spacing-2_5: 0.625rem;
+  --spacing-3: 0.75rem;
+  --spacing-3_5: 0.875rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-7: 1.75rem;
+  --spacing-8: 2rem;
+  --spacing-9: 2.25rem;
+  --spacing-10: 2.5rem;
+  --spacing-11: 2.75rem;
+  --spacing-12: 3rem;
+  --spacing-14: 3.5rem;
+  --spacing-16: 4rem;
+  --spacing-20: 5rem;
+  --spacing-24: 6rem;
+  --spacing-28: 7rem;
+  --spacing-32: 8rem;
+  --spacing-36: 9rem;
+  --spacing-40: 10rem;
+  --spacing-44: 11rem;
+  --spacing-48: 12rem;
+  --spacing-52: 13rem;
+  --spacing-56: 14rem;
+  --spacing-60: 15rem;
+  --spacing-64: 16rem;
+  /* Container Breakpoints */
+  --container-sm: 40rem;
+  --container-md: 48rem;
+  --container-lg: 64rem;
+  --container-xl: 80rem;
+  /* === Figma Untitled UI Shadows === */
+  --shadow-xs: 0px 1px 2px 0px rgba(0,0,0,0.05);
+  --shadow-sm: 0px 1px 3px 0px rgba(0,0,0,0.1), 0px 1px 2px 0px rgba(0,0,0,0.06);
+  --shadow-md: 0px 4px 8px -2px rgba(0,0,0,0.1), 0px 2px 4px -2px rgba(0,0,0,0.06);
+  --shadow-lg: 0px 12px 16px -4px rgba(0,0,0,0.08), 0px 4px 6px -2px rgba(0,0,0,0.03);
+  --shadow-xl: 0px 20px 24px -4px rgba(0,0,0,0.08), 0px 8px 8px -4px rgba(0,0,0,0.03);
+  --shadow-2xl: 0px 24px 48px -12px rgba(0,0,0,0.18);
+  --shadow-3xl: 0px 32px 64px -12px rgba(0,0,0,0.14);
+  /* === Figma Gradients (Brand = Blue adapted) === */
+  --gradient-neutral-light: linear-gradient(90deg, #525252, #737373);
+  --gradient-neutral-medium: linear-gradient(45deg, #404040, #525252);
+  --gradient-neutral-dark: linear-gradient(45deg, #262626, #525252);
+  --gradient-neutral-dark-v: linear-gradient(90deg, #262626, #525252);
+  --gradient-neutral-deep: linear-gradient(26.5deg, #262626, #404040);
+  --gradient-neutral-deepest: linear-gradient(45deg, #171717, #525252);
+  --gradient-brand-light: linear-gradient(90deg, #2563EB, #3B82F6);
+  --gradient-brand-medium: linear-gradient(45deg, #1D4ED8, #2563EB);
+  --gradient-brand-dark: linear-gradient(45deg, #1E40AF, #2563EB);
+  --gradient-brand-dark-v: linear-gradient(90deg, #1E40AF, #2563EB);
+  --gradient-brand-deep: linear-gradient(26.5deg, #1E40AF, #1D4ED8);
+  --gradient-brand-deepest: linear-gradient(45deg, #1E3A8A, #2563EB);
+}
+
+:root {
+  --radius: 0.875rem;
+  /* Background & Foreground */
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  /* Card */
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  /* Popover */
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+  /* Primary: Blue-600 (brand color, similar blue tone) */
+  --primary: #2563EB;
+  --primary-foreground: #FFFFFF;
+  --primary-light: #BFDBFE;
+  /* Secondary: Slate-100 */
+  --secondary: #F1F5F9;
+  --secondary-foreground: #334155;
+  /* Muted: Slate-100/500 */
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  /* Accent: Blue-50 */
+  --accent: #EFF6FF;
+  --accent-foreground: #0F172A;
+  /* Destructive: Red-600 (WCAG AA ≥ 4.5:1) */
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  /* Success: Green-600 (WCAG AA ≥ 4.5:1) */
+  --success: #16A34A;
+  --success-foreground: #FFFFFF;
+  /* Warning: Yellow-500 */
+  --warning: #EAB308;
+  --warning-foreground: #0F172A;
+  /* Borders & Inputs: Slate-200/300 */
+  --border: #E2E8F0;
+  --input: #CBD5E1;
+  --ring: #2563EB;
+  /* Neutral */
+  --neutral: #A3A3A3;
+  /* Status muted states */
+  --destructive-muted: #FEF2F2;
+  --destructive-muted-foreground: #B91C1C;
+  --destructive-border: #FECACA;
+  --success-muted: #F0FDF4;
+  --success-muted-foreground: #15803D;
+  --success-border: #BBF7D0;
+  --warning-muted: #FEFCE8;
+  --warning-muted-foreground: #A16207;
+  --warning-border: #FDE047;
+  --info: #2563EB;
+  --info-foreground: #FFFFFF;
+  --info-muted: #EFF6FF;
+  --info-muted-foreground: #1D4ED8;
+  --info-border: #BFDBFE;
+  --orange-muted: #FFF7ED;
+  --orange-muted-foreground: #C2410C;
+  --orange-border: #FED7AA;
+  /* Charts: Blue/Sky/Yellow/Green */
+  --chart-1: #2563EB;
+  --chart-2: #0EA5E9;
+  --chart-3: #EAB308;
+  --chart-4: #22C55E;
+  --chart-5: #93C5FD;
+  /* Sidebar — light 스타일 */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #475569;
+  --sidebar-primary: #2563EB;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F1F5F9;
+  --sidebar-accent-foreground: #0F172A;
+  --sidebar-border: #E2E8F0;
+  --sidebar-ring: #2563EB;
+}
+
+.dark {
+  /* Background & Foreground: Slate-950/50 */
+  --background: #020617;
+  --foreground: #F8FAFC;
+  /* Card: Slate-900 */
+  --card: #0F172A;
+  --card-foreground: #F8FAFC;
+  /* Popover: Slate-900 */
+  --popover: #0F172A;
+  --popover-foreground: #F8FAFC;
+  /* Primary: Blue-500 (brighter for dark bg) */
+  --primary: #3B82F6;
+  --primary-foreground: #FFFFFF;
+  --primary-light: #1E40AF;
+  /* Secondary: Slate-800 */
+  --secondary: #1E293B;
+  --secondary-foreground: #F8FAFC;
+  /* Muted: Slate-800/400 */
+  --muted: #1E293B;
+  --muted-foreground: #94A3B8;
+  /* Accent: Slate-800 */
+  --accent: #1E293B;
+  --accent-foreground: #F8FAFC;
+  /* Destructive: Red-500 */
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  /* Success: Green-500 */
+  --success: #22C55E;
+  --success-foreground: #FFFFFF;
+  /* Warning: Yellow-500 */
+  --warning: #EAB308;
+  --warning-foreground: #FEFCE8;
+  /* Borders & Inputs: Slate-700/700 */
+  --border: #334155;
+  --input: #334155;
+  --ring: #3B82F6;
+  /* Neutral */
+  --neutral: #525252;
+  /* Status muted states */
+  --destructive-muted: #450A0A;
+  --destructive-muted-foreground: #FCA5A5;
+  --destructive-border: #991B1B;
+  --success-muted: #052E16;
+  --success-muted-foreground: #86EFAC;
+  --success-border: #166534;
+  --warning-muted: #422006;
+  --warning-muted-foreground: #FDE047;
+  --warning-border: #854D0E;
+  --info: #3B82F6;
+  --info-foreground: #FFFFFF;
+  --info-muted: #172554;
+  --info-muted-foreground: #93C5FD;
+  --info-border: #1E40AF;
+  --orange-muted: #431407;
+  --orange-muted-foreground: #FDBA74;
+  --orange-border: #9A3412;
+  /* Charts */
+  --chart-1: #3B82F6;
+  --chart-2: #0EA5E9;
+  --chart-3: #EAB308;
+  --chart-4: #22C55E;
+  --chart-5: #60A5FA;
+  /* Sidebar — dark 모드에서도 light 스타일 유지 */
+  --sidebar: #1E293B;
+  --sidebar-foreground: #94A3B8;
+  --sidebar-primary: #60A5FA;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: rgba(255,255,255,0.08);
+  --sidebar-accent-foreground: #F1F5F9;
+  --sidebar-border: rgba(255,255,255,0.1);
+  --sidebar-ring: #60A5FA;
+}
+
+html {
+  font-size: 1rem;
+  scroll-behavior: smooth;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Premium scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+}

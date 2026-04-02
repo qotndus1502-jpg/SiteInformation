@@ -1,0 +1,313 @@
+from fastapi import FastAPI, Query, UploadFile, File, Form
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from supabase import create_client
+from dotenv import load_dotenv
+import os
+import json
+import traceback
+import httpx
+from typing import Optional
+from pathlib import Path
+
+load_dotenv()
+
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+KAKAO_REST_KEY = os.environ.get("KAKAO_REST_KEY", "")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+COORDS_FILE = Path(__file__).parent / "site_coordinates.json"
+
+app = FastAPI(title="SiteInformation API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://192.168.0.6:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def load_coords() -> dict[str, dict]:
+    """Load cached coordinates from JSON file."""
+    if COORDS_FILE.exists():
+        return json.loads(COORDS_FILE.read_text(encoding="utf-8"))
+    return {}
+
+
+def save_coords(coords: dict[str, dict]):
+    """Save coordinates to JSON file."""
+    COORDS_FILE.write_text(json.dumps(coords, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+async def geocode_address(client: httpx.AsyncClient, address: str) -> tuple[float, float] | None:
+    """Kakao Local API: address -> (latitude, longitude)"""
+    try:
+        res = await client.get(
+            "https://dapi.kakao.com/v2/local/search/address.json",
+            params={"query": address},
+            headers={"Authorization": f"KakaoAK {KAKAO_REST_KEY}"},
+            timeout=10,
+        )
+        data = res.json()
+        docs = data.get("documents", [])
+        if docs:
+            return (float(docs[0]["y"]), float(docs[0]["x"]))
+    except Exception:
+        pass
+    return None
+
+
+def parse_ranges(raw: str) -> list[dict]:
+    """'100-500,1000-2000' -> [{'min': 100, 'max': 500}, ...]"""
+    result = []
+    for r in raw.split(","):
+        r = r.strip()
+        if not r:
+            continue
+        parts = r.split("-")
+        lo = float(parts[0])
+        hi = float("inf") if parts[1] == "" else float(parts[1])
+        result.append({"min": lo, "max": hi})
+    return result
+
+
+ORDER_TYPES = {"BTL", "CMR", "민간", "민참", "종심제"}
+
+
+def clean_facility_type(sites: list[dict]) -> list[dict]:
+    """facility_type_name이 발주유형과 동일하면 비워서 중복 표시 방지."""
+    for site in sites:
+        ft = site.get("facility_type_name") or ""
+        if ft in ORDER_TYPES:
+            site["facility_type_name"] = None
+    return sites
+
+
+def attach_coords(sites: list[dict]) -> list[dict]:
+    """Attach latitude/longitude from cached coordinates."""
+    coords = load_coords()
+    for site in sites:
+        site_id = str(site["id"])
+        if site_id in coords:
+            site["latitude"] = coords[site_id]["latitude"]
+            site["longitude"] = coords[site_id]["longitude"]
+        else:
+            site["latitude"] = None
+            site["longitude"] = None
+    return sites
+
+
+@app.get("/api/sites")
+async def get_sites(
+    corporation: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
+    facilityType: Optional[str] = Query(None),
+    orderType: Optional[str] = Query(None),
+    division: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    amountRanges: Optional[str] = Query(None),
+    progressRanges: Optional[str] = Query(None),
+):
+    try:
+        query = supabase.schema("pmis").from_("v_site_dashboard").select("*")
+
+        if corporation and corporation != "all":
+            query = query.eq("corporation_name", corporation)
+        if region and region != "all":
+            query = query.eq("region_name", region)
+        if facilityType and facilityType != "all":
+            query = query.eq("facility_type_name", facilityType)
+        if orderType and orderType != "all":
+            query = query.eq("order_type", orderType)
+        if division and division != "all":
+            query = query.eq("division", division)
+        if status and status != "all":
+            query = query.eq("status", status)
+        if search:
+            query = query.ilike("site_name", f"%{search}%")
+
+        response = query.order("progress_rate", desc=False).execute()
+        results = response.data or []
+
+        # Deduplicate by site_name + corporation_code
+        seen = set()
+        deduped = []
+        for site in results:
+            key = f"{site.get('site_name')}::{site.get('corporation_code')}"
+            if key not in seen:
+                seen.add(key)
+                deduped.append(site)
+        results = deduped
+
+        # Amount range filter
+        if amountRanges:
+            ranges = parse_ranges(amountRanges)
+            results = [
+                s for s in results
+                if any(r["min"] <= (s.get("contract_amount") or 0) < r["max"] for r in ranges)
+            ]
+
+        # Progress range filter
+        if progressRanges:
+            ranges = parse_ranges(progressRanges)
+            results = [
+                s for s in results
+                if any(r["min"] <= (s.get("progress_rate") or 0) * 100 < r["max"] for r in ranges)
+            ]
+
+        # Attach coordinates
+        results = clean_facility_type(results)
+        results = attach_coords(results)
+
+        return results
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "trace": traceback.format_exc()},
+        )
+
+
+@app.post("/api/geocode")
+async def geocode_all_sites():
+    """Batch geocode all sites with office_address and cache results."""
+    if not KAKAO_REST_KEY:
+        return JSONResponse(status_code=400, content={"error": "KAKAO_REST_KEY not configured"})
+
+    response = supabase.schema("pmis").from_("v_site_dashboard").select("id, site_name, office_address").execute()
+    sites = response.data or []
+
+    coords = load_coords()
+    results = {"total": len(sites), "geocoded": 0, "skipped": 0, "failed": 0, "failed_sites": []}
+
+    async with httpx.AsyncClient() as client:
+        for site in sites:
+            site_id = str(site["id"])
+            address = site.get("office_address")
+
+            if not address:
+                results["skipped"] += 1
+                continue
+
+            # Skip already geocoded
+            if site_id in coords:
+                results["skipped"] += 1
+                continue
+
+            result = await geocode_address(client, address)
+            if result:
+                coords[site_id] = {"latitude": result[0], "longitude": result[1]}
+                results["geocoded"] += 1
+            else:
+                results["failed"] += 1
+                results["failed_sites"].append({"id": site["id"], "name": site["site_name"], "address": address})
+
+    save_coords(coords)
+    return results
+
+
+@app.post("/api/upload-site-image")
+async def upload_site_image(file: UploadFile = File(...), site_id: str = Form(...)):
+    """Upload or replace a site image to Supabase Storage."""
+    content = await file.read()
+    file_name = f"site_{site_id}.jpg"
+    supabase.storage.from_("site-images").upload(
+        file_name, content,
+        file_options={"content-type": file.content_type or "image/jpeg", "upsert": "true"},
+    )
+    url = supabase.storage.from_("site-images").get_public_url(file_name)
+    return {"ok": True, "url": url}
+
+
+@app.get("/api/filter-options")
+async def get_filter_options():
+    corps = supabase.schema("pmis").from_("corporation").select("name").order("name").execute()
+    regions = supabase.schema("pmis").from_("region_code").select("name").order("name").execute()
+    types = supabase.schema("pmis").from_("facility_type").select("name").order("name").execute()
+
+    # order_type은 별도 테이블 없이 뷰에서 distinct 추출
+    all_sites = supabase.schema("pmis").from_("v_site_dashboard").select("order_type").execute()
+    order_type_set = sorted(set(
+        r["order_type"] for r in (all_sites.data or []) if r.get("order_type")
+    ))
+
+    # 발주유형(BTL, CMR, 민간, 민참, 종심제)을 시설유형에서 제외
+    facility_types = [r["name"] for r in (types.data or []) if r["name"] not in order_type_set]
+
+    return {
+        "corporations": [r["name"] for r in (corps.data or [])],
+        "regions": [r["name"] for r in (regions.data or [])],
+        "facilityTypes": facility_types,
+        "orderTypes": order_type_set,
+        "divisions": ["토목", "건축"],
+        "statuses": ["ACTIVE", "COMPLETED", "SUSPENDED", "PRE_START"],
+    }
+
+
+# ── Org Chart ──────────────────────────────────────────────
+
+@app.get("/api/sites/{site_id}/org-chart")
+async def get_site_org_chart(site_id: int):
+    """Get all active org members for a site."""
+    response = supabase.schema("pmis").from_("v_site_org_chart") \
+        .select("*") \
+        .eq("site_id", site_id) \
+        .order("sort_order") \
+        .execute()
+    return response.data or []
+
+
+@app.get("/api/org-roles")
+async def get_org_roles():
+    """Get all available org roles."""
+    response = supabase.schema("pmis").from_("org_role") \
+        .select("*") \
+        .eq("is_active", True) \
+        .order("sort_order") \
+        .execute()
+    return response.data or []
+
+
+@app.get("/api/sites/{site_id}/departments")
+async def get_site_departments(site_id: int):
+    """Get departments for a site."""
+    response = supabase.schema("pmis").from_("site_department") \
+        .select("*") \
+        .eq("site_id", site_id) \
+        .order("sort_order") \
+        .execute()
+    return response.data or []
+
+
+@app.post("/api/sites/{site_id}/org-members")
+async def create_org_member(site_id: int, member: dict):
+    """Add a new org member."""
+    member["site_id"] = site_id
+    response = supabase.schema("pmis").from_("site_org_member") \
+        .insert(member) \
+        .execute()
+    return response.data
+
+
+@app.put("/api/org-members/{member_id}")
+async def update_org_member(member_id: int, updates: dict):
+    """Update an org member."""
+    updates.pop("id", None)
+    response = supabase.schema("pmis").from_("site_org_member") \
+        .update(updates) \
+        .eq("id", member_id) \
+        .execute()
+    return response.data
+
+
+@app.delete("/api/org-members/{member_id}")
+async def delete_org_member(member_id: int):
+    """Soft-delete: set is_active=false."""
+    supabase.schema("pmis").from_("site_org_member") \
+        .update({"is_active": False}) \
+        .eq("id", member_id) \
+        .execute()
+    return {"ok": True}
