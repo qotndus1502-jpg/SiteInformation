@@ -24,7 +24,7 @@ app = FastAPI(title="SiteInformation API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://192.168.0.6:3000"],
+    allow_origins=["http://localhost:3000", "http://192.168.0.6:3000", "https://site-info-umber.vercel.app"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
