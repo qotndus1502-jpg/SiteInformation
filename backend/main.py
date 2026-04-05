@@ -222,6 +222,19 @@ async def upload_site_image(file: UploadFile = File(...), site_id: str = Form(..
     return {"ok": True, "url": url}
 
 
+@app.post("/api/upload-org-photo")
+async def upload_org_photo(file: UploadFile = File(...), member_id: str = Form(...)):
+    """Upload or replace an org member photo to Supabase Storage."""
+    content = await file.read()
+    file_name = f"member_{member_id}.jpg"
+    supabase.storage.from_("org-photos").upload(
+        file_name, content,
+        file_options={"content-type": file.content_type or "image/jpeg", "upsert": "true"},
+    )
+    url = supabase.storage.from_("org-photos").get_public_url(file_name)
+    return {"ok": True, "url": url}
+
+
 @app.get("/api/filter-options")
 async def get_filter_options():
     corps = supabase.schema("pmis").from_("corporation").select("name").order("name").execute()
@@ -266,6 +279,17 @@ async def get_org_roles():
     response = supabase.schema("pmis").from_("org_role") \
         .select("*") \
         .eq("is_active", True) \
+        .order("sort_order") \
+        .execute()
+    return response.data or []
+
+
+@app.get("/api/sites/{site_id}/headcount-summary")
+async def get_headcount_summary(site_id: int):
+    """Get headcount summary for a site."""
+    response = supabase.schema("pmis").from_("site_headcount_summary") \
+        .select("*") \
+        .eq("site_id", site_id) \
         .order("sort_order") \
         .execute()
     return response.data or []

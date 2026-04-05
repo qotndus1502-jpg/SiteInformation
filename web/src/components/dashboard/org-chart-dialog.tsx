@@ -16,29 +16,35 @@ interface OrgChartDialogProps {
 
 export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps) {
   const [members, setMembers] = useState<OrgMember[]>([]);
+  const [headcount, setHeadcount] = useState<{ category: string; required: number; current: number; future: number }[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
   const load = useCallback(async () => {
     if (!open) return;
     setLoading(true);
     try {
-      const data = await fetchOrgChart(site.id);
-      setMembers(data);
+      const [orgData, hcData] = await Promise.all([
+        fetchOrgChart(site.id),
+        fetch(`${API_BASE}/api/sites/${site.id}/headcount-summary`).then((r) => r.json()),
+      ]);
+      setMembers(orgData);
+      setHeadcount(hcData);
     } catch {
       setMembers([]);
+      setHeadcount([]);
     }
     setLoading(false);
-  }, [open, site.id]);
+  }, [open, site.id, API_BASE]);
 
   useEffect(() => { load(); }, [load]);
 
-  // 최상위 (parent_id=null)
   const topLevel = members.filter((m) => m.parent_id == null);
 
-  // 부서별 그룹핑 (최상위 제외)
+  // 부서별 그룹핑
   const deptMap = new Map<string, OrgMember[]>();
   const deptOrder = new Map<string, number>();
-
   for (const m of members) {
     if (m.parent_id == null) continue;
     const dept = m.department_name ?? "기타";
@@ -46,19 +52,16 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     deptMap.get(dept)!.push(m);
     if (!deptOrder.has(dept)) deptOrder.set(dept, m.department_sort_order ?? 999);
   }
-
   const sortedDepts = [...deptMap.entries()].sort(
     (a, b) => (deptOrder.get(a[0]) ?? 999) - (deptOrder.get(b[0]) ?? 999)
   );
-
-  // 부서 내 정렬: sort_order 기준
   for (const [, deptMembers] of sortedDepts) {
     deptMembers.sort((a, b) => a.sort_order - b.sort_order);
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[95vw] !w-[95vw] !h-[90vh] flex flex-col">
+      <DialogContent style={{ maxWidth: "95vw", width: "95vw", height: "90vh" }} className="flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Users className="h-5 w-5 text-primary" />
@@ -67,7 +70,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 overflow-auto">
           {loading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">불러오는 중...</div>
           ) : members.length === 0 ? (
@@ -76,47 +79,89 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
               <p className="text-sm">등록된 조직원이 없습니다</p>
             </div>
           ) : (
-            <div className="flex flex-col items-center min-w-max mx-auto">
-              {/* 최상위: 현장대리인 + 현장소장 */}
-              <div className="flex items-start gap-6 mb-2">
+            <div className="flex flex-col items-center px-6 pb-8 min-w-max">
+
+              {/* === 인원 현황 요약 (상단) === */}
+              {headcount.length > 0 && (() => {
+                const totalReq = headcount.reduce((s, r) => s + r.required, 0);
+                const totalCur = headcount.reduce((s, r) => s + r.current, 0);
+                const totalFut = headcount.reduce((s, r) => s + r.future, 0);
+                const CAT_COLORS: Record<string, string> = {
+                  "일반직": "bg-green-100 text-green-800",
+                  "전문직": "bg-blue-100 text-blue-800",
+                  "현채직": "bg-yellow-100 text-yellow-800",
+                  "공동사": "bg-orange-100 text-orange-800",
+                };
+                return (
+                  <div className="mb-6 border border-border rounded-lg overflow-hidden text-sm">
+                    <div className="text-right text-xs text-muted-foreground px-3 py-1">※ 기타현채직(반장 2명)</div>
+                    <table className="border-collapse w-full">
+                      <thead>
+                        <tr className="bg-muted/60">
+                          <th className="px-6 py-2 font-semibold border-r border-border">구 분</th>
+                          <th className="px-6 py-2 font-semibold border-r border-border">소요인원</th>
+                          <th className="px-6 py-2 font-semibold border-r border-border">현재인원</th>
+                          <th className="px-6 py-2 font-semibold">향후투입</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {headcount.map((row) => (
+                          <tr key={row.category} className="border-t border-border">
+                            <td className="px-6 py-1.5 border-r border-border">
+                              <span className={`font-bold px-2 py-0.5 rounded text-xs ${CAT_COLORS[row.category] ?? ""}`}>{row.category}</span>
+                            </td>
+                            <td className="px-6 py-1.5 text-center border-r border-border font-mono">{row.required}</td>
+                            <td className="px-6 py-1.5 text-center border-r border-border font-mono">{row.current}</td>
+                            <td className="px-6 py-1.5 text-center font-mono">{row.future || "-"}</td>
+                          </tr>
+                        ))}
+                        <tr className="border-t-2 border-border bg-amber-50 font-bold">
+                          <td className="px-6 py-2 border-r border-border text-center">합 계</td>
+                          <td className="px-6 py-2 text-center border-r border-border font-mono">{totalReq}</td>
+                          <td className="px-6 py-2 text-center border-r border-border font-mono">{totalCur}</td>
+                          <td className="px-6 py-2 text-center font-mono">{totalFut || "-"}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+
+              {/* === 최상위: 현장대리인 + 현장소장 === */}
+              <div className="flex items-start gap-8">
                 {topLevel.map((m) => (
                   <OrgMemberCard key={m.id} member={m} primary />
                 ))}
               </div>
 
-              {/* 연결선: 세로 + 가로 */}
-              {sortedDepts.length > 0 && (
-                <div className="flex flex-col items-center">
-                  <div className="w-px h-6 bg-border" />
-                  {/* 가로 연결선 */}
-                  <div className="relative w-full">
-                    <div className="border-t border-border mx-auto" style={{ width: `${Math.max(1, sortedDepts.length - 1) * 170}px` }} />
-                  </div>
-                </div>
-              )}
+              {/* === 세로 연결선 === */}
+              <div className="w-px h-6 bg-gray-400" />
 
-              {/* 부서 컬럼 헤더 + 인원 */}
-              <div className="flex items-start gap-3 mt-0">
+              {/* === 가로 연결선 === */}
+              <div className="border-t-2 border-gray-400" style={{ width: `${sortedDepts.length * 244}px` }} />
+
+              {/* === 부서 컬럼들 === */}
+              <div className="flex items-start">
                 {sortedDepts.map(([deptName, deptMembers]) => (
-                  <div key={deptName} className="flex flex-col items-center min-w-[150px]">
+                  <div key={deptName} className="flex flex-col items-center" style={{ width: 244 }}>
                     {/* 세로 연결선 */}
-                    <div className="w-px h-4 bg-border" />
+                    <div className="w-px h-4 bg-gray-400" />
+
                     {/* 부서 헤더 */}
-                    <div className="text-xs font-bold text-white bg-slate-600 px-4 py-1.5 rounded-md mb-3 whitespace-nowrap">
+                    <div className="text-[20px] font-bold text-primary border-2 border-primary bg-primary/5 px-6 py-2 rounded-full whitespace-nowrap mb-3 w-[200px] text-center">
                       {deptName}
                     </div>
-                    {/* 부서 인원 (세로 스택) */}
+
+                    {/* 부서 인원 (세로) */}
                     <div className="flex flex-col items-center gap-2">
-                      {deptMembers.map((m, i) => (
-                        <div key={m.id} className="flex flex-col items-center">
-                          {i > 0 && <div className="w-px h-2 bg-border mb-2" />}
-                          <OrgMemberCard member={m} />
-                        </div>
+                      {deptMembers.map((m) => (
+                        <OrgMemberCard key={m.id} member={m} />
                       ))}
                     </div>
                   </div>
                 ))}
               </div>
+
             </div>
           )}
         </div>

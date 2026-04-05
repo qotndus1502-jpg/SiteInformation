@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MapPin, Calendar, Phone, User, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -48,6 +48,7 @@ const EXECUTION_STATUS_LABEL: Record<string, string> = {
 
 export function SiteDetail({ site, onClose }: SiteDetailProps) {
   const [orgOpen, setOrgOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
 
   if (!site) {
     return (
@@ -102,6 +103,28 @@ export function SiteDetail({ site, onClose }: SiteDetailProps) {
     <div className="bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden max-h-[calc(100vh-120px)] overflow-y-auto">
       {/* 조감도 */}
       <SiteImage siteId={site.id} siteName={site.site_name} division={site.division} />
+
+      {/* 지도 팝업 */}
+      {mapOpen && site.latitude != null && site.longitude != null && (
+        <div className="fixed inset-0 z-50" onClick={() => setMapOpen(false)}>
+          <div
+            className="absolute bg-card rounded-xl border border-border shadow-2xl overflow-hidden"
+            style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+              <div>
+                <p className="text-sm font-bold">{site.site_name}</p>
+                <p className="text-xs text-muted-foreground">{site.office_address}</p>
+              </div>
+              <button onClick={() => setMapOpen(false)} className="p-1 rounded-md hover:bg-muted transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <SiteMapInline lat={site.latitude} lng={site.longitude} name={site.site_name} />
+          </div>
+        </div>
+      )}
       {/* 헤더 — 라운드 코너로 이미지 위에 겹침 */}
       <div className="relative -mt-5 bg-card rounded-t-2xl p-5 pb-4">
         <div className="flex items-start justify-between gap-2 mb-3">
@@ -119,10 +142,13 @@ export function SiteDetail({ site, onClose }: SiteDetailProps) {
         </div>
         <h2 className="text-lg font-bold text-foreground leading-snug">{site.site_name}</h2>
         {site.office_address && (
-          <p className="text-xs text-muted-foreground flex items-start gap-1.5 mt-2 leading-relaxed">
+          <button
+            onClick={() => site.latitude != null && site.longitude != null && setMapOpen((v) => !v)}
+            className="text-xs text-muted-foreground flex items-start gap-1.5 mt-2 leading-relaxed hover:text-primary transition-colors cursor-pointer text-left"
+          >
             <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
             {site.office_address}
-          </p>
+          </button>
         )}
         <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1.5">
           <Calendar className="h-3.5 w-3.5 shrink-0" />
@@ -242,3 +268,35 @@ export function SiteDetail({ site, onClose }: SiteDetailProps) {
     </div>
   );
 }
+
+function SiteMapInline({ lat, lng, name }: { lat: number; lng: number; name: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const w = window as typeof window & { kakao?: { maps: { load: (cb: () => void) => void; LatLng: new (lat: number, lng: number) => unknown; Map: new (el: HTMLElement, opts: Record<string, unknown>) => unknown; Marker: new (opts: Record<string, unknown>) => unknown; InfoWindow: new (opts: Record<string, unknown>) => { open: (map: unknown, marker: unknown) => void }; ZoomControl: new () => unknown } } };
+    if (!w.kakao?.maps) return;
+
+    w.kakao.maps.load(() => {
+      const position = new w.kakao!.maps.LatLng(lat, lng);
+      const map = new w.kakao!.maps.Map(containerRef.current!, {
+        center: position,
+        level: 3,
+      });
+      const marker = new w.kakao!.maps.Marker({ position });
+      (marker as { setMap: (m: unknown) => void }).setMap(map);
+
+      const infoWindow = new w.kakao!.maps.InfoWindow({
+        content: `<div style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap;">${name}</div>`,
+      });
+      infoWindow.open(map, marker);
+    });
+  }, [lat, lng, name]);
+
+  return (
+    <div>
+      <div ref={containerRef} className="w-[600px] h-[450px]" />
+    </div>
+  );
+}
+

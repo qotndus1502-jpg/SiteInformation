@@ -30,6 +30,9 @@ export default function RootLayout({
       className={`${notoSansKR.variable} ${geistMono.variable} h-full antialiased`}
       style={{ fontSize: "20px" }}
     >
+      <head>
+        <script type="text/javascript" src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_JS_KEY}&autoload=false`} />
+      </head>
       <body className="min-h-full flex flex-col">
         <AppLayout>{children}</AppLayout>
       </body>
