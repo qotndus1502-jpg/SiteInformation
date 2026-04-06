@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X, LayoutDashboard, Building2, Users, ClipboardList, ChevronsRight } from "lucide-react";
+import { X, LayoutDashboard, BarChart3, Building2, Users, ClipboardList, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
@@ -12,10 +12,8 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { title: "현장 대시보드", href: "/dashboard", icon: LayoutDashboard },
-  { title: "회사별 현황", href: "/company", icon: Building2 },
-  { title: "인력 관리", href: "/employees", icon: Users },
-  { title: "보고서", href: "/reports", icon: ClipboardList },
+  { title: "현장 대시보드", href: "/statistics", icon: BarChart3 },
+  { title: "현장 현황", href: "/dashboard", icon: LayoutDashboard },
 ];
 
 export function Sidebar({ isOpen, onOpen, onClose }: SidebarProps) {

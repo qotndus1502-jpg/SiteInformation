@@ -5,10 +5,13 @@ from supabase import create_client
 from dotenv import load_dotenv
 import os
 import json
+import math
 import traceback
 import httpx
 from typing import Optional
 from pathlib import Path
+from datetime import date, datetime
+from collections import defaultdict
 
 load_dotenv()
 
@@ -335,3 +338,155 @@ async def delete_org_member(member_id: int):
         .eq("id", member_id) \
         .execute()
     return {"ok": True}
+
+
+# ── Statistics ────────────────────────────────────────────────
+
+@app.get("/api/statistics/summary")
+async def get_statistics_summary():
+    """Aggregate KPI summary from all sites."""
+    response = supabase.schema("pmis").from_("v_site_dashboard").select("*").execute()
+    sites = response.data or []
+
+    active = [s for s in sites if s.get("status") == "ACTIVE"]
+    total = len(sites)
+
+    # 공정률
+    progress_rates = [s["progress_rate"] for s in active if s.get("progress_rate") is not None]
+    avg_progress = sum(progress_rates) / len(progress_rates) if progress_rates else 0
+    delayed = sum(1 for s in active if (s.get("delay_days") or 0) > 0)
+    on_track = len(active) - delayed
+
+    # 안전 (risk_grade)
+    grade_counts = {"A": 0, "B": 0, "C": 0, "D": 0}
+    for s in active:
+        g = s.get("risk_grade")
+        if g in grade_counts:
+            grade_counts[g] += 1
+
+    # 인원
+    total_headcount = sum(s.get("headcount") or 0 for s in active)
+    hc_by_division = defaultdict(int)
+    for s in active:
+        div = s.get("division") or "기타"
+        hc_by_division[div] += s.get("headcount") or 0
+
+    # 예산
+    total_contract = sum(s.get("contract_amount") or 0 for s in sites)
+    total_our_share = sum(s.get("our_share_amount") or 0 for s in sites)
+    exec_rates = [s["execution_rate"] for s in sites if s.get("execution_rate") is not None]
+    avg_execution = sum(exec_rates) / len(exec_rates) if exec_rates else 0
+
+    # 상태별
+    status_counts = defaultdict(int)
+    for s in sites:
+        status_counts[s.get("status") or "UNKNOWN"] += 1
+
+    # 분류별
+    division_counts = defaultdict(int)
+    for s in sites:
+        division_counts[s.get("division") or "기타"] += 1
+
+    return {
+        "progress": {
+            "average": round(avg_progress, 4),
+            "on_track": on_track,
+            "delayed": delayed,
+            "total": len(active),
+        },
+        "safety": {
+            "grade_a": grade_counts["A"],
+            "grade_b": grade_counts["B"],
+            "grade_c": grade_counts["C"],
+            "grade_d": grade_counts["D"],
+        },
+        "headcount": {
+            "total": total_headcount,
+            "by_division": dict(hc_by_division),
+        },
+        "budget": {
+            "total_contract": round(total_contract, 1),
+            "total_our_share": round(total_our_share, 1),
+            "average_execution_rate": round(avg_execution, 4),
+        },
+        "by_status": [{"status": k, "count": v} for k, v in status_counts.items()],
+        "by_division": [{"division": k, "count": v} for k, v in division_counts.items()],
+        "total_sites": total,
+    }
+
+
+def _sigmoid(t: float, k: float = 8.0) -> float:
+    """Sigmoid curve from 0 to 1 over t in [0, 1]."""
+    return 1.0 / (1.0 + math.exp(-k * (t - 0.5)))
+
+
+def _normalize_sigmoid(t: float, k: float = 8.0) -> float:
+    """Normalized sigmoid so f(0)=0, f(1)=1."""
+    s0 = _sigmoid(0, k)
+    s1 = _sigmoid(1, k)
+    return (_sigmoid(t, k) - s0) / (s1 - s0)
+
+
+@app.get("/api/statistics/s-curve")
+async def get_statistics_s_curve():
+    """Compute synthetic S-Curve from site start/end dates and progress."""
+    response = supabase.schema("pmis").from_("v_site_dashboard") \
+        .select("start_date, end_date, progress_rate, contract_amount, status") \
+        .eq("status", "ACTIVE") \
+        .execute()
+    sites = response.data or []
+
+    today = date.today()
+    plan_monthly = defaultdict(float)
+    actual_monthly = defaultdict(float)
+    weight_monthly = defaultdict(float)
+
+    for s in sites:
+        if not s.get("start_date") or not s.get("end_date"):
+            continue
+        start = date.fromisoformat(s["start_date"])
+        end = date.fromisoformat(s["end_date"])
+        progress = s.get("progress_rate") or 0
+        weight = s.get("contract_amount") or 1
+        total_days = (end - start).days
+        if total_days <= 0:
+            continue
+
+        # Generate monthly points from start to end
+        current = date(start.year, start.month, 1)
+        end_month = date(end.year, end.month, 1)
+        while current <= end_month:
+            month_key = current.strftime("%Y-%m")
+            days_elapsed = (current - start).days
+            t = max(0, min(1, days_elapsed / total_days))
+
+            # Plan: sigmoid interpolation
+            plan_monthly[month_key] += _normalize_sigmoid(t) * weight
+            weight_monthly[month_key] += weight
+
+            # Actual: only up to today
+            if current <= today:
+                days_to_today = (today - start).days
+                t_today = max(0, min(1, days_to_today / total_days))
+                t_actual = max(0, min(1, days_elapsed / max(1, days_to_today)))
+                actual_monthly[month_key] += _normalize_sigmoid(t_actual) * progress * weight
+
+            current = date(current.year + (current.month // 12), (current.month % 12) + 1, 1)
+
+    # Aggregate
+    all_months = sorted(set(list(plan_monthly.keys()) + list(actual_monthly.keys())))
+    months = []
+    plan_values = []
+    actual_values = []
+
+    for m in all_months:
+        w = weight_monthly.get(m, 1)
+        months.append(m)
+        plan_values.append(round((plan_monthly.get(m, 0) / w) * 100, 2) if w else 0)
+        actual_values.append(round((actual_monthly.get(m, 0) / w) * 100, 2) if w else 0)
+
+    return {
+        "months": months,
+        "plan": plan_values,
+        "actual": actual_values,
+    }
