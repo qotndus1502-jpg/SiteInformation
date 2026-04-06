@@ -25,14 +25,15 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     if (!open) return;
     setLoading(true);
     try {
-      const [orgData, hcData] = await Promise.all([
-        fetchOrgChart(site.id),
-        fetch(`${API_BASE}/api/sites/${site.id}/headcount-summary`).then((r) => r.json()),
-      ]);
+      const orgData = await fetchOrgChart(site.id);
       setMembers(orgData);
-      setHeadcount(hcData);
     } catch {
       setMembers([]);
+    }
+    try {
+      const hcData = await fetch(`${API_BASE}/api/sites/${site.id}/headcount-summary`).then((r) => r.json());
+      setHeadcount(hcData);
+    } catch {
       setHeadcount([]);
     }
     setLoading(false);
