@@ -412,7 +412,132 @@ async def get_statistics_summary():
         "by_status": [{"status": k, "count": v} for k, v in status_counts.items()],
         "by_division": [{"division": k, "count": v} for k, v in division_counts.items()],
         "total_sites": total,
+
+        # ── 법인별 성과 ──
+        "by_corporation": _group_by_corporation(active),
+
+        # ── 지역권별 분포 ──
+        "by_region_group": _group_by_region(active),
+
+        # ── 공정률 분포 ──
+        "progress_distribution": _progress_distribution(active),
+
+        # ── 주의 현장 ──
+        "alert_sites": _alert_sites(active),
+
+        # ── 부문별 상세 ──
+        "by_division_detail": _group_by_division_detail(active),
+
+        # ── 도급액 규모별 ──
+        "by_amount_range": _amount_range_distribution(active),
     }
+
+
+def _group_by_corporation(sites: list[dict]) -> list[dict]:
+    groups = defaultdict(lambda: {"count": 0, "progress_sum": 0.0, "contract": 0.0, "headcount": 0})
+    for s in sites:
+        corp = s.get("corporation_name") or "기타"
+        g = groups[corp]
+        g["count"] += 1
+        g["progress_sum"] += s.get("progress_rate") or 0
+        g["contract"] += s.get("contract_amount") or 0
+        g["headcount"] += s.get("headcount") or 0
+    return [
+        {
+            "corporation": k,
+            "count": v["count"],
+            "avg_progress": round(v["progress_sum"] / v["count"], 4) if v["count"] else 0,
+            "total_contract": round(v["contract"], 1),
+            "total_headcount": v["headcount"],
+        }
+        for k, v in groups.items()
+    ]
+
+
+def _group_by_region(sites: list[dict]) -> list[dict]:
+    groups = defaultdict(lambda: {"count": 0, "contract": 0.0})
+    for s in sites:
+        rg = s.get("region_group") or "기타"
+        groups[rg]["count"] += 1
+        groups[rg]["contract"] += s.get("contract_amount") or 0
+    return [
+        {"region_group": k, "count": v["count"], "total_contract": round(v["contract"], 1)}
+        for k, v in groups.items()
+    ]
+
+
+def _progress_distribution(sites: list[dict]) -> list[dict]:
+    bins = [
+        {"label": "0-20%", "min": 0, "max": 0.2, "count": 0},
+        {"label": "20-40%", "min": 0.2, "max": 0.4, "count": 0},
+        {"label": "40-60%", "min": 0.4, "max": 0.6, "count": 0},
+        {"label": "60-80%", "min": 0.6, "max": 0.8, "count": 0},
+        {"label": "80-100%", "min": 0.8, "max": 1.01, "count": 0},
+    ]
+    for s in sites:
+        pr = s.get("progress_rate") or 0
+        for b in bins:
+            if b["min"] <= pr < b["max"]:
+                b["count"] += 1
+                break
+    return [{"label": b["label"], "count": b["count"]} for b in bins]
+
+
+def _alert_sites(sites: list[dict]) -> list[dict]:
+    alerts = []
+    for s in sites:
+        delay = s.get("delay_days") or 0
+        grade = s.get("risk_grade")
+        if delay > 0 or grade in ("C", "D"):
+            alerts.append({
+                "id": s["id"],
+                "site_name": s.get("site_name"),
+                "corporation_name": s.get("corporation_name"),
+                "progress_rate": s.get("progress_rate"),
+                "delay_days": delay,
+                "risk_grade": grade,
+                "contract_amount": s.get("contract_amount"),
+            })
+    alerts.sort(key=lambda x: -(x.get("delay_days") or 0))
+    return alerts[:10]
+
+
+def _group_by_division_detail(sites: list[dict]) -> list[dict]:
+    groups = defaultdict(lambda: {"count": 0, "progress_sum": 0.0, "contract": 0.0, "headcount": 0})
+    for s in sites:
+        div = s.get("division") or "기타"
+        g = groups[div]
+        g["count"] += 1
+        g["progress_sum"] += s.get("progress_rate") or 0
+        g["contract"] += s.get("contract_amount") or 0
+        g["headcount"] += s.get("headcount") or 0
+    return [
+        {
+            "division": k,
+            "count": v["count"],
+            "avg_progress": round(v["progress_sum"] / v["count"], 4) if v["count"] else 0,
+            "total_contract": round(v["contract"], 1),
+            "total_headcount": v["headcount"],
+        }
+        for k, v in groups.items()
+    ]
+
+
+def _amount_range_distribution(sites: list[dict]) -> list[dict]:
+    bins = [
+        {"label": "100억 미만", "min": 0, "max": 100, "count": 0},
+        {"label": "100-500억", "min": 100, "max": 500, "count": 0},
+        {"label": "500-1,000억", "min": 500, "max": 1000, "count": 0},
+        {"label": "1,000-2,000억", "min": 1000, "max": 2000, "count": 0},
+        {"label": "2,000억 이상", "min": 2000, "max": float("inf"), "count": 0},
+    ]
+    for s in sites:
+        amt = s.get("contract_amount") or 0
+        for b in bins:
+            if b["min"] <= amt < b["max"]:
+                b["count"] += 1
+                break
+    return [{"label": b["label"], "count": b["count"]} for b in bins]
 
 
 def _sigmoid(t: float, k: float = 8.0) -> float:

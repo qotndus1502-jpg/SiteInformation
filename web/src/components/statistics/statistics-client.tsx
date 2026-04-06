@@ -3,6 +3,12 @@
 import { KpiCard } from "./kpi-card";
 import { SCurveChart } from "./s-curve-chart";
 import { StatusChart } from "./status-chart";
+import { CorporationChart } from "./corporation-chart";
+import { RegionChart } from "./region-chart";
+import { ProgressDistributionChart } from "./progress-distribution-chart";
+import { AlertSitesTable } from "./alert-sites-table";
+import { DivisionComparison } from "./division-comparison";
+import { AmountDistributionChart } from "./amount-distribution-chart";
 
 interface StatisticsSummary {
   progress: Record<string, any>;
@@ -12,6 +18,12 @@ interface StatisticsSummary {
   by_status: { status: string; count: number }[];
   by_division: { division: string; count: number }[];
   total_sites: number;
+  by_corporation: { corporation: string; count: number; avg_progress: number; total_contract: number; total_headcount: number }[];
+  by_region_group: { region_group: string; count: number; total_contract: number }[];
+  progress_distribution: { label: string; count: number }[];
+  alert_sites: any[];
+  by_division_detail: { division: string; count: number; avg_progress: number; total_contract: number; total_headcount: number }[];
+  by_amount_range: { label: string; count: number }[];
 }
 
 interface SCurveData {
@@ -27,10 +39,10 @@ interface StatisticsClientProps {
 
 export function StatisticsClient({ summary, scurve }: StatisticsClientProps) {
   return (
-    <div className="space-y-6 p-4 lg:p-6">
+    <div className="space-y-5 p-4 lg:p-6">
       {/* 페이지 헤더 */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">현장 대시보드</h1>
+        <h1 className="text-2xl font-bold text-foreground">그룹 3사 현장 대시보드</h1>
         <p className="text-sm text-muted-foreground mt-1">
           전체 {summary.total_sites}개 현장의 주요 지표를 한눈에 확인합니다
         </p>
@@ -44,14 +56,26 @@ export function StatisticsClient({ summary, scurve }: StatisticsClientProps) {
         <KpiCard type="budget" data={summary.budget} />
       </div>
 
-      {/* 차트 영역 */}
+      {/* 법인별 성과 + 지역별 분포 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <CorporationChart data={summary.by_corporation ?? []} />
+        <RegionChart data={summary.by_region_group ?? []} />
+      </div>
+
+      {/* S-Curve + 공정률 분포 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SCurveChart data={scurve} />
+        <ProgressDistributionChart data={summary.progress_distribution ?? []} />
+      </div>
+
+      {/* 주의 현장 리스트 */}
+      <AlertSitesTable data={summary.alert_sites ?? []} />
+
+      {/* 부문별 비교 + 도급액 규모별 + 상태분포 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <SCurveChart data={scurve} />
-        </div>
-        <div>
-          <StatusChart data={summary.by_status} />
-        </div>
+        <DivisionComparison data={summary.by_division_detail ?? []} />
+        <AmountDistributionChart data={summary.by_amount_range ?? []} />
+        <StatusChart data={summary.by_status} />
       </div>
     </div>
   );
