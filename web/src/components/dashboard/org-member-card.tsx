@@ -148,8 +148,11 @@ export function OrgMemberCard({ member, primary }: OrgMemberCardProps) {
         <div className="relative group">
           <div
             className={cn(
-              "rounded-full overflow-hidden bg-muted flex items-center justify-center shrink-0 border-2 relative select-none",
-              member.org_type === "OWN" ? "border-gray-300" : member.org_type === "JV" ? "border-orange-400" : "border-gray-400",
+              "rounded-full overflow-hidden bg-white flex items-center justify-center shrink-0 border-2 relative select-none",
+              member.employee_type === "전문직" ? "border-green-500" :
+              member.employee_type === "현채직" ? "border-sky-400" :
+              member.org_type === "JV" ? "border-orange-400" :
+              member.org_type === "OWN" ? "border-gray-300" : "border-gray-400",
             )}
             style={{ width: size, height: size }}
             onMouseDown={handleMouseDown}
@@ -214,12 +217,20 @@ export function OrgMemberCard({ member, primary }: OrgMemberCardProps) {
             </button>
           )}
 
-          {/* 타사 회사명 태그 - 사진 상단에 겹침 */}
-          {member.company_name && (
+          {/* 태그 - 사진 상단에 겹침 */}
+          {member.employee_type === "전문직" ? (
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-green-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap shadow z-10">
+              전문직
+            </span>
+          ) : member.employee_type === "현채직" ? (
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-sky-400 text-white text-xs font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap shadow z-10">
+              현채직
+            </span>
+          ) : member.company_name ? (
             <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap shadow z-10">
               {member.company_name}
             </span>
-          )}
+          ) : null}
         </div>
 
         {/* 정보 */}

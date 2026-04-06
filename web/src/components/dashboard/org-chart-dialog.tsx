@@ -139,25 +139,29 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
               <div className="w-px h-6 bg-gray-400" />
 
               {/* === 가로 연결선 === */}
-              <div className="border-t-2 border-gray-400" style={{ width: `${sortedDepts.length * 244}px` }} />
+              <div className="border-t-2 border-gray-400" style={{ width: `${sortedDepts.length * 280}px` }} />
 
               {/* === 부서 컬럼들 === */}
               <div className="flex items-start">
                 {sortedDepts.map(([deptName, deptMembers]) => (
-                  <div key={deptName} className="flex flex-col items-center" style={{ width: 244 }}>
+                  <div key={deptName} className="flex flex-col items-center" style={{ width: 280 }}>
                     {/* 세로 연결선 */}
                     <div className="w-px h-4 bg-gray-400" />
 
-                    {/* 부서 헤더 */}
-                    <div className="text-[20px] font-bold text-primary border-2 border-primary bg-primary/5 px-6 py-2 rounded-full whitespace-nowrap mb-3 w-[200px] text-center">
-                      {deptName}
-                    </div>
+                    {/* 부서 인원 (세로) + 테두리 + 부서명 헤드라인 */}
+                    <div className="relative border-2 border-gray-300 rounded-xl pt-6 pb-4 px-1 mt-4">
+                      {/* 부서명 - 테두리 상단에 겹침 */}
+                      <div className="absolute -top-5 left-1/2 -translate-x-1/2">
+                        <span className="text-[20px] font-bold text-primary border-2 border-primary bg-blue-50 px-6 py-2 rounded-full whitespace-nowrap w-[200px] inline-block text-center">
+                          {deptName}
+                        </span>
+                      </div>
 
-                    {/* 부서 인원 (세로) */}
-                    <div className="flex flex-col items-center gap-2">
-                      {deptMembers.map((m) => (
-                        <OrgMemberCard key={m.id} member={m} />
-                      ))}
+                      <div className="flex flex-col items-center gap-2">
+                        {deptMembers.map((m) => (
+                          <OrgMemberCard key={m.id} member={m} />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ))}
