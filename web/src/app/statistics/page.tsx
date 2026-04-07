@@ -21,15 +21,33 @@ export default async function StatisticsPage() {
     by_amount_range: [],
     by_corporation_division: [],
     by_region: [],
+    pre_start_by_completion_year: [],
+    active_by_completion_year: [],
+    amount_heatmap: { by_contract: [], by_our_share: [], by_contract_division: [], by_our_share_division: [], labels: [] },
+  };
+
+  let filterOptions = {
+    corporations: [],
+    regions: [],
+    facilityTypes: [],
+    orderTypes: [],
+    divisions: [],
+    statuses: [],
   };
 
   try {
-    const res = await fetch(`${API_BASE}/api/statistics/summary`, { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
+    const [summaryRes, filterRes] = await Promise.all([
+      fetch(`${API_BASE}/api/statistics/summary`, { cache: "no-store" }),
+      fetch(`${API_BASE}/api/filter-options`, { cache: "no-store" }),
+    ]);
+    if (summaryRes.ok) {
+      const data = await summaryRes.json();
       summary = { ...summary, ...data };
+    }
+    if (filterRes.ok) {
+      filterOptions = await filterRes.json();
     }
   } catch {}
 
-  return <StatisticsClient summary={summary} />;
+  return <StatisticsClient summary={summary} filterOptions={filterOptions} />;
 }

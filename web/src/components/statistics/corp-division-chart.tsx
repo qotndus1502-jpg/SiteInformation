@@ -15,8 +15,14 @@ interface CorpDivisionChartProps {
 const CORP_ORDER = ["남광토건", "극동건설", "금광기업"];
 
 const DIV_CONFIG: Record<string, { color: string; label: string }> = {
-  "건축": { color: "#1E293B", label: "건축" },
-  "토목": { color: "#F97316", label: "토목" },
+  "건축": { color: "#2563EB", label: "건축" },
+  "토목": { color: "#94A3B8", label: "토목" },
+};
+
+const CORP_OPACITY: Record<string, number> = {
+  "남광토건": 1.0,
+  "극동건설": 0.65,
+  "금광기업": 0.4,
 };
 
 const divisions = ["건축", "토목"];
@@ -61,60 +67,59 @@ function MetricBars({
         {label}
       </span>
 
-      {/* Bar area - fills remaining height */}
-      <div className="flex items-end justify-center gap-10 flex-1">
+      {/* Bar area */}
+      <div className="flex items-end justify-center gap-5" style={{ height: 200 }}>
         {corps.map((corp) => {
           const archVal = grouped[corp]?.["건축"] ?? 0;
           const civilVal = grouped[corp]?.["토목"] ?? 0;
-          const archPct = archVal > 0 ? Math.max((archVal / yMax) * 100, 12) : 0;
-          const civilPct = civilVal > 0 ? Math.max((civilVal / yMax) * 100, 12) : 0;
+          const archH = archVal > 0 ? Math.max((archVal / yMax) * 200, 18) : 0;
+          const civilH = civilVal > 0 ? Math.max((civilVal / yMax) * 200, 18) : 0;
 
           const total = archVal + civilVal;
+          const op = CORP_OPACITY[corp] ?? 0.6;
 
           return (
-            <div key={corp} className="flex flex-col items-center justify-end gap-1 w-16 h-full">
-              {/* Total on top */}
-              <span className="text-[10px] font-bold font-mono text-foreground">
+            <div key={corp} className="flex flex-col items-center justify-end w-10 h-full">
+              <span className="text-[10px] font-bold font-mono text-foreground mb-1">
                 {fmtVal(total, metric, unit)}
               </span>
-              {civilVal > 0 && (
-                <div
-                  className="w-full rounded-md relative overflow-hidden"
-                  style={{ height: `${civilPct}%`, backgroundColor: DIV_CONFIG["토목"].color }}
-                >
+              <div className="flex flex-col items-center gap-0.5 w-full">
+                {civilVal > 0 && (
                   <div
-                    className="absolute inset-0"
-                    style={{
-                      backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.2) 3px, rgba(255,255,255,0.2) 6px)",
-                    }}
-                  />
-                  {civilPct > 10 && (
-                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white/90">
-                      {fmtVal(civilVal, metric, unit)}
-                    </span>
-                  )}
-                </div>
-              )}
-              {archVal > 0 && (
-                <div
-                  className="w-full rounded-md relative"
-                  style={{ height: `${archPct}%`, backgroundColor: DIV_CONFIG["건축"].color }}
-                >
-                  {archPct > 10 && (
-                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white/90">
-                      {fmtVal(archVal, metric, unit)}
-                    </span>
-                  )}
-                </div>
-              )}
+                    className="w-full rounded-t-md relative overflow-hidden"
+                    style={{ height: civilH, backgroundColor: DIV_CONFIG["토목"].color, opacity: op }}
+                  >
+                    <div className="absolute inset-0" style={{
+                      backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.25) 3px, rgba(255,255,255,0.25) 6px)",
+                    }} />
+                    {civilH > 18 && (
+                      <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white/90">
+                        {fmtVal(civilVal, metric, unit)}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {archVal > 0 && (
+                  <div
+                    className="w-full rounded-b-md relative"
+                    style={{ height: archH, backgroundColor: DIV_CONFIG["건축"].color, opacity: op }}
+                  >
+                    {archH > 18 && (
+                      <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white/90">
+                        {fmtVal(archVal, metric, unit)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
       {/* Corp names inside background */}
-      <div className="flex justify-center gap-10 pt-1 pb-1">
+      <div className="flex justify-center gap-5 pt-1 pb-1">
         {corps.map((corp) => (
-          <span key={corp} className="text-[11px] text-foreground font-semibold w-16 text-center">{corp}</span>
+          <span key={corp} className="text-[11px] text-foreground font-semibold w-10 text-center">{corp}</span>
         ))}
       </div>
     </div>
@@ -147,26 +152,15 @@ export function CorpDivisionChart({ data }: CorpDivisionChartProps) {
   }
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex-1 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-foreground">법인별 · 부문별</h3>
-        <div className="flex items-center gap-4">
-          {divisions.map((d) => (
-            <div key={d} className="flex items-center gap-1.5">
-              <span
-                className="w-3 h-3 rounded-sm"
-                style={{
-                  backgroundColor: DIV_CONFIG[d]?.color,
-                  backgroundImage: d === "토목"
-                    ? "repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.25) 2px, rgba(255,255,255,0.25) 4px)"
-                    : undefined,
-                }}
-              />
-              <span className="text-xs text-muted-foreground">{DIV_CONFIG[d]?.label}</span>
-            </div>
-          ))}
-        </div>
+    <div className="bg-card border border-border rounded-2xl p-3 shadow-sm flex-1 flex flex-col overflow-hidden relative min-h-[280px]">
+      {/* Legend - overlaid top right */}
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-3">
+        {divisions.map((d) => (
+          <div key={d} className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: DIV_CONFIG[d].color }} />
+            <span className="text-[9px] text-muted-foreground">{DIV_CONFIG[d].label}</span>
+          </div>
+        ))}
       </div>
 
       {/* 3 metric columns */}

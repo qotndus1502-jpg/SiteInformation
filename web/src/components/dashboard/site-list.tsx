@@ -7,7 +7,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import type { SiteDashboard } from "@/types/database";
 import { COMPANY_CONFIG, STATUS_CONFIG } from "@/types/database";
 
-const TABLE_COLS = "grid-cols-[minmax(50px,0.6fr)_minmax(40px,0.5fr)_minmax(40px,0.5fr)_minmax(50px,0.6fr)_minmax(50px,0.6fr)_minmax(50px,0.6fr)_minmax(160px,2.5fr)_minmax(50px,0.8fr)_minmax(40px,0.3fr)_minmax(50px,0.8fr)]";
+const TABLE_COLS = "grid-cols-[minmax(80px,0.8fr)_minmax(70px,0.7fr)_minmax(70px,0.7fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(140px,2fr)_minmax(75px,0.9fr)_minmax(30px,0.2fr)_minmax(70px,0.9fr)]";
 
 type SortKey = "corporation_name" | "division" | "region_name" | "facility_type_name" | "order_type" | "status" | "site_name" | "contract_amount" | "progress_rate";
 type SortDir = "asc" | "desc";
@@ -78,7 +78,7 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
   return (
     <div className="bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden">
       {/* 컬럼 헤더 */}
-      <div className={cn("grid gap-2 px-4 py-2 bg-muted/60 border-b border-border text-xs font-semibold text-muted-foreground tracking-wide", TABLE_COLS)}>
+      <div className={cn("grid gap-2 px-4 py-1.5 bg-muted/60 border-b border-border text-[13px] font-semibold text-muted-foreground tracking-wide", TABLE_COLS)}>
         {COLUMNS.map((col) => (
           <button
             key={col.key}
@@ -130,13 +130,13 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
                   {companyConfig ? (
                     <Badge variant={companyConfig.variant} size="sm">{companyConfig.label}</Badge>
                   ) : (
-                    <span className="text-xs text-muted-foreground">{site.corporation_name}</span>
+                    <span className="text-[13px] text-muted-foreground">{site.corporation_name}</span>
                   )}
                 </span>
-                <span className="text-xs text-muted-foreground">{site.division}</span>
-                <span className="text-xs text-muted-foreground">{site.region_name}</span>
-                <span className="text-xs text-muted-foreground truncate">{site.facility_type_name}</span>
-                <span className="text-xs text-muted-foreground truncate">{site.order_type ?? "-"}</span>
+                <span className="text-[13px] text-muted-foreground">{site.division}</span>
+                <span className="text-[13px] text-muted-foreground">{site.region_name}</span>
+                <span className="text-[13px] text-muted-foreground truncate">{site.facility_type_name}</span>
+                <span className="text-[13px] text-muted-foreground truncate">{site.order_type ?? "-"}</span>
                 <span>
                   {statusConfig ? (
                     <Badge variant={statusConfig.variant} size="sm">{statusConfig.label}</Badge>
@@ -145,17 +145,17 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
                   )}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-md font-medium text-foreground truncate">{site.site_name}</p>
+                  <p className="text-sm font-medium text-foreground truncate">{site.site_name}</p>
                   {site.office_address && (
-                    <p className="text-xs text-muted-foreground/70 truncate">{site.office_address}</p>
+                    <p className="text-[13px] text-muted-foreground/70 truncate">{site.office_address}</p>
                   )}
                 </div>
-                <span className="text-xs font-mono text-right tabular-nums">
+                <span className="text-[13px] font-mono text-right tabular-nums">
                   {site.contract_amount != null ? `${Math.round(site.contract_amount).toLocaleString()}억` : "-"}
                 </span>
                 <span />
                 <div className="text-right">
-                  <span className="text-xs font-mono font-semibold tabular-nums">{progressPct.toFixed(0)}%</span>
+                  <span className="text-[13px] font-mono font-semibold tabular-nums">{progressPct.toFixed(0)}%</span>
                   <div className="h-1 bg-muted rounded-full mt-0.5 overflow-hidden">
                     <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, progressPct)}%` }} />
                   </div>

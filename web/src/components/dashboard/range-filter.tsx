@@ -33,9 +33,9 @@ export function RangeFilter({ label, options, selected, onChange }: RangeFilterP
         {/* SelectTrigger 와 동일한 스타일 */}
         <button
           className={cn(
-            "flex w-fit items-center justify-between gap-2 rounded-lg border border-input bg-card px-3.5 py-2.5 !font-normal whitespace-nowrap cursor-pointer shadow-xs transition-[color,box-shadow] outline-none",
-            "!text-xs",
-            "h-9 w-full",
+            "flex w-fit items-center justify-between gap-1.5 rounded-md border border-input bg-card px-2.5 py-0 !font-normal whitespace-nowrap cursor-pointer shadow-xs transition-[color,box-shadow] outline-none",
+            "!text-[11px]",
+            "h-7 w-full",
             "focus-visible:border-ring focus-visible:ring-[4px] focus-visible:ring-ring/15",
             count === 0
               ? "!text-muted-foreground"
@@ -45,7 +45,7 @@ export function RangeFilter({ label, options, selected, onChange }: RangeFilterP
           <span className="truncate">
             {count === 0 ? label : `${label} (${count})`}
           </span>
-          <ChevronDownIcon className="size-4 text-muted-foreground shrink-0" />
+          <ChevronDownIcon className="size-3 text-muted-foreground shrink-0" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-44 p-1.5" align="start">

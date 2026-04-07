@@ -79,6 +79,56 @@ def parse_ranges(raw: str) -> list[dict]:
 
 ORDER_TYPES = {"BTL", "CMR", "민간", "민참", "종심제"}
 
+# 그룹 3사
+GROUP_COMPANIES = {"남광토건", "극동건설", "금광기업"}
+
+import re
+
+def _parse_jv_shares(jv_summary: str | None) -> dict[str, float]:
+    """Parse JV summary string into {company: ratio}.
+    Example: '극동건설 65.00%, 오렌지 20.00%' -> {'극동건설': 0.65, '오렌지': 0.20}
+    """
+    if not jv_summary:
+        return {}
+    result = {}
+    for part in jv_summary.split(","):
+        part = part.strip()
+        m = re.match(r"(.+?)\s+([\d.]+)%", part)
+        if m:
+            result[m.group(1).strip()] = float(m.group(2)) / 100
+    return result
+
+
+def calc_group_share(site: dict) -> dict:
+    """Calculate our_share_amount and group_share_amount for a site.
+    - our_share_amount: 해당 현장 법인의 지분 도급액
+    - group_share_amount: 그룹 3사 합산 지분 도급액
+    """
+    contract = site.get("contract_amount") or 0
+    corp = site.get("corporation_name") or ""
+    shares = _parse_jv_shares(site.get("jv_summary"))
+
+    # 자사(현장 법인) 지분
+    our_ratio = shares.get(corp, 1.0)  # JV 없으면 100%
+    our_amount = round(contract * our_ratio, 1)
+
+    # 그룹 3사 합산 지분
+    group_ratio = sum(r for c, r in shares.items() if c in GROUP_COMPANIES)
+    group_amount = round(contract * group_ratio, 1)
+
+    site["our_share_amount"] = our_amount
+    site["group_share_amount"] = group_amount
+    site["our_share_ratio"] = round(our_ratio, 4)
+    site["group_share_ratio"] = round(group_ratio, 4)
+    return site
+
+
+def attach_share_amounts(sites: list[dict]) -> list[dict]:
+    """Attach calculated share amounts to all sites."""
+    for site in sites:
+        calc_group_share(site)
+    return sites
+
 
 def clean_facility_type(sites: list[dict]) -> list[dict]:
     """facility_type_name이 발주유형과 동일하면 비워서 중복 표시 방지."""
@@ -162,9 +212,10 @@ async def get_sites(
                 if any(r["min"] <= (s.get("progress_rate") or 0) * 100 < r["max"] for r in ranges)
             ]
 
-        # Attach coordinates
+        # Attach coordinates & share amounts
         results = clean_facility_type(results)
         results = attach_coords(results)
+        results = attach_share_amounts(results)
 
         return results
     except Exception as e:
@@ -476,10 +527,46 @@ async def get_team_members(team_id: int):
 # ── Statistics ────────────────────────────────────────────────
 
 @app.get("/api/statistics/summary")
-async def get_statistics_summary():
-    """Aggregate KPI summary from all sites."""
-    response = supabase.schema("pmis").from_("v_site_dashboard").select("*").execute()
-    sites = response.data or []
+async def get_statistics_summary(
+    corporation: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
+    facilityType: Optional[str] = Query(None),
+    orderType: Optional[str] = Query(None),
+    division: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    amountRanges: Optional[str] = Query(None),
+    progressRanges: Optional[str] = Query(None),
+):
+    """Aggregate KPI summary from all sites, with optional filters."""
+    query = supabase.schema("pmis").from_("v_site_dashboard").select("*")
+    if corporation and corporation != "all":
+        query = query.eq("corporation_name", corporation)
+    if region and region != "all":
+        query = query.eq("region_name", region)
+    if facilityType and facilityType != "all":
+        query = query.eq("facility_type_name", facilityType)
+    if orderType and orderType != "all":
+        query = query.eq("order_type", orderType)
+    if division and division != "all":
+        query = query.eq("division", division)
+    if status and status != "all":
+        query = query.eq("status", status)
+    if search:
+        query = query.ilike("site_name", f"%{search}%")
+
+    response = query.execute()
+    sites = attach_share_amounts(response.data or [])
+
+    # Amount range filter
+    if amountRanges:
+        ranges = parse_ranges(amountRanges)
+        sites = [s for s in sites if any(r["min"] <= (s.get("contract_amount") or 0) < r["max"] for r in ranges)]
+
+    # Progress range filter
+    if progressRanges:
+        ranges = parse_ranges(progressRanges)
+        sites = [s for s in sites if any(r["min"] <= (s.get("progress_rate") or 0) * 100 < r["max"] for r in ranges)]
 
     active = [s for s in sites if s.get("status") == "ACTIVE"]
     total = len(sites)
@@ -507,6 +594,7 @@ async def get_statistics_summary():
     # 예산
     total_contract = sum(s.get("contract_amount") or 0 for s in sites)
     total_our_share = sum(s.get("our_share_amount") or 0 for s in sites)
+    total_group_share = sum(s.get("group_share_amount") or 0 for s in sites)
     exec_rates = [s["execution_rate"] for s in sites if s.get("execution_rate") is not None]
     avg_execution = sum(exec_rates) / len(exec_rates) if exec_rates else 0
 
@@ -540,6 +628,7 @@ async def get_statistics_summary():
         "budget": {
             "total_contract": round(total_contract, 1),
             "total_our_share": round(total_our_share, 1),
+            "total_group_share": round(total_group_share, 1),
             "average_execution_rate": round(avg_execution, 4),
         },
         "by_status": _group_by_status(sites),
@@ -569,6 +658,15 @@ async def get_statistics_summary():
 
         # ── 시/도별 상세 ──
         "by_region": _group_by_region_name(active),
+
+        # ── 착공전 준공예정 년도별 ──
+        "pre_start_by_completion_year": _pre_start_by_completion_year(sites),
+
+        # ── 진행중 완공예정 년도별 ──
+        "active_by_completion_year": _active_by_completion_year(sites),
+
+        # ── 규모별 히트맵 (법인×규모) ──
+        "amount_heatmap": _amount_heatmap(active),
     }
 
 
@@ -653,6 +751,40 @@ def _group_by_region_name(sites: list[dict]) -> list[dict]:
         }
         for k, v in groups.items()
     ]
+
+
+def _pre_start_by_completion_year(sites: list[dict]) -> list[dict]:
+    """Group PRE_START sites by end_date year."""
+    pre = [s for s in sites if s.get("status") == "PRE_START"]
+    years: dict[str, int] = defaultdict(int)
+    no_date = 0
+    for s in pre:
+        ed = s.get("end_date")
+        if ed:
+            years[ed[:4]] += 1
+        else:
+            no_date += 1
+    result = [{"year": k, "count": v} for k, v in sorted(years.items())]
+    if no_date > 0:
+        result.append({"year": "미정", "count": no_date})
+    return result
+
+
+def _active_by_completion_year(sites: list[dict]) -> list[dict]:
+    """Group ACTIVE sites by end_date year."""
+    active = [s for s in sites if s.get("status") == "ACTIVE"]
+    years: dict[str, int] = defaultdict(int)
+    no_date = 0
+    for s in active:
+        ed = s.get("end_date")
+        if ed:
+            years[ed[:4]] += 1
+        else:
+            no_date += 1
+    result = [{"year": k, "count": v} for k, v in sorted(years.items())]
+    if no_date > 0:
+        result.append({"year": "미정", "count": no_date})
+    return result
 
 
 def _group_by_region(sites: list[dict]) -> list[dict]:
@@ -749,5 +881,60 @@ def _amount_range_distribution(sites: list[dict]) -> list[dict]:
                 b["headcount"] += s.get("headcount") or 0
                 break
     return [{"label": b["label"], "count": b["count"], "total_contract": round(b["contract"], 1), "total_headcount": b["headcount"]} for b in bins]
+
+
+AMOUNT_BINS = [
+    {"label": "100억 미만", "min": 0, "max": 100},
+    {"label": "100~500억", "min": 100, "max": 500},
+    {"label": "500~1,000억", "min": 500, "max": 1000},
+    {"label": "1,000~2,000억", "min": 1000, "max": 2000},
+    {"label": "2,000억 이상", "min": 2000, "max": float("inf")},
+]
+
+
+def _amount_heatmap(sites: list[dict]) -> dict:
+    """Heatmap: corporation × amount range → count, for both contract_amount and our_share_amount."""
+
+    def build_grid(amount_key: str) -> list[dict]:
+        grid: dict[str, dict[str, int]] = defaultdict(lambda: {b["label"]: 0 for b in AMOUNT_BINS})
+        for s in sites:
+            corp = s.get("corporation_name") or "기타"
+            amt = s.get(amount_key) or 0
+            for b in AMOUNT_BINS:
+                if b["min"] <= amt < b["max"]:
+                    grid[corp][b["label"]] += 1
+                    break
+        rows = []
+        for corp in ["남광토건", "극동건설", "금광기업"]:
+            if corp in grid:
+                rows.append({"corporation": corp, **grid[corp]})
+        # append any others
+        for corp, bins in grid.items():
+            if corp not in {"남광토건", "극동건설", "금광기업"}:
+                rows.append({"corporation": corp, **bins})
+        return rows
+
+    def build_division_grid(amount_key: str) -> list[dict]:
+        grid: dict[str, dict[str, int]] = defaultdict(lambda: {b["label"]: 0 for b in AMOUNT_BINS})
+        for s in sites:
+            div = s.get("division") or "기타"
+            amt = s.get(amount_key) or 0
+            for b in AMOUNT_BINS:
+                if b["min"] <= amt < b["max"]:
+                    grid[div][b["label"]] += 1
+                    break
+        rows = []
+        for div in ["건축", "토목"]:
+            if div in grid:
+                rows.append({"division": div, **grid[div]})
+        return rows
+
+    return {
+        "by_contract": build_grid("contract_amount"),
+        "by_our_share": build_grid("our_share_amount"),
+        "by_contract_division": build_division_grid("contract_amount"),
+        "by_our_share_division": build_division_grid("our_share_amount"),
+        "labels": [b["label"] for b in AMOUNT_BINS],
+    }
 
 

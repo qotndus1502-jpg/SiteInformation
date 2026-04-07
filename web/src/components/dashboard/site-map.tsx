@@ -184,7 +184,7 @@ export function SiteMap({ sites, selectedSiteId, onSelect }: SiteMapProps) {
     const container = containerRef.current;
     const wheelHandler = (e: WheelEvent) => {
       e.preventDefault();
-      const delta = -e.deltaY * 0.01;
+      const delta = -e.deltaY * 0.003;
       targetZoom = Math.max(MIN_ZOOM, Math.min(18, targetZoom + delta));
       map.flyTo({
         zoom: targetZoom,
@@ -273,6 +273,18 @@ export function SiteMap({ sites, selectedSiteId, onSelect }: SiteMapProps) {
 
     const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource;
     source.setData(buildGeoJSON(sites, selectedSiteId));
+
+    // 현장들의 bounds로 자동 이동
+    const validSites = sites.filter((s) => s.latitude != null && s.longitude != null);
+    if (validSites.length > 0 && !selectedSiteId) {
+      const lngs = validSites.map((s) => s.longitude!);
+      const lats = validSites.map((s) => s.latitude!);
+      const bounds = new maplibregl.LngLatBounds(
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)]
+      );
+      map.fitBounds(bounds, { padding: 80, maxZoom: 12, duration: 800 });
+    }
 
     // 기존 선택 핀 제거
     selectedMarkerRef.current?.remove();

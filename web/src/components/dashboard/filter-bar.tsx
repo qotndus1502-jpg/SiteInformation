@@ -29,9 +29,9 @@ const PROGRESS_OPTIONS = [
   { value: "90-101", label: "90% 이상" },
 ];
 
-export const GRID_COLS = "grid-cols-[minmax(50px,0.6fr)_minmax(40px,0.5fr)_minmax(40px,0.5fr)_minmax(50px,0.6fr)_minmax(50px,0.6fr)_minmax(50px,0.6fr)_minmax(160px,3.5fr)_minmax(50px,0.8fr)_minmax(50px,0.8fr)]";
+export const GRID_COLS = "grid-cols-[minmax(80px,0.8fr)_minmax(70px,0.7fr)_minmax(70px,0.7fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(140px,2.5fr)_minmax(75px,0.9fr)_minmax(70px,0.9fr)]";
 
-const TC = "!text-xs !font-normal !text-muted-foreground w-full";
+const TC = "!text-[11px] !font-normal !text-muted-foreground w-full !h-7 !py-0 !rounded-md";
 
 export interface FilterBarProps {
   filterOptions: FilterOptions;
@@ -48,7 +48,7 @@ export function FilterBar({
   amountRanges, progressRanges, onAmountRangesChange, onProgressRangesChange,
 }: FilterBarProps) {
   return (
-    <div className={`grid ${GRID_COLS} gap-2 px-4 py-2 items-center`}>
+    <div className={`grid ${GRID_COLS} gap-1.5 px-4 py-1.5 items-center`}>
       <Select value={filters.corporation ?? "all"} onValueChange={(v) => onFilterChange("corporation", v)}>
         <SelectTrigger size="sm" className={TC}><SelectValue placeholder="전체 법인" /></SelectTrigger>
         <SelectContent>
@@ -106,7 +106,7 @@ export function FilterBar({
           placeholder="현장명 검색..."
           value={filters.search ?? ""}
           onChange={(e) => onFilterChange("search", e.target.value)}
-          className="!h-9 pl-8 !text-xs !font-normal !text-muted-foreground w-full"
+          className="!h-7 pl-7 !text-[11px] !font-normal !text-muted-foreground w-full !py-0 !rounded-md"
           size="sm"
         />
       </div>

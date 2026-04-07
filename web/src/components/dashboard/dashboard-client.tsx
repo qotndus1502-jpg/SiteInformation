@@ -26,7 +26,6 @@ function setToParam(s: Set<string>): string {
 
 const VIEW_OPTIONS: { mode: ViewMode; icon: typeof List; label: string }[] = [
   { mode: "list", icon: List, label: "리스트" },
-  { mode: "card", icon: LayoutGrid, label: "카드" },
   { mode: "map", icon: Map, label: "지도" },
 ];
 
