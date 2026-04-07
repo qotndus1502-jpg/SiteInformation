@@ -13,17 +13,23 @@ export default async function StatisticsPage() {
     by_status: [],
     by_division: [],
     total_sites: 0,
+    by_corporation: [],
+    by_region_group: [],
+    progress_distribution: [],
+    alert_sites: [],
+    by_division_detail: [],
+    by_amount_range: [],
+    by_corporation_division: [],
+    by_region: [],
   };
-  let scurve = { months: [], plan: [], actual: [] };
 
   try {
-    const [summaryRes, scurveRes] = await Promise.all([
-      fetch(`${API_BASE}/api/statistics/summary`, { cache: "no-store" }),
-      fetch(`${API_BASE}/api/statistics/s-curve`, { cache: "no-store" }),
-    ]);
-    if (summaryRes.ok) summary = await summaryRes.json();
-    if (scurveRes.ok) scurve = await scurveRes.json();
+    const res = await fetch(`${API_BASE}/api/statistics/summary`, { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      summary = { ...summary, ...data };
+    }
   } catch {}
 
-  return <StatisticsClient summary={summary} scurve={scurve} />;
+  return <StatisticsClient summary={summary} />;
 }

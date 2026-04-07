@@ -2,17 +2,12 @@
 
 import { useState, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { User, Phone, Mail, Calendar, Building2, X, Camera, ZoomIn, ZoomOut, Check } from "lucide-react";
+import { User, X, Camera, ZoomIn, ZoomOut, Check } from "lucide-react";
 import type { OrgMember } from "@/types/org-chart";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
-const ORG_TYPE_HEADER: Record<string, string> = {
-  OWN: "bg-primary text-white",
-  JV: "bg-orange-500 text-white",
-  SUB: "bg-gray-500 text-white",
-};
 
 interface PhotoSettings {
   x: number;
@@ -35,11 +30,11 @@ function savePhotoSettings(memberId: number, s: PhotoSettings) {
 interface OrgMemberCardProps {
   member: OrgMember;
   primary?: boolean;
+  onSelect?: () => void;
 }
 
-export function OrgMemberCard({ member, primary }: OrgMemberCardProps) {
+export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps) {
   const [imgError, setImgError] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [imgSrc, setImgSrc] = useState(
     SUPABASE_URL ? `${SUPABASE_URL}/storage/v1/object/public/org-photos/member_${member.id}.jpg` : null
@@ -50,8 +45,6 @@ export function OrgMemberCard({ member, primary }: OrgMemberCardProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
-
-  const headerBg = ORG_TYPE_HEADER[member.org_type] ?? ORG_TYPE_HEADER.OWN;
 
   const roleLabel = member.specialty
     ? `${member.role_name}(${member.specialty})`
@@ -136,7 +129,7 @@ export function OrgMemberCard({ member, primary }: OrgMemberCardProps) {
     <>
     {fileInput}
     <div
-      onClick={() => { if (!editing) setDetailOpen(true); }}
+      onClick={() => { if (!editing && onSelect) onSelect(); }}
       className={cn(
         "overflow-hidden transition-all cursor-pointer hover:scale-[1.02]",
         primary ? "w-[260px]" : "w-[230px]"
@@ -251,76 +244,6 @@ export function OrgMemberCard({ member, primary }: OrgMemberCardProps) {
       </div>
     </div>
 
-    {/* 상세 팝업 */}
-    {detailOpen && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setDetailOpen(false)}>
-        <div className="bg-card rounded-2xl shadow-2xl w-[360px] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-          {/* 헤더 */}
-          <div className={cn("flex items-center justify-between px-5 py-3", headerBg)}>
-            <span className="text-sm font-bold">{roleLabel}</span>
-            <button onClick={() => setDetailOpen(false)} className="p-1 rounded-md hover:bg-black/10 transition-colors">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="p-5 flex gap-4">
-            {/* 큰 사진 */}
-            <div className="w-[150px] h-[180px] rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
-              {imgSrc && !imgError ? (
-                <img src={imgSrc} alt={member.name} className="w-full h-full object-cover" onError={() => setImgError(true)} />
-              ) : (
-                <User className="h-10 w-10 text-muted-foreground/30" />
-              )}
-            </div>
-
-            {/* 정보 */}
-            <div className="flex flex-col gap-2 min-w-0">
-              {member.company_name && (
-                <p className="text-xs text-orange-600 font-medium">{member.company_name}</p>
-              )}
-              <p className="text-xl font-bold">{member.name}</p>
-              {member.rank && (
-                <p className="text-sm text-muted-foreground">{member.rank}</p>
-              )}
-            </div>
-          </div>
-
-          {/* 상세 정보 */}
-          <div className="px-5 pb-5 space-y-2.5">
-            {member.phone && (
-              <div className="flex items-center gap-3 text-sm">
-                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                <a href={`tel:${member.phone}`} className="text-primary hover:underline">{member.phone}</a>
-              </div>
-            )}
-            {member.email && (
-              <div className="flex items-center gap-3 text-sm">
-                <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                <a href={`mailto:${member.email}`} className="text-primary hover:underline">{member.email}</a>
-              </div>
-            )}
-            {member.department_name && (
-              <div className="flex items-center gap-3 text-sm">
-                <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span>{member.department_name}</span>
-              </div>
-            )}
-            {(member.assigned_from || member.assigned_to) && (
-              <div className="flex items-center gap-3 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span>{member.assigned_from ?? "?"} ~ {member.assigned_to ?? "현재"}</span>
-              </div>
-            )}
-            {member.employee_type && (
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <span className="text-xs bg-muted px-2 py-0.5 rounded">{member.employee_type}</span>
-                <span className="text-xs bg-muted px-2 py-0.5 rounded">{member.org_type === "OWN" ? "자사" : member.org_type === "JV" ? "공동사" : "협력사"}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )}
     </>
   );
 }

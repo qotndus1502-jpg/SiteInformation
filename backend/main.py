@@ -340,6 +340,139 @@ async def delete_org_member(member_id: int):
     return {"ok": True}
 
 
+@app.get("/api/org-members/{member_id}/profile")
+async def get_org_member_profile(member_id: int):
+    """Get org member profile. Returns member data + parsed resume_data."""
+    try:
+        response = supabase.schema("pmis").from_("v_site_org_chart") \
+            .select("*") \
+            .eq("id", member_id) \
+            .execute()
+        if not response.data:
+            return JSONResponse(status_code=404, content={"error": "Member not found"})
+
+        member = response.data[0]
+
+        # Parse resume_data JSON
+        resume = {}
+        rd = member.get("resume_data")
+        if rd:
+            if isinstance(rd, str):
+                try:
+                    resume = json.loads(rd)
+                except Exception:
+                    pass
+            elif isinstance(rd, dict):
+                resume = rd
+
+        # Get team members (same department or top-level)
+        site_id = member.get("site_id")
+        dept_id = member.get("department_id")
+        peer_cols = "id,name,rank,role_name,phone,email,department_name"
+        if dept_id:
+            peers = supabase.schema("pmis").from_("v_site_org_chart") \
+                .select(peer_cols) \
+                .eq("site_id", site_id).eq("department_id", dept_id) \
+                .order("sort_order").execute()
+        else:
+            peers = supabase.schema("pmis").from_("v_site_org_chart") \
+                .select(peer_cols) \
+                .eq("site_id", site_id).is_("parent_id", "null") \
+                .order("sort_order").execute()
+
+        return {
+            "member": member,
+            "resume": resume,
+            "peers": peers.data or [],
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "trace": traceback.format_exc()},
+        )
+
+
+@app.put("/api/org-members/{member_id}/profile")
+async def update_org_member_profile(member_id: int, body: dict):
+    """Update org member profile fields."""
+    allowed = {
+        "birth_date", "address", "phone_work", "photo_url",
+        "job_category", "skills", "hobby", "entry_type",
+        "task_detail", "resume_data",
+        "name", "rank", "phone", "email", "specialty",
+    }
+    updates = {k: v for k, v in body.items() if k in allowed}
+    if not updates:
+        return {"ok": True}
+    updates["updated_at"] = datetime.utcnow().isoformat()
+    response = supabase.schema("pmis").from_("site_org_member") \
+        .update(updates).eq("id", member_id).execute()
+    return response.data
+
+
+# ── Employee Profile (public schema) ─────────────────────────
+
+@app.get("/api/employees")
+async def get_employees(teamId: Optional[int] = Query(None)):
+    """Get employees, optionally filtered by team."""
+    query = supabase.from_("Employee").select("*")
+    if teamId:
+        query = query.eq("teamId", teamId)
+    response = query.eq("status", "ACTIVE").execute()
+    return response.data or []
+
+
+@app.get("/api/employees/{employee_id}")
+async def get_employee(employee_id: int):
+    """Get single employee with team & location info."""
+    emp = supabase.from_("Employee").select("*").eq("id", employee_id).single().execute()
+    if not emp.data:
+        return JSONResponse(status_code=404, content={"error": "Employee not found"})
+
+    employee = emp.data
+    # Get team info
+    team = None
+    if employee.get("teamId"):
+        t = supabase.from_("Team").select("*").eq("id", employee["teamId"]).single().execute()
+        team = t.data
+    # Get location info
+    location = None
+    if team and team.get("locationId"):
+        loc = supabase.from_("Location").select("*").eq("id", team["locationId"]).single().execute()
+        location = loc.data
+
+    # Parse resumeData JSON
+    resume = {}
+    if employee.get("resumeData"):
+        try:
+            resume = json.loads(employee["resumeData"])
+        except Exception:
+            pass
+
+    return {
+        "employee": employee,
+        "team": team,
+        "location": location,
+        "resume": resume,
+    }
+
+
+@app.get("/api/teams")
+async def get_teams():
+    """Get all teams."""
+    response = supabase.from_("Team").select("*").execute()
+    return response.data or []
+
+
+@app.get("/api/teams/{team_id}/members")
+async def get_team_members(team_id: int):
+    """Get all members of a team."""
+    response = supabase.from_("Employee").select(
+        "id,name,position,role,photoUrl,phone,email,status,jobCategory"
+    ).eq("teamId", team_id).eq("status", "ACTIVE").execute()
+    return response.data or []
+
+
 # ── Statistics ────────────────────────────────────────────────
 
 @app.get("/api/statistics/summary")
@@ -409,7 +542,7 @@ async def get_statistics_summary():
             "total_our_share": round(total_our_share, 1),
             "average_execution_rate": round(avg_execution, 4),
         },
-        "by_status": [{"status": k, "count": v} for k, v in status_counts.items()],
+        "by_status": _group_by_status(sites),
         "by_division": [{"division": k, "count": v} for k, v in division_counts.items()],
         "total_sites": total,
 
@@ -430,7 +563,31 @@ async def get_statistics_summary():
 
         # ── 도급액 규모별 ──
         "by_amount_range": _amount_range_distribution(active),
+
+        # ── 법인×부문 교차 ──
+        "by_corporation_division": _group_by_corporation_division(active),
+
+        # ── 시/도별 상세 ──
+        "by_region": _group_by_region_name(active),
     }
+
+
+def _group_by_status(sites: list[dict]) -> list[dict]:
+    groups = defaultdict(lambda: {"count": 0, "contract": 0.0, "headcount": 0})
+    for s in sites:
+        st = s.get("status") or "UNKNOWN"
+        groups[st]["count"] += 1
+        groups[st]["contract"] += s.get("contract_amount") or 0
+        groups[st]["headcount"] += s.get("headcount") or 0
+    return [
+        {
+            "status": k,
+            "count": v["count"],
+            "total_contract": round(v["contract"], 1),
+            "total_headcount": v["headcount"],
+        }
+        for k, v in groups.items()
+    ]
 
 
 def _group_by_corporation(sites: list[dict]) -> list[dict]:
@@ -454,14 +611,66 @@ def _group_by_corporation(sites: list[dict]) -> list[dict]:
     ]
 
 
+def _group_by_corporation_division(sites: list[dict]) -> list[dict]:
+    """Cross-tab: corporation x division -> count, contract, headcount."""
+    groups: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(lambda: {"count": 0, "contract": 0.0, "headcount": 0}))
+    for s in sites:
+        corp = s.get("corporation_name") or "기타"
+        div = s.get("division") or "기타"
+        g = groups[corp][div]
+        g["count"] += 1
+        g["contract"] += s.get("contract_amount") or 0
+        g["headcount"] += s.get("headcount") or 0
+    result = []
+    for corp, divs in groups.items():
+        for div, vals in divs.items():
+            result.append({
+                "corporation": corp,
+                "division": div,
+                "count": vals["count"],
+                "total_contract": round(vals["contract"], 1),
+                "total_headcount": vals["headcount"],
+            })
+    return result
+
+
+def _group_by_region_name(sites: list[dict]) -> list[dict]:
+    """Group by individual region_name (시/도)."""
+    groups = defaultdict(lambda: {"count": 0, "contract": 0.0, "headcount": 0, "progress_sum": 0.0})
+    for s in sites:
+        rn = s.get("region_name") or "기타"
+        groups[rn]["count"] += 1
+        groups[rn]["contract"] += s.get("contract_amount") or 0
+        groups[rn]["headcount"] += s.get("headcount") or 0
+        groups[rn]["progress_sum"] += s.get("progress_rate") or 0
+    return [
+        {
+            "region": k,
+            "count": v["count"],
+            "total_contract": round(v["contract"], 1),
+            "total_headcount": v["headcount"],
+            "avg_progress": round(v["progress_sum"] / v["count"], 4) if v["count"] else 0,
+        }
+        for k, v in groups.items()
+    ]
+
+
 def _group_by_region(sites: list[dict]) -> list[dict]:
-    groups = defaultdict(lambda: {"count": 0, "contract": 0.0})
+    groups = defaultdict(lambda: {"count": 0, "contract": 0.0, "headcount": 0, "progress_sum": 0.0})
     for s in sites:
         rg = s.get("region_group") or "기타"
         groups[rg]["count"] += 1
         groups[rg]["contract"] += s.get("contract_amount") or 0
+        groups[rg]["headcount"] += s.get("headcount") or 0
+        groups[rg]["progress_sum"] += s.get("progress_rate") or 0
     return [
-        {"region_group": k, "count": v["count"], "total_contract": round(v["contract"], 1)}
+        {
+            "region_group": k,
+            "count": v["count"],
+            "total_contract": round(v["contract"], 1),
+            "total_headcount": v["headcount"],
+            "avg_progress": round(v["progress_sum"] / v["count"], 4) if v["count"] else 0,
+        }
         for k, v in groups.items()
     ]
 
@@ -525,93 +734,20 @@ def _group_by_division_detail(sites: list[dict]) -> list[dict]:
 
 def _amount_range_distribution(sites: list[dict]) -> list[dict]:
     bins = [
-        {"label": "100억 미만", "min": 0, "max": 100, "count": 0},
-        {"label": "100-500억", "min": 100, "max": 500, "count": 0},
-        {"label": "500-1,000억", "min": 500, "max": 1000, "count": 0},
-        {"label": "1,000-2,000억", "min": 1000, "max": 2000, "count": 0},
-        {"label": "2,000억 이상", "min": 2000, "max": float("inf"), "count": 0},
+        {"label": "100억 미만", "min": 0, "max": 100, "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "100-500억", "min": 100, "max": 500, "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "500-1,000억", "min": 500, "max": 1000, "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "1,000-2,000억", "min": 1000, "max": 2000, "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "2,000억 이상", "min": 2000, "max": float("inf"), "count": 0, "contract": 0.0, "headcount": 0},
     ]
     for s in sites:
         amt = s.get("contract_amount") or 0
         for b in bins:
             if b["min"] <= amt < b["max"]:
                 b["count"] += 1
+                b["contract"] += amt
+                b["headcount"] += s.get("headcount") or 0
                 break
-    return [{"label": b["label"], "count": b["count"]} for b in bins]
+    return [{"label": b["label"], "count": b["count"], "total_contract": round(b["contract"], 1), "total_headcount": b["headcount"]} for b in bins]
 
 
-def _sigmoid(t: float, k: float = 8.0) -> float:
-    """Sigmoid curve from 0 to 1 over t in [0, 1]."""
-    return 1.0 / (1.0 + math.exp(-k * (t - 0.5)))
-
-
-def _normalize_sigmoid(t: float, k: float = 8.0) -> float:
-    """Normalized sigmoid so f(0)=0, f(1)=1."""
-    s0 = _sigmoid(0, k)
-    s1 = _sigmoid(1, k)
-    return (_sigmoid(t, k) - s0) / (s1 - s0)
-
-
-@app.get("/api/statistics/s-curve")
-async def get_statistics_s_curve():
-    """Compute synthetic S-Curve from site start/end dates and progress."""
-    response = supabase.schema("pmis").from_("v_site_dashboard") \
-        .select("start_date, end_date, progress_rate, contract_amount, status") \
-        .eq("status", "ACTIVE") \
-        .execute()
-    sites = response.data or []
-
-    today = date.today()
-    plan_monthly = defaultdict(float)
-    actual_monthly = defaultdict(float)
-    weight_monthly = defaultdict(float)
-
-    for s in sites:
-        if not s.get("start_date") or not s.get("end_date"):
-            continue
-        start = date.fromisoformat(s["start_date"])
-        end = date.fromisoformat(s["end_date"])
-        progress = s.get("progress_rate") or 0
-        weight = s.get("contract_amount") or 1
-        total_days = (end - start).days
-        if total_days <= 0:
-            continue
-
-        # Generate monthly points from start to end
-        current = date(start.year, start.month, 1)
-        end_month = date(end.year, end.month, 1)
-        while current <= end_month:
-            month_key = current.strftime("%Y-%m")
-            days_elapsed = (current - start).days
-            t = max(0, min(1, days_elapsed / total_days))
-
-            # Plan: sigmoid interpolation
-            plan_monthly[month_key] += _normalize_sigmoid(t) * weight
-            weight_monthly[month_key] += weight
-
-            # Actual: only up to today
-            if current <= today:
-                days_to_today = (today - start).days
-                t_today = max(0, min(1, days_to_today / total_days))
-                t_actual = max(0, min(1, days_elapsed / max(1, days_to_today)))
-                actual_monthly[month_key] += _normalize_sigmoid(t_actual) * progress * weight
-
-            current = date(current.year + (current.month // 12), (current.month % 12) + 1, 1)
-
-    # Aggregate
-    all_months = sorted(set(list(plan_monthly.keys()) + list(actual_monthly.keys())))
-    months = []
-    plan_values = []
-    actual_values = []
-
-    for m in all_months:
-        w = weight_monthly.get(m, 1)
-        months.append(m)
-        plan_values.append(round((plan_monthly.get(m, 0) / w) * 100, 2) if w else 0)
-        actual_values.append(round((actual_monthly.get(m, 0) / w) * 100, 2) if w else 0)
-
-    return {
-        "months": months,
-        "plan": plan_values,
-        "actual": actual_values,
-    }

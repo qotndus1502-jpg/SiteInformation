@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Users } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OrgMemberCard } from "./org-member-card";
+import { EmployeeProfile } from "./employee-profile";
 import { fetchOrgChart } from "@/lib/queries/org-chart";
 import type { OrgMember } from "@/types/org-chart";
 import type { SiteDashboard } from "@/types/database";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
 interface OrgChartDialogProps {
   site: SiteDashboard;
@@ -18,8 +22,11 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
   const [members, setMembers] = useState<OrgMember[]>([]);
   const [headcount, setHeadcount] = useState<{ category: string; required: number; current: number; future: number }[]>([]);
   const [loading, setLoading] = useState(false);
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  // For slide animation: keep profile mounted during exit
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileMemberId, setProfileMemberId] = useState<number | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const load = useCallback(async () => {
     if (!open) return;
@@ -37,9 +44,38 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       setHeadcount([]);
     }
     setLoading(false);
-  }, [open, site.id, API_BASE]);
+  }, [open, site.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedMemberId(null);
+      setShowProfile(false);
+      setProfileMemberId(null);
+    }
+  }, [open]);
+
+  // Open profile with animation
+  const openProfile = (id: number) => {
+    setProfileMemberId(id);
+    setSelectedMemberId(id);
+    // Trigger slide-in on next frame
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setShowProfile(true));
+    });
+  };
+
+  // Close profile with animation
+  const closeProfile = () => {
+    setShowProfile(false);
+    timeoutRef.current = setTimeout(() => {
+      setSelectedMemberId(null);
+      setProfileMemberId(null);
+    }, 350); // match transition duration
+  };
+
+  useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
 
   const topLevel = members.filter((m) => m.parent_id == null);
 
@@ -60,113 +96,145 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     deptMembers.sort((a, b) => a.sort_order - b.sort_order);
   }
 
+  const isProfileVisible = selectedMemberId != null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent style={{ maxWidth: "95vw", width: "95vw", height: "90vh" }} className="flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <Users className="h-5 w-5 text-primary" />
-            {site.site_name} 조직도
-            <span className="text-sm font-normal text-muted-foreground ml-2">({members.length}명)</span>
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent style={{ maxWidth: "95vw", width: "95vw", height: "90vh" }} className="flex flex-col overflow-hidden">
+        {/* Header — slides out with org chart */}
+        <div className={cn(
+          "transition-all duration-350 ease-in-out",
+          isProfileVisible ? "opacity-0 h-0 -mt-2 pointer-events-none" : "opacity-100"
+        )}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Users className="h-5 w-5 text-primary" />
+              {site.site_name} 조직도
+              <span className="text-sm font-normal text-muted-foreground ml-2">({members.length}명)</span>
+            </DialogTitle>
+          </DialogHeader>
+        </div>
 
-        <div className="flex-1 overflow-auto">
-          {loading ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground">불러오는 중...</div>
-          ) : members.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-              <Users className="h-12 w-12 opacity-20 mb-3" />
-              <p className="text-sm">등록된 조직원이 없습니다</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center px-6 pb-8 min-w-max">
-
-              {/* === 인원 현황 요약 (상단) === */}
-              {headcount.length > 0 && (() => {
-                const totalReq = headcount.reduce((s, r) => s + r.required, 0);
-                const totalCur = headcount.reduce((s, r) => s + r.current, 0);
-                const totalFut = headcount.reduce((s, r) => s + r.future, 0);
-                const CAT_COLORS: Record<string, string> = {
-                  "일반직": "bg-green-100 text-green-800",
-                  "전문직": "bg-blue-100 text-blue-800",
-                  "현채직": "bg-yellow-100 text-yellow-800",
-                  "공동사": "bg-orange-100 text-orange-800",
-                };
-                return (
-                  <div className="mb-6 border border-border rounded-lg overflow-hidden text-sm">
-                    <div className="text-right text-xs text-muted-foreground px-3 py-1">※ 기타현채직(반장 2명)</div>
-                    <table className="border-collapse w-full">
-                      <thead>
-                        <tr className="bg-muted/60">
-                          <th className="px-6 py-2 font-semibold border-r border-border">구 분</th>
-                          <th className="px-6 py-2 font-semibold border-r border-border">소요인원</th>
-                          <th className="px-6 py-2 font-semibold border-r border-border">현재인원</th>
-                          <th className="px-6 py-2 font-semibold">향후투입</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {headcount.map((row) => (
-                          <tr key={row.category} className="border-t border-border">
-                            <td className="px-6 py-1.5 border-r border-border">
-                              <span className={`font-bold px-2 py-0.5 rounded text-xs ${CAT_COLORS[row.category] ?? ""}`}>{row.category}</span>
-                            </td>
-                            <td className="px-6 py-1.5 text-center border-r border-border font-mono">{row.required}</td>
-                            <td className="px-6 py-1.5 text-center border-r border-border font-mono">{row.current}</td>
-                            <td className="px-6 py-1.5 text-center font-mono">{row.future || "-"}</td>
-                          </tr>
-                        ))}
-                        <tr className="border-t-2 border-border bg-amber-50 font-bold">
-                          <td className="px-6 py-2 border-r border-border text-center">합 계</td>
-                          <td className="px-6 py-2 text-center border-r border-border font-mono">{totalReq}</td>
-                          <td className="px-6 py-2 text-center border-r border-border font-mono">{totalCur}</td>
-                          <td className="px-6 py-2 text-center font-mono">{totalFut || "-"}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
-
-              {/* === 최상위: 현장대리인 + 현장소장 === */}
-              <div className="flex items-start gap-8">
-                {topLevel.map((m) => (
-                  <OrgMemberCard key={m.id} member={m} primary />
-                ))}
+        {/* Sliding container */}
+        <div className="flex-1 relative overflow-hidden">
+          {/* Org Chart — slides left when profile opens */}
+          <div
+            className={cn(
+              "absolute inset-0 transition-transform duration-350 ease-in-out",
+              showProfile ? "-translate-x-full" : "translate-x-0"
+            )}
+          >
+            {loading ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground">불러오는 중...</div>
+            ) : members.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                <Users className="h-12 w-12 opacity-20 mb-3" />
+                <p className="text-sm">등록된 조직원이 없습니다</p>
               </div>
+            ) : (
+              <div className="h-full overflow-auto">
+                <div className="flex flex-col items-center px-6 pb-8 min-w-max">
 
-              {/* === 세로 연결선 === */}
-              <div className="w-px h-6 bg-gray-400" />
-
-              {/* === 가로 연결선 === */}
-              <div className="border-t-2 border-gray-400" style={{ width: `${sortedDepts.length * 280}px` }} />
-
-              {/* === 부서 컬럼들 === */}
-              <div className="flex items-start">
-                {sortedDepts.map(([deptName, deptMembers]) => (
-                  <div key={deptName} className="flex flex-col items-center" style={{ width: 280 }}>
-                    {/* 세로 연결선 */}
-                    <div className="w-px h-4 bg-gray-400" />
-
-                    {/* 부서 인원 (세로) + 테두리 + 부서명 헤드라인 */}
-                    <div className="relative border-2 border-gray-300 rounded-xl pt-6 pb-4 px-1 mt-4">
-                      {/* 부서명 - 테두리 상단에 겹침 */}
-                      <div className="absolute -top-5 left-1/2 -translate-x-1/2">
-                        <span className="text-[20px] font-bold text-primary border-2 border-primary bg-blue-50 px-6 py-2 rounded-full whitespace-nowrap w-[200px] inline-block text-center">
-                          {deptName}
-                        </span>
+                  {/* === 인원 현황 요약 (상단) === */}
+                  {headcount.length > 0 && (() => {
+                    const totalReq = headcount.reduce((s, r) => s + r.required, 0);
+                    const totalCur = headcount.reduce((s, r) => s + r.current, 0);
+                    const totalFut = headcount.reduce((s, r) => s + r.future, 0);
+                    const CAT_COLORS: Record<string, string> = {
+                      "일반직": "bg-green-100 text-green-800",
+                      "전문직": "bg-blue-100 text-blue-800",
+                      "현채직": "bg-yellow-100 text-yellow-800",
+                      "공동사": "bg-orange-100 text-orange-800",
+                    };
+                    return (
+                      <div className="mb-6 border border-border rounded-lg overflow-hidden text-sm">
+                        <div className="text-right text-xs text-muted-foreground px-3 py-1">※ 기타현채직(반장 2명)</div>
+                        <table className="border-collapse w-full">
+                          <thead>
+                            <tr className="bg-muted/60">
+                              <th className="px-6 py-2 font-semibold border-r border-border">구 분</th>
+                              <th className="px-6 py-2 font-semibold border-r border-border">소요인원</th>
+                              <th className="px-6 py-2 font-semibold border-r border-border">현재인원</th>
+                              <th className="px-6 py-2 font-semibold">향후투입</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {headcount.map((row) => (
+                              <tr key={row.category} className="border-t border-border">
+                                <td className="px-6 py-1.5 border-r border-border">
+                                  <span className={`font-bold px-2 py-0.5 rounded text-xs ${CAT_COLORS[row.category] ?? ""}`}>{row.category}</span>
+                                </td>
+                                <td className="px-6 py-1.5 text-center border-r border-border font-mono">{row.required}</td>
+                                <td className="px-6 py-1.5 text-center border-r border-border font-mono">{row.current}</td>
+                                <td className="px-6 py-1.5 text-center font-mono">{row.future || "-"}</td>
+                              </tr>
+                            ))}
+                            <tr className="border-t-2 border-border bg-amber-50 font-bold">
+                              <td className="px-6 py-2 border-r border-border text-center">합 계</td>
+                              <td className="px-6 py-2 text-center border-r border-border font-mono">{totalReq}</td>
+                              <td className="px-6 py-2 text-center border-r border-border font-mono">{totalCur}</td>
+                              <td className="px-6 py-2 text-center font-mono">{totalFut || "-"}</td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
+                    );
+                  })()}
 
-                      <div className="flex flex-col items-center gap-2">
-                        {deptMembers.map((m) => (
-                          <OrgMemberCard key={m.id} member={m} />
-                        ))}
-                      </div>
-                    </div>
+                  {/* === 최상위: 현장대리인 + 현장소장 === */}
+                  <div className="flex items-start gap-8">
+                    {topLevel.map((m) => (
+                      <OrgMemberCard key={m.id} member={m} primary onSelect={() => openProfile(m.id)} />
+                    ))}
                   </div>
-                ))}
-              </div>
 
+                  {/* === 세로 연결선 === */}
+                  <div className="w-px h-6 bg-gray-400" />
+
+                  {/* === 가로 연결선 === */}
+                  <div className="border-t-2 border-gray-400" style={{ width: `${sortedDepts.length * 280}px` }} />
+
+                  {/* === 부서 컬럼들 === */}
+                  <div className="flex items-start">
+                    {sortedDepts.map(([deptName, deptMembers]) => (
+                      <div key={deptName} className="flex flex-col items-center" style={{ width: 280 }}>
+                        <div className="w-px h-4 bg-gray-400" />
+                        <div className="relative border-2 border-gray-300 rounded-xl pt-6 pb-4 px-1 mt-4">
+                          <div className="absolute -top-5 left-1/2 -translate-x-1/2">
+                            <span className="text-[20px] font-bold text-primary border-2 border-primary bg-blue-50 px-6 py-2 rounded-full whitespace-nowrap w-[200px] inline-block text-center">
+                              {deptName}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-center gap-2">
+                            {deptMembers.map((m) => (
+                              <OrgMemberCard key={m.id} member={m} onSelect={() => openProfile(m.id)} />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Profile — slides in from right */}
+          {profileMemberId != null && (
+            <div
+              className={cn(
+                "absolute inset-0 transition-transform duration-350 ease-in-out",
+                showProfile ? "translate-x-0" : "translate-x-full"
+              )}
+            >
+              <EmployeeProfile
+                memberId={profileMemberId}
+                siteName={`${site.corporation_name ?? ""} · ${site.site_name}`}
+                onBack={closeProfile}
+                fallbackMember={members.find((m) => m.id === profileMemberId) ?? null}
+                allMembers={members}
+              />
             </div>
           )}
         </div>
