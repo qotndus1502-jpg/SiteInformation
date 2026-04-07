@@ -87,13 +87,12 @@ export function BreakdownTabs({
   }));
 
   return (
-    <div className="space-y-4">
-      {/* 지도(좌측) + 차트들(우측) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-3 items-stretch">
+    <div className="h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-2 h-full">
         <KoreaMapChart data={by_region} />
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2 min-h-0">
           <CorpDivisionChart data={corpDivisionData} />
-          <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-2">
             <StatusDonutChart data={by_status} />
             <CompletionYearChart preStartData={completionYears} activeData={activeYears} />
           </div>

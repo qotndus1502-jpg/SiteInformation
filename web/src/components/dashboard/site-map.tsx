@@ -5,10 +5,13 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { SiteDashboard } from "@/types/database";
 
+export type ColorCategory = "corporation" | "division" | "status";
+
 interface SiteMapProps {
   sites: SiteDashboard[];
   selectedSiteId: number | null;
   onSelect: (site: SiteDashboard) => void;
+  colorCategory?: ColorCategory;
 }
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
@@ -99,7 +102,26 @@ const CORP_COLORS: Record<string, string> = {
   "극동건설": "#3b82f6",
   "금광기업": "#f97316",
 };
+
+const DIV_COLORS: Record<string, string> = {
+  "건축": "#2563EB",
+  "토목": "#F97316",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  "ACTIVE": "#3b82f6",
+  "PRE_START": "#f59e0b",
+  "COMPLETED": "#22c55e",
+  "SUSPENDED": "#ef4444",
+};
+
 const DEFAULT_COLOR = "#6b7280";
+
+function getSiteColor(site: { corporation_name: string; division: string; status: string }, category: ColorCategory): string {
+  if (category === "corporation") return CORP_COLORS[site.corporation_name] ?? DEFAULT_COLOR;
+  if (category === "division") return DIV_COLORS[site.division] ?? DEFAULT_COLOR;
+  return STATUS_COLORS[site.status] ?? DEFAULT_COLOR;
+}
 
 const DEFAULT_CENTER: [number, number] = [127.8, 35.9];
 const DEFAULT_ZOOM = 7;
@@ -128,7 +150,7 @@ function buildPopupHTML(name: string, corp: string, division: string, facilityTy
   `;
 }
 
-function buildGeoJSON(sites: SiteDashboard[], selectedSiteId: number | null) {
+function buildGeoJSON(sites: SiteDashboard[], selectedSiteId: number | null, colorCategory: ColorCategory = "corporation") {
   const features = sites
     .filter((s) => s.latitude != null && s.longitude != null)
     .map((s) => ({
@@ -146,14 +168,14 @@ function buildGeoJSON(sites: SiteDashboard[], selectedSiteId: number | null) {
         facility_type_name: s.facility_type_name ?? "",
         order_type: s.order_type ?? "",
         status: s.status ?? "",
-        color: CORP_COLORS[s.corporation_name] ?? DEFAULT_COLOR,
+        color: getSiteColor({ corporation_name: s.corporation_name, division: s.division ?? "", status: s.status }, colorCategory),
         selected: s.id === selectedSiteId ? 1 : 0,
       },
     }));
   return { type: "FeatureCollection" as const, features };
 }
 
-export function SiteMap({ sites, selectedSiteId, onSelect }: SiteMapProps) {
+export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corporation" }: SiteMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -203,7 +225,7 @@ export function SiteMap({ sites, selectedSiteId, onSelect }: SiteMapProps) {
       // GeoJSON source
       map.addSource(SOURCE_ID, {
         type: "geojson",
-        data: buildGeoJSON(sitesRef.current, null),
+        data: buildGeoJSON(sitesRef.current, null, colorCategory),
       });
 
       // 비선택 원형 — 흰색 테두리
@@ -272,7 +294,7 @@ export function SiteMap({ sites, selectedSiteId, onSelect }: SiteMapProps) {
     if (!map || !map.getSource(SOURCE_ID)) return;
 
     const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource;
-    source.setData(buildGeoJSON(sites, selectedSiteId));
+    source.setData(buildGeoJSON(sites, selectedSiteId, colorCategory));
 
     // 현장들의 bounds로 자동 이동
     const validSites = sites.filter((s) => s.latitude != null && s.longitude != null);
@@ -313,7 +335,7 @@ export function SiteMap({ sites, selectedSiteId, onSelect }: SiteMapProps) {
         .setHTML(buildPopupHTML(selectedSite.site_name, selectedSite.corporation_name, selectedSite.division, selectedSite.facility_type_name ?? "", selectedSite.order_type ?? "", selectedSite.status, selectedSite.contract_amount))
         .addTo(map);
     }
-  }, [sites, selectedSiteId]);
+  }, [sites, selectedSiteId, colorCategory]);
 
   useEffect(() => {
     const map = mapRef.current;

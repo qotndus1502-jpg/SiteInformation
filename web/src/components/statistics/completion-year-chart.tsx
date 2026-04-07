@@ -33,20 +33,19 @@ function Timeline({
   if (data.length === 0) return null;
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col justify-end" onMouseLeave={() => setHovIdx(null)}>
-      {/* Title */}
-      <p className="text-[11px] font-bold text-foreground mb-2">{label}</p>
+    <div className="flex-1 min-w-0 flex items-center gap-3" onMouseLeave={() => setHovIdx(null)}>
+      {/* Title tag - left */}
+      <span className="shrink-0 w-[90px] text-center text-[11px] font-medium text-primary bg-primary/10 px-2 py-1 rounded-md whitespace-nowrap">
+        {label}
+      </span>
 
-      {/* Progress bar background */}
-      <div className="relative h-2 bg-muted/50 rounded-full mb-1">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full"
-          style={{ width: "100%", backgroundColor: color, opacity: 0.15 }}
-        />
-      </div>
-
-      {/* Timeline nodes */}
-      <div className="flex">
+      {/* Timeline - right */}
+      <div className="flex-1 min-w-0">
+        {/* Timeline nodes on line */}
+        <div className="relative flex items-center">
+          {/* Background line */}
+          <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 rounded-full" style={{ backgroundColor: color, opacity: 0.2 }} />
+          <div className="flex flex-1">
         {data.map((d, i) => {
           const isHov = hovIdx === i;
           const r = maxCount > 0 ? 10 + (d.count / maxCount) * 18 : 10;
@@ -57,23 +56,21 @@ function Timeline({
               onMouseEnter={() => setHovIdx(i)}
             >
               {/* Bubble */}
-              <div className="relative -mt-4">
-                <div
-                  className="rounded-full flex items-center justify-center transition-all duration-200"
-                  style={{
-                    width: r * 2,
-                    height: r * 2,
-                    backgroundColor: color,
-                    opacity: isHov ? 1 : 0.8,
-                    boxShadow: isHov ? `0 0 0 2px white, 0 0 0 4px ${color}` : undefined,
-                  }}
-                >
-                  <span className="text-white font-bold text-[10px]">{d.count}</span>
-                </div>
+              <div
+                className="rounded-full flex items-center justify-center transition-all duration-200 z-10"
+                style={{
+                  width: r * 2,
+                  height: r * 2,
+                  backgroundColor: color,
+                  opacity: isHov ? 1 : 0.8,
+                  boxShadow: isHov ? `0 0 0 2px white, 0 0 0 4px ${color}` : undefined,
+                }}
+              >
+                <span className="text-white font-bold text-[10px]">{d.count}</span>
               </div>
               {/* Year label */}
               <span className={cn(
-                "text-[10px] mt-1 font-mono",
+                "text-[9px] mt-0.5 font-mono",
                 isHov ? "font-bold text-foreground" : "text-muted-foreground"
               )}>
                 {d.year}
@@ -81,6 +78,8 @@ function Timeline({
             </div>
           );
         })}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -92,17 +91,17 @@ export function CompletionYearChart({ preStartData, activeData }: CompletionYear
 
   if (preStartData.length === 0 && activeData.length === 0) {
     return (
-      <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center justify-center min-h-[80px]">
+      <div className="bg-card border border-border rounded-xl p-2 shadow-sm flex items-center justify-center min-h-[80px]">
         <p className="text-sm text-muted-foreground">데이터 없음</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-      <div className="space-y-4">
-        <Timeline label="착공예정 년도별" data={preStartData} color={PRE_COLOR} maxCount={maxCount} />
-        <Timeline label="준공예정 년도별" data={activeData} color={ACTIVE_COLOR} maxCount={maxCount} />
+    <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+      <div className="flex flex-col gap-3">
+        <Timeline label="착공예정 년도" data={preStartData} color={PRE_COLOR} maxCount={maxCount} />
+        <Timeline label="준공예정 년도" data={activeData} color={ACTIVE_COLOR} maxCount={maxCount} />
       </div>
     </div>
   );

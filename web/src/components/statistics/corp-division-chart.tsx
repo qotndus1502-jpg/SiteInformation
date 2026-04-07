@@ -63,7 +63,7 @@ function MetricBars({
   return (
     <div className="relative flex-1 min-w-0 bg-muted/30 rounded-xl px-3 pb-0 pt-7 flex flex-col">
       {/* Tag label */}
-      <span className="absolute top-2 left-2 text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+      <span className="absolute top-2 left-2 text-[12px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-md">
         {label}
       </span>
 
@@ -80,7 +80,7 @@ function MetricBars({
 
           return (
             <div key={corp} className="flex flex-col items-center justify-end w-10 h-full">
-              <span className="text-[10px] font-bold font-mono text-foreground mb-1">
+              <span className="text-[13px] font-bold font-mono text-foreground mb-1">
                 {fmtVal(total, metric, unit)}
               </span>
               <div className="flex flex-col items-center gap-0.5 w-full">
@@ -93,7 +93,7 @@ function MetricBars({
                       backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.25) 3px, rgba(255,255,255,0.25) 6px)",
                     }} />
                     {civilH > 18 && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white/90">
+                      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white/90">
                         {fmtVal(civilVal, metric, unit)}
                       </span>
                     )}
@@ -105,7 +105,7 @@ function MetricBars({
                     style={{ height: archH, backgroundColor: DIV_CONFIG["건축"].color, opacity: op }}
                   >
                     {archH > 18 && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white/90">
+                      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white/90">
                         {fmtVal(archVal, metric, unit)}
                       </span>
                     )}
@@ -152,9 +152,9 @@ export function CorpDivisionChart({ data }: CorpDivisionChartProps) {
   }
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-3 shadow-sm flex-1 flex flex-col overflow-hidden relative min-h-[280px]">
+    <div className="bg-card border border-border rounded-xl p-2 shadow-sm flex-1 flex flex-col overflow-hidden relative">
       {/* Legend - overlaid top right */}
-      <div className="absolute top-2 right-2 z-10 flex items-center gap-3">
+      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
         {divisions.map((d) => (
           <div key={d} className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: DIV_CONFIG[d].color }} />

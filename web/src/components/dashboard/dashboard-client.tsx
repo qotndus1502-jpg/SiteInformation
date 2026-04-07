@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { FilterBar } from "./filter-bar";
 import { SiteList } from "./site-list";
 import { SiteCardGrid } from "./site-card-grid";
-import { SiteMap } from "./site-map";
+import { SiteMap, type ColorCategory } from "./site-map";
 import { SiteDetail } from "./site-detail";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
 
@@ -58,6 +58,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
   const [amountRanges, setAmountRanges] = useState<Set<string>>(new Set());
   const [progressRanges, setProgressRanges] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [mapColorCategory, setMapColorCategory] = useState<ColorCategory>("corporation");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const fetchSites = useCallback(async (f: SiteFilter) => {
@@ -192,7 +193,46 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
             <SiteCardGrid sites={sites} selectedSiteId={selectedSite?.id ?? null} onSelect={handleSelect} />
           )}
           {viewMode === "map" && (
-            <SiteMap sites={sites} selectedSiteId={selectedSite?.id ?? null} onSelect={handleSelect} />
+            <div className="relative">
+              {/* Color category selector - top left overlay */}
+              <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
+                <div className="flex bg-card/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50">
+                  {([
+                    { key: "corporation" as ColorCategory, label: "법인별" },
+                    { key: "division" as ColorCategory, label: "부문별" },
+                    { key: "status" as ColorCategory, label: "상태별" },
+                  ]).map((c) => (
+                    <button
+                      key={c.key}
+                      onClick={() => setMapColorCategory(c.key)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all",
+                        mapColorCategory === c.key
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Legend */}
+                <div className="flex flex-col gap-0.5 bg-card/90 backdrop-blur-sm rounded-lg px-2.5 py-1.5 shadow-sm border border-border/50">
+                  {(mapColorCategory === "corporation"
+                    ? [{ label: "남광토건", color: "#22c55e" }, { label: "극동건설", color: "#3b82f6" }, { label: "금광기업", color: "#f97316" }]
+                    : mapColorCategory === "division"
+                    ? [{ label: "건축", color: "#2563EB" }, { label: "토목", color: "#F97316" }]
+                    : [{ label: "진행중", color: "#3b82f6" }, { label: "착공전", color: "#f59e0b" }, { label: "준공", color: "#22c55e" }, { label: "중지", color: "#ef4444" }]
+                  ).map((item) => (
+                    <div key={item.label} className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-[10px] text-foreground font-medium">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <SiteMap sites={sites} selectedSiteId={selectedSite?.id ?? null} onSelect={handleSelect} colorCategory={mapColorCategory} />
+            </div>
           )}
         </div>
         {displayedSite && (

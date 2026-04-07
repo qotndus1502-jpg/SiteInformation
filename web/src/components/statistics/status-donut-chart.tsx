@@ -44,20 +44,19 @@ export function StatusDonutChart({ data }: StatusDonutChartProps) {
   const preStartRotate = -90 + activePct * 360;
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
+    <div className="bg-card border border-border rounded-xl p-2 shadow-sm">
       {/* Donut */}
       <div className="flex justify-center">
-        <svg viewBox={`0 0 ${cx * 2} ${cy * 2}`} className="w-[120px] h-[120px]">
+        <svg viewBox={`0 0 ${cx * 2} ${cy * 2}`} className="w-[100px] h-[100px]">
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="currentColor" className="text-border/30" strokeWidth={strokeW} />
           <circle cx={cx} cy={cy} r={r} fill="none" stroke={STATUS_CONFIG[0].color} strokeWidth={strokeW} strokeLinecap="round" strokeDasharray={`${activeLen} ${circumference - activeLen}`} transform={`rotate(${activeRotate} ${cx} ${cy})`} className="transition-all duration-700" />
           <circle cx={cx} cy={cy} r={r} fill="none" stroke={STATUS_CONFIG[1].color} strokeWidth={strokeW} strokeLinecap="round" strokeDasharray={`${preStartLen} ${circumference - preStartLen}`} transform={`rotate(${preStartRotate} ${cx} ${cy})`} className="transition-all duration-700" />
-          <text x={cx} y={cy - 6} textAnchor="middle" fontSize={20} fontWeight={700} className="fill-foreground">{total}</text>
-          <text x={cx} y={cy + 10} textAnchor="middle" fontSize={10} className="fill-muted-foreground">현장</text>
+          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight={700} className="fill-foreground">{total}</text>
         </svg>
       </div>
 
       {/* Legend below */}
-      <div className="flex flex-col items-center gap-1 mt-2">
+      <div className="flex flex-col items-center gap-0.5 mt-6">
         {STATUS_CONFIG.map((cfg) => {
           const count = cfg.key === "ACTIVE" ? active : preStart;
           return (

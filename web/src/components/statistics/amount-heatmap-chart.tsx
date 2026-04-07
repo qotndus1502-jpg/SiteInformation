@@ -46,8 +46,10 @@ function BarChart({
   const BAR_HEIGHT = 130;
 
   return (
-    <div className="flex-1 min-w-0" onMouseLeave={() => setHovIdx(null)}>
-      <p className="text-xs font-semibold text-muted-foreground mb-3">{title}</p>
+    <div className="relative flex-1 min-w-0 bg-muted/30 rounded-xl px-3 pb-0 pt-7 flex flex-col" onMouseLeave={() => setHovIdx(null)}>
+      <span className="absolute top-2 left-2 text-[12px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+        {title}
+      </span>
       <div className="flex items-end gap-1.5" style={{ height: BAR_HEIGHT }}>
         {barData.map((d, i) => {
           const archH = (d.arch / maxTotal) * BAR_HEIGHT;
@@ -120,14 +122,14 @@ export function AmountHeatmapChart({ data }: AmountHeatmapChartProps) {
 
   if (labels.length === 0 || (contractRows.length === 0 && shareRows.length === 0)) {
     return (
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex items-center justify-center min-h-[180px]">
+      <div className="bg-card border border-border rounded-xl p-2 shadow-sm flex items-center justify-center min-h-[180px]">
         <p className="text-sm text-muted-foreground">데이터 없음</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm relative">
+    <div className="bg-card border border-border rounded-xl p-2 shadow-sm relative">
       {/* Legend - right top */}
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-0">
         {["건축", "토목"].map((d) => (

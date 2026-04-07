@@ -9,6 +9,45 @@ import { KoreaMapChart } from "./korea-map-chart";
 import { FilterBar } from "@/components/dashboard/filter-bar";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
 
+/* ── Dashboard Scaler ──────────────────────────────────── */
+
+const BASE_W = 1560;
+const BASE_H = 920;
+
+function DashboardScaler({ children }: { children: React.ReactNode }) {
+  const [scale, setScale] = useState(1);
+  const innerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function update() {
+      const s = window.innerWidth / BASE_W;
+      setScale(Math.max(s, 0.5));
+    }
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  return (
+    <div
+      className="bg-slate-900 -mx-4 -mt-0.5 -mb-4 sm:-mx-6 sm:-mb-4 overflow-x-hidden"
+      style={{ minHeight: "calc(100vh - 52px)" }}
+    >
+      <div
+        ref={innerRef}
+        className="flex flex-col gap-2 p-2 lg:p-3 origin-top-left"
+        style={{
+          width: BASE_W,
+          transform: `scale(${scale})`,
+          marginBottom: `calc(${(scale - 1) * BASE_H}px)`,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /* ── Types ──────────────────────────────────────────────── */
 
 interface StatisticsSummary {
@@ -51,12 +90,12 @@ function HeroKpi({
   accent?: string;
 }) {
   return (
-    <div className="relative bg-card border border-border rounded-xl px-4 py-3 shadow-sm flex items-center gap-3 overflow-hidden">
-      <div className={cn("p-1.5 rounded-lg bg-muted")}>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+    <div className="relative bg-card border border-border rounded-lg px-3 py-2 shadow-sm flex items-center gap-2 overflow-hidden">
+      <div className={cn("p-1 rounded-md bg-muted")}>
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
       </div>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-lg font-bold text-foreground ml-auto">{value}</p>
+      <p className="text-sm font-semibold text-muted-foreground">{label}</p>
+      <p className="text-sm font-bold text-foreground ml-auto">{value}</p>
     </div>
   );
 }
@@ -190,7 +229,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions }: Sta
   const corpHeadcount = byCorp.map((d) => ({ name: d.corporation, value: d.total_headcount }));
 
   return (
-    <div className="space-y-3 p-3 lg:p-4 pt-1 lg:pt-2 bg-slate-900 min-h-screen -m-4 lg:-m-5 rounded-xl">
+    <DashboardScaler>
 
       {/* Filter Bar */}
       <div className="bg-card rounded-xl border border-border/40 shadow-sm">
@@ -206,7 +245,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions }: Sta
       </div>
 
       {/* ── Hero KPIs ── */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-2">
         <HeroKpi icon={Building2} label="총 현장" value={`${summary.total_sites}개`} accent="bg-blue-500" />
         <HeroKpi icon={Wallet} label="총 공사비" value={`${Math.round(budget.total_contract ?? 0).toLocaleString()}억`} accent="bg-blue-500" />
         <HeroKpi icon={Wallet} label="자사 도급액" value={`${Math.round(budget.total_our_share ?? 0).toLocaleString()}억`} accent="bg-blue-500" />
@@ -214,6 +253,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions }: Sta
       </div>
 
       {/* ── Map + Charts ── */}
+      <div className="flex-1 min-h-0">
       <BreakdownTabs
         by_corporation={summary.by_corporation ?? []}
         by_division_detail={summary.by_division_detail ?? []}
@@ -226,8 +266,8 @@ export function StatisticsClient({ summary: initialSummary, filterOptions }: Sta
         amount_heatmap={summary.amount_heatmap ?? { by_contract: [], by_our_share: [], labels: [] }}
         corpDivisionData={summary.by_corporation_division ?? []}
       />
+      </div>
 
-
-    </div>
+    </DashboardScaler>
   );
 }
