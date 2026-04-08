@@ -20,9 +20,18 @@ interface AmountHeatmapChartProps {
   data: AmountHeatmapData;
 }
 
+// "100억 미만" → "1백억 미만", "100~500억" → "1~5백억" etc.
+function toHundredBillion(label: string): string {
+  const nums = label.match(/[\d,]+/g)?.map((n) => parseInt(n.replace(/,/g, ""), 10) / 100) ?? [];
+  if (label.includes("미만")) return `<${nums[0]}백억`;
+  if (label.includes("이상")) return `${nums[0]}백억≤`;
+  if (nums.length === 2) return `${nums[0]}~${nums[1]}백억`;
+  return label;
+}
+
 const DIV_CONFIG: Record<string, { color: string; label: string }> = {
   "건축": { color: "#2563EB", label: "건축" },
-  "토목": { color: "#94A3B8", label: "토목" },
+  "토목": { color: "#BFDBFE", label: "토목" },
 };
 
 function BarChart({
@@ -46,11 +55,11 @@ function BarChart({
   const BAR_HEIGHT = 130;
 
   return (
-    <div className="relative flex-1 min-w-0 bg-muted/30 rounded-xl px-3 pb-0 pt-7 flex flex-col" onMouseLeave={() => setHovIdx(null)}>
-      <span className="absolute top-2 left-2 text-[12px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-md">
-        {title}
+    <div className="relative flex-1 min-w-0 px-3 pb-0 pt-6 flex flex-col" onMouseLeave={() => setHovIdx(null)}>
+      <span className="absolute top-1 left-3 text-[11px] font-semibold text-muted-foreground leading-tight text-center">
+        {title.split("\\n").map((line, i) => <span key={i} className="block">{line}</span>)}
       </span>
-      <div className="flex items-end gap-1.5" style={{ height: BAR_HEIGHT }}>
+      <div className="flex items-end justify-center gap-0.5" style={{ height: BAR_HEIGHT }}>
         {barData.map((d, i) => {
           const archH = (d.arch / maxTotal) * BAR_HEIGHT;
           const civilH = (d.civil / maxTotal) * BAR_HEIGHT;
@@ -58,27 +67,24 @@ function BarChart({
           return (
             <div
               key={d.label}
-              className="flex-1 flex flex-col items-center justify-end h-full relative"
+              className="flex-1 flex flex-col items-center justify-end h-full relative max-w-[80px]"
               onMouseEnter={() => setHovIdx(i)}
             >
               {/* Total label */}
-              <span className="text-[10px] font-bold font-mono text-foreground mb-1">{d.total}</span>
+              <span className="text-[13px] font-bold font-mono text-foreground mb-1">{d.total}</span>
 
               {/* Stacked bar */}
               <div className={cn(
-                "flex flex-col items-center gap-0.5 w-full max-w-[32px] transition-opacity",
+                "flex flex-col items-center w-full max-w-[42px] transition-opacity",
                 isHov ? "opacity-100" : "opacity-80"
               )}>
                 {d.civil > 0 && (
                   <div
-                    className="w-full rounded-t-md relative overflow-hidden"
+                    className="w-full rounded-t-md relative"
                     style={{ height: Math.max(civilH, 14), backgroundColor: DIV_CONFIG["토목"].color }}
                   >
-                    <div className="absolute inset-0" style={{
-                      backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.2) 3px, rgba(255,255,255,0.2) 6px)",
-                    }} />
                     {civilH > 14 && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white/90">{d.civil}</span>
+                      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-slate-600">{d.civil}</span>
                     )}
                   </div>
                 )}
@@ -88,7 +94,7 @@ function BarChart({
                     style={{ height: Math.max(archH, 14), backgroundColor: DIV_CONFIG["건축"].color }}
                   >
                     {archH > 14 && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white/90">{d.arch}</span>
+                      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white/90">{d.arch}</span>
                     )}
                   </div>
                 )}
@@ -104,10 +110,10 @@ function BarChart({
           );
         })}
       </div>
-      <div className="flex gap-1.5 mt-1">
+      <div className="flex justify-center gap-0.5 mt-1">
         {barData.map((d) => (
-          <div key={d.label} className="flex-1 text-center">
-            <span className="text-[8px] text-muted-foreground leading-tight">{d.label}</span>
+          <div key={d.label} className="flex-1 text-center max-w-[80px]">
+            <span className="text-[11px] text-foreground font-semibold leading-tight">{toHundredBillion(d.label)}</span>
           </div>
         ))}
       </div>
@@ -120,16 +126,10 @@ export function AmountHeatmapChart({ data }: AmountHeatmapChartProps) {
   const contractRows = data.by_contract_division ?? [];
   const shareRows = data.by_our_share_division ?? [];
 
-  if (labels.length === 0 || (contractRows.length === 0 && shareRows.length === 0)) {
-    return (
-      <div className="bg-card border border-border rounded-xl p-2 shadow-sm flex items-center justify-center min-h-[180px]">
-        <p className="text-sm text-muted-foreground">데이터 없음</p>
-      </div>
-    );
-  }
+  if (labels.length === 0 || (contractRows.length === 0 && shareRows.length === 0)) return null;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-2 shadow-sm relative">
+    <div className="p-2 relative">
       {/* Legend - right top */}
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-0">
         {["건축", "토목"].map((d) => (
@@ -137,19 +137,15 @@ export function AmountHeatmapChart({ data }: AmountHeatmapChartProps) {
             <span className="w-2.5 h-2.5 rounded-sm"
               style={{
                 backgroundColor: DIV_CONFIG[d]?.color,
-                backgroundImage: d === "토목"
-                  ? "repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.25) 2px, rgba(255,255,255,0.25) 4px)"
-                  : undefined,
               }} />
             <span className="text-[10px] text-muted-foreground">{DIV_CONFIG[d]?.label}</span>
           </div>
         ))}
       </div>
 
-      <div className="flex gap-6">
-        <BarChart title="총공사비" rows={contractRows} labels={labels} />
-        <div className="w-px bg-border shrink-0" />
-        <BarChart title="자사도급액" rows={shareRows} labels={labels} />
+      <div className="flex">
+        <BarChart title="총 공사비 별\n현장 수" rows={contractRows} labels={labels} />
+        <BarChart title="자사 도급액 별\n현장 수" rows={shareRows} labels={labels} />
       </div>
     </div>
   );

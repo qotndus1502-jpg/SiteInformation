@@ -33,9 +33,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const CORP_COLORS: Record<string, string> = {
-  "남광토건": "#2563EB",
-  "극동건설": "#60A5FA",
-  "금광기업": "#BFDBFE",
+  "남광토건": "#3B82F6",
+  "극동건설": "#3B82F6",
+  "금광기업": "#3B82F6",
 };
 
 const DIV_COLORS: Record<string, string> = {
@@ -87,16 +87,24 @@ export function BreakdownTabs({
   }));
 
   return (
-    <div className="h-full">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-2 h-full">
-        <KoreaMapChart data={by_region} />
-        <div className="flex flex-col gap-2 min-h-0">
-          <CorpDivisionChart data={corpDivisionData} />
-          <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-2">
-            <StatusDonutChart data={by_status} />
+    <div className="h-full overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] h-full">
+        <div className="pr-5">
+          <KoreaMapChart data={by_region} />
+        </div>
+        <div className="flex flex-col min-h-0 pl-5">
+          <div className="border-b border-slate-400 pb-3">
+            <CorpDivisionChart data={corpDivisionData} />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-[250px_1fr] border-b border-slate-400 py-3">
+            <div>
+              <StatusDonutChart data={by_status} />
+            </div>
             <CompletionYearChart preStartData={completionYears} activeData={activeYears} />
           </div>
-          <AmountHeatmapChart data={amount_heatmap} />
+          <div className="pt-3">
+            <AmountHeatmapChart data={amount_heatmap} />
+          </div>
         </div>
       </div>
     </div>

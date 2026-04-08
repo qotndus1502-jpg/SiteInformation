@@ -50,7 +50,7 @@ export function RangeFilter({ label, options, selected, onChange }: RangeFilterP
       </PopoverTrigger>
       <PopoverContent className="w-44 p-1.5" align="start">
         <label
-          className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-sm"
+          className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-[11px]"
           onClick={(e) => { e.preventDefault(); onChange(new Set()); }}
         >
           <Checkbox checked={count === 0} />
@@ -62,7 +62,7 @@ export function RangeFilter({ label, options, selected, onChange }: RangeFilterP
         {options.map((opt) => (
           <label
             key={opt.value}
-            className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-sm"
+            className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-[11px]"
             onClick={(e) => { e.preventDefault(); toggle(opt.value); }}
           >
             <Checkbox checked={selected.has(opt.value)} />

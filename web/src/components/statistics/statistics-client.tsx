@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Building2, Wallet, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BreakdownTabs } from "./breakdown-tabs";
 import { CorpDivisionChart } from "./corp-division-chart";
@@ -30,7 +29,7 @@ function DashboardScaler({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="bg-slate-900 -mx-4 -mt-0.5 -mb-4 sm:-mx-6 sm:-mb-4 overflow-x-hidden"
+      className="-mx-4 -mt-0.5 -mb-4 sm:-mx-6 sm:-mb-4 overflow-x-hidden"
       style={{ minHeight: "calc(100vh - 52px)" }}
     >
       <div
@@ -79,23 +78,20 @@ interface StatisticsClientProps {
 /* ── Hero KPI Card ──────────────────────────────────────── */
 
 function HeroKpi({
-  icon: Icon,
   label,
   value,
-  accent = "bg-primary",
+  unit,
+  isLast = false,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
-  accent?: string;
+  unit: string;
+  isLast?: boolean;
 }) {
   return (
-    <div className="relative bg-card border border-border rounded-lg px-3 py-2 shadow-sm flex items-center gap-2 overflow-hidden">
-      <div className={cn("p-1 rounded-md bg-muted")}>
-        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-      </div>
-      <p className="text-sm font-semibold text-muted-foreground">{label}</p>
-      <p className="text-sm font-bold text-foreground ml-auto">{value}</p>
+    <div className={cn("flex items-center justify-center gap-2 py-2", !isLast && "border-r border-border/50")}>
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-2xl font-extrabold text-foreground tracking-tight">{value}<span className="text-sm font-medium text-muted-foreground ml-0.5">{unit}</span></p>
     </div>
   );
 }
@@ -232,7 +228,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions }: Sta
     <DashboardScaler>
 
       {/* Filter Bar */}
-      <div className="bg-card rounded-xl border border-border/40 shadow-sm">
+      <div>
         <FilterBar
           filterOptions={filterOptions}
           filters={filters}
@@ -245,11 +241,11 @@ export function StatisticsClient({ summary: initialSummary, filterOptions }: Sta
       </div>
 
       {/* ── Hero KPIs ── */}
-      <div className="grid grid-cols-4 gap-2">
-        <HeroKpi icon={Building2} label="총 현장" value={`${summary.total_sites}개`} accent="bg-blue-500" />
-        <HeroKpi icon={Wallet} label="총 공사비" value={`${Math.round(budget.total_contract ?? 0).toLocaleString()}억`} accent="bg-blue-500" />
-        <HeroKpi icon={Wallet} label="자사 도급액" value={`${Math.round(budget.total_our_share ?? 0).toLocaleString()}억`} accent="bg-blue-500" />
-        <HeroKpi icon={Users} label="총 인원" value={`${(headcount.total ?? 0).toLocaleString()}명`} accent="bg-blue-500" />
+      <div className="grid grid-cols-4 border-b border-border/50">
+        <HeroKpi label="총 현장" value={`${summary.total_sites}`} unit="개" />
+        <HeroKpi label="총 공사비" value={`${Math.round((budget.total_contract ?? 0) / 100)}`} unit="백억" />
+        <HeroKpi label="자사 도급액" value={`${Math.round((budget.total_our_share ?? 0) / 100)}`} unit="백억" />
+        <HeroKpi label="총 인원" value={`${(headcount.total ?? 0).toLocaleString()}`} unit="명" isLast />
       </div>
 
       {/* ── Map + Charts ── */}

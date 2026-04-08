@@ -15,9 +15,9 @@ interface CorporationChartProps {
 }
 
 const CORP_COLORS: Record<string, string> = {
-  "남광토건": "#16A34A",
-  "극동건설": "#2563EB",
-  "금광기업": "#EA580C",
+  "남광토건": "#3B82F6",
+  "극동건설": "#3B82F6",
+  "금광기업": "#3B82F6",
 };
 
 function CustomTooltip({ active, payload, label }: any) {

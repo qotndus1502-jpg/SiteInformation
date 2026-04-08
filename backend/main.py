@@ -657,7 +657,7 @@ async def get_statistics_summary(
         "by_corporation_division": _group_by_corporation_division(active),
 
         # ── 시/도별 상세 ──
-        "by_region": _group_by_region_name(active),
+        "by_region": _group_by_region_name(sites),
 
         # ── 착공전 준공예정 년도별 ──
         "pre_start_by_completion_year": _pre_start_by_completion_year(sites),
@@ -717,7 +717,7 @@ def _group_by_corporation_division(sites: list[dict]) -> list[dict]:
         div = s.get("division") or "기타"
         g = groups[corp][div]
         g["count"] += 1
-        g["contract"] += s.get("contract_amount") or 0
+        g["contract"] += s.get("our_share_amount") or 0
         g["headcount"] += s.get("headcount") or 0
     result = []
     for corp, divs in groups.items():

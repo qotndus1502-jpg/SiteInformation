@@ -122,7 +122,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
   const stats = {
     total: sites.length,
     active: sites.filter((s) => s.status === "ACTIVE").length,
-    totalWorkers: sites.reduce((sum, s) => sum + (s.headcount ?? 0), 0),
+    totalWorkers: sites.filter(s => s.status === "ACTIVE").reduce((sum, s) => sum + (s.headcount ?? 0), 0),
     totalAmount: sites.reduce((sum, s) => sum + calcOurShare(s), 0),
   };
 
@@ -137,7 +137,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
           <div className="w-px h-4 bg-border" />
           <Stat label="총 인원" value={stats.totalWorkers.toLocaleString()} unit="명" />
           <div className="w-px h-4 bg-border" />
-          <Stat label="총 도급액" value={Math.round(stats.totalAmount).toLocaleString()} unit="억" />
+          <Stat label="총 도급액" value={`${Math.round(stats.totalAmount / 100)}`} unit="백억" />
         </div>
         <div className="flex items-center bg-muted rounded-lg p-0.5 gap-0.5">
           {VIEW_OPTIONS.map(({ mode, icon: Icon, label }) => (

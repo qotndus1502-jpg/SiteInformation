@@ -130,13 +130,13 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
                   {companyConfig ? (
                     <Badge variant={companyConfig.variant} size="sm">{companyConfig.label}</Badge>
                   ) : (
-                    <span className="text-[13px] text-muted-foreground">{site.corporation_name}</span>
+                    <span className="text-[16px] text-foreground">{site.corporation_name}</span>
                   )}
                 </span>
-                <span className="text-[13px] text-muted-foreground">{site.division}</span>
-                <span className="text-[13px] text-muted-foreground">{site.region_name}</span>
-                <span className="text-[13px] text-muted-foreground truncate">{site.facility_type_name}</span>
-                <span className="text-[13px] text-muted-foreground truncate">{site.order_type ?? "-"}</span>
+                <span className="text-[16px] text-foreground">{site.division}</span>
+                <span className="text-[16px] text-foreground">{site.region_name}</span>
+                <span className="text-[16px] text-foreground truncate">{site.facility_type_name}</span>
+                <span className="text-[16px] text-foreground truncate">{site.order_type ?? "-"}</span>
                 <span>
                   {statusConfig ? (
                     <Badge variant={statusConfig.variant} size="sm">{statusConfig.label}</Badge>
@@ -145,17 +145,17 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
                   )}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{site.site_name}</p>
+                  <p className="text-sm font-semibold text-foreground truncate">{site.site_name}</p>
                   {site.office_address && (
-                    <p className="text-[13px] text-muted-foreground/70 truncate">{site.office_address}</p>
+                    <p className="text-[12px] text-muted-foreground/70 truncate">{site.office_address}</p>
                   )}
                 </div>
-                <span className="text-[13px] font-mono text-right tabular-nums">
-                  {site.contract_amount != null ? `${Math.round(site.contract_amount).toLocaleString()}억` : "-"}
+                <span className="text-[14px] text-foreground font-mono text-right tabular-nums">
+                  {site.contract_amount != null ? `${Math.round(site.contract_amount / 100)}백억` : "-"}
                 </span>
                 <span />
                 <div className="text-right">
-                  <span className="text-[13px] font-mono font-semibold tabular-nums">{progressPct.toFixed(0)}%</span>
+                  <span className="text-[14px] text-foreground font-mono tabular-nums">{progressPct.toFixed(0)}%</span>
                   <div className="h-1 bg-muted rounded-full mt-0.5 overflow-hidden">
                     <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, progressPct)}%` }} />
                   </div>

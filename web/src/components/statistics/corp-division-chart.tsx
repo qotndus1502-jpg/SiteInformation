@@ -16,13 +16,13 @@ const CORP_ORDER = ["남광토건", "극동건설", "금광기업"];
 
 const DIV_CONFIG: Record<string, { color: string; label: string }> = {
   "건축": { color: "#2563EB", label: "건축" },
-  "토목": { color: "#94A3B8", label: "토목" },
+  "토목": { color: "#BFDBFE", label: "토목" },
 };
 
 const CORP_OPACITY: Record<string, number> = {
   "남광토건": 1.0,
-  "극동건설": 0.65,
-  "금광기업": 0.4,
+  "극동건설": 1.0,
+  "금광기업": 1.0,
 };
 
 const divisions = ["건축", "토목"];
@@ -31,13 +31,13 @@ type Metric = "count" | "total_contract" | "total_headcount";
 
 const METRICS: { key: Metric; label: string; unit: string }[] = [
   { key: "count", label: "현장 수", unit: "개" },
-  { key: "total_contract", label: "도급액", unit: "억" },
+  { key: "total_contract", label: "자사도급액", unit: "백억" },
   { key: "total_headcount", label: "인원", unit: "명" },
 ];
 
-function fmtVal(v: number, metric: Metric, unit: string): string {
-  if (metric === "total_contract" && v >= 10000) return `${(v / 10000).toFixed(1)}조`;
-  return `${v.toLocaleString()}${unit}`;
+function fmtVal(v: number, metric: Metric): string {
+  if (metric === "total_contract") return `${Math.round(v / 100)}`;
+  return `${v.toLocaleString()}`;
 }
 
 /* ── Single metric bar group ─────────────────────────── */
@@ -61,10 +61,14 @@ function MetricBars({
   const yMax = Math.ceil(maxStack * 1.05);
 
   return (
-    <div className="relative flex-1 min-w-0 bg-muted/30 rounded-xl px-3 pb-0 pt-7 flex flex-col">
+    <div className="relative flex-1 min-w-0 px-3 pb-0 pt-6 flex flex-col">
       {/* Tag label */}
-      <span className="absolute top-2 left-2 text-[12px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+      <span className="absolute top-1 left-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
         {label}
+      </span>
+      {/* Unit label */}
+      <span className="absolute top-1 right-3 text-[10px] text-muted-foreground">
+        (단위: {unit})
       </span>
 
       {/* Bar area */}
@@ -81,22 +85,17 @@ function MetricBars({
           return (
             <div key={corp} className="flex flex-col items-center justify-end w-10 h-full">
               <span className="text-[13px] font-bold font-mono text-foreground mb-1">
-                {fmtVal(total, metric, unit)}
+                {fmtVal(total, metric)}
               </span>
-              <div className="flex flex-col items-center gap-0.5 w-full">
+              <div className="flex flex-col items-center w-full">
                 {civilVal > 0 && (
                   <div
-                    className="w-full rounded-t-md relative overflow-hidden"
+                    className="w-full rounded-t-md relative"
                     style={{ height: civilH, backgroundColor: DIV_CONFIG["토목"].color, opacity: op }}
                   >
-                    <div className="absolute inset-0" style={{
-                      backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.25) 3px, rgba(255,255,255,0.25) 6px)",
-                    }} />
-                    {civilH > 18 && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white/90">
-                        {fmtVal(civilVal, metric, unit)}
-                      </span>
-                    )}
+                    <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-slate-600">
+                      {fmtVal(civilVal, metric)}
+                    </span>
                   </div>
                 )}
                 {archVal > 0 && (
@@ -104,11 +103,9 @@ function MetricBars({
                     className="w-full rounded-b-md relative"
                     style={{ height: archH, backgroundColor: DIV_CONFIG["건축"].color, opacity: op }}
                   >
-                    {archH > 18 && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white/90">
-                        {fmtVal(archVal, metric, unit)}
-                      </span>
-                    )}
+                    <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white/90">
+                      {fmtVal(archVal, metric)}
+                    </span>
                   </div>
                 )}
               </div>
@@ -152,9 +149,9 @@ export function CorpDivisionChart({ data }: CorpDivisionChartProps) {
   }
 
   return (
-    <div className="bg-card border border-border rounded-xl p-2 shadow-sm flex-1 flex flex-col overflow-hidden relative">
+    <div className="p-2 flex-1 flex flex-col overflow-hidden relative">
       {/* Legend - overlaid top right */}
-      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+      <div className="absolute top-8 right-5 z-10 flex flex-col gap-1 items-end">
         {divisions.map((d) => (
           <div key={d} className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: DIV_CONFIG[d].color }} />
@@ -164,7 +161,7 @@ export function CorpDivisionChart({ data }: CorpDivisionChartProps) {
       </div>
 
       {/* 3 metric columns */}
-      <div className="flex gap-2 flex-1">
+      <div className="flex flex-1">
         {METRICS.map((m) => (
           <MetricBars
             key={m.key}

@@ -73,9 +73,10 @@ const FILL: Record<string, string> = {
 /* ── Minimal nudges (only where centroid is very off) ── */
 
 const NUDGE: Record<string, { dx: number; dy: number }> = {
-  "인천": { dx: -15, dy: 0 },
+  "인천": { dx: -25, dy: 20 },
+  "서울": { dx: -10, dy: -25 },
   "광주": { dx: -8, dy: 0 },
-  "제주": { dx: 0, dy: -130 },
+  "제주": { dx: 0, dy: -160 },
 };
 
 /* ── Metric config ────────────────────────────────────── */
@@ -85,7 +86,7 @@ type MetricKey = "count" | "total_headcount" | "total_contract";
 const METRICS: { key: MetricKey; label: string; color: string; hoverColor: string; unit: string }[] = [
   { key: "count", label: "현장 수", color: "#2563EB", hoverColor: "#1D4ED8", unit: "개" },
   { key: "total_headcount", label: "투입 인원", color: "#3B82F6", hoverColor: "#2563EB", unit: "명" },
-  { key: "total_contract", label: "자사도급액", color: "#60A5FA", hoverColor: "#3B82F6", unit: "억" },
+  { key: "total_contract", label: "자사도급액", color: "#3B82F6", hoverColor: "#2563EB", unit: "억" },
 ];
 
 /* ── Color category config ────────────────────────────── */
@@ -99,9 +100,9 @@ const COLOR_CATEGORIES: { key: ColorCategory; label: string }[] = [
 ];
 
 const CORP_MARKER_COLORS: Record<string, string> = {
-  "남광토건": "#22C55E",
+  "남광토건": "#3B82F6",
   "극동건설": "#3B82F6",
-  "금광기업": "#EF4444",
+  "금광기업": "#3B82F6",
 };
 
 const DIV_MARKER_COLORS: Record<string, string> = {
@@ -137,11 +138,12 @@ function getCategoryLegend(category: ColorCategory): { label: string; color: str
 
 /* ── Bubble radius ────────────────────────────────────── */
 
-function bubbleR(value: number, max: number): number {
+function bubbleR(value: number, max: number, metric?: MetricKey): number {
   if (max <= 0 || value <= 0) return 0;
   const ratio = value / max;
   const curved = Math.pow(ratio, 0.5);
-  return 22 + curved * 90; // min 22, max 112
+  const minR = 35;
+  return minR + curved * (120 - minR); // min 35, max 120
 }
 
 /* ── Collision resolution ─────────────────────────────── */
@@ -328,13 +330,13 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
           const n = NUDGE[key] ?? { dx: 0, dy: 0 };
           const stat = byRegion.get(key);
           const val = stat?.[activeMetric] ?? 0;
-          return { key, cx: pos[0] + n.dx, cy: pos[1] + n.dy, r: bubbleR(val, maxVal), stat };
+          return { key, cx: pos[0] + n.dx, cy: pos[1] + n.dy, r: bubbleR(val, maxVal, activeMetric), stat };
         })
     : Array.from(areaCentroids.entries())
         .map(([key, pos]) => {
           const stat = areaStats.get(key);
           const val = stat?.[activeMetric] ?? 0;
-          return { key, cx: pos[0], cy: pos[1], r: bubbleR(val, maxVal), stat };
+          return { key, cx: pos[0], cy: pos[1], r: bubbleR(val, maxVal, activeMetric), stat };
         })
   ).filter((b) => b.stat && b.r > 0);
 
@@ -342,7 +344,7 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
   const bubbleEntries = resolveOverlaps(rawBubbles);
 
   const fmtValue = (val: number) => {
-    if (activeMetric === "total_contract") return `${Math.round(val).toLocaleString()}`;
+    if (activeMetric === "total_contract") return `${Math.round(val / 100)}`;
     return val.toLocaleString();
   };
 
@@ -356,10 +358,15 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
   const legendItems = getCategoryLegend(colorCategory);
 
   return (
-    <div className="bg-card border border-border rounded-xl p-2 shadow-sm relative">
+    <div className="p-2 relative">
+
+      {/* Unit label - left top */}
+      <div className="absolute top-3 left-3 z-20 text-[12px] text-muted-foreground font-medium">
+        (단위: {activeMetric === "count" ? "개" : activeMetric === "total_headcount" ? "명" : "백억"})
+      </div>
 
       {/* Metric selector - right top */}
-      <div className="absolute top-3 right-3 z-20 flex flex-col gap-0">
+      <div className="absolute top-3 right-10 z-20 flex flex-col gap-0">
         {METRICS.map((m) => {
           const isActive = activeMetric === m.key;
           const val = m.key === "count" ? totalSiteCount : m.key === "total_headcount" ? totalHeadCount : totalContract;
@@ -369,10 +376,10 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
               key={m.key}
               onClick={() => setActiveMetric(m.key)}
               className={cn(
-                "flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-[12px] font-medium transition-all text-left",
+                "flex items-center justify-between gap-2 px-2 py-1 text-[12px] font-medium transition-all text-left",
                 isActive
-                  ? "bg-primary/10 text-primary border border-primary/20"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  ? "text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               <span className="flex items-center gap-1.5">
@@ -385,8 +392,8 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
       </div>
 
       {/* Map + overlays */}
-      <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxHeight: 600, overflow: "visible" }}>
+      <div className="relative" style={{ marginTop: 35 }}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxHeight: 550, overflow: "visible" }}>
 
           {/* Province shapes */}
           {geo.features.map((feature, i) => {
@@ -402,10 +409,9 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
             return (
               <path key={i} d={d}
                 fill={fill} fillOpacity={isHov ? 1 : 0.65}
-                stroke="rgba(255,255,255,0.6)" strokeWidth={isHov ? 1.2 : 0.5}
+                stroke="white" strokeWidth={isHov ? 3.5 : 3}
                 className="transition-all duration-200 cursor-pointer"
-                style={isHov ? { filter: "brightness(0.85)" } : undefined}
-                transform={isJeju ? "translate(0, -130)" : undefined}
+                transform={isJeju ? "translate(0, -160)" : undefined}
                 onMouseEnter={() => {
                   if (mode === "area") setHovered(REGION_TO_AREA[key] ?? null);
                   else setHovered(key);
@@ -423,7 +429,7 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
             const d = pathGen(feature as Feature<Geometry>);
             if (!d) return null;
             const isJeju = key === "제주";
-            return <path key={`o-${i}`} d={d} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="0.3" className="pointer-events-none" transform={isJeju ? "translate(0, -130)" : undefined} />;
+            return <path key={`o-${i}`} d={d} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="0.3" className="pointer-events-none" transform={isJeju ? "translate(0, -160)" : undefined} />;
           })}
 
           {/* Area borders on hover */}
@@ -454,39 +460,38 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
                   onMouseLeave={() => setHovered(null)}>
 
                   {/* Shadow for depth */}
-                  <circle cx={cx + 1} cy={cy + 1.5} r={r}
-                    fill="rgba(0,0,0,0.12)" className="pointer-events-none" />
+                  <circle cx={cx + 1} cy={cy + 1.5} r={isHov ? r * 1.2 : r}
+                    fill="rgba(0,0,0,0.12)" className="pointer-events-none transition-all duration-200" />
 
                   {/* Hover ring */}
                   {isHov && (
-                    <circle cx={cx} cy={cy} r={r + 4}
+                    <circle cx={cx} cy={cy} r={r * 1.2 + 4}
                       fill="none" stroke={metricCfg.color} strokeWidth="2" strokeOpacity="0.4"
                       className="pointer-events-none" />
                   )}
                   {/* Bubble */}
-                  <circle cx={cx} cy={cy} r={r}
+                  <circle cx={cx} cy={cy} r={isHov ? r * 1.2 : r}
                     fill={isHov ? metricCfg.hoverColor : metricCfg.color}
                     fillOpacity={isHov ? 0.95 : 0.8}
                     stroke="white" strokeWidth={isHov ? 2 : 0.8}
                     className="transition-all duration-200" />
 
                   {/* Value */}
-                  <text x={cx} y={big ? cy - r * 0.2 : cy - 1} textAnchor="middle"
-                    fontSize={Math.max(r * 0.7, 13)} fontWeight={800}
+                  <text x={cx} y={big ? cy - 4 : cy - 1} textAnchor="middle"
                     fill="#fff" className="pointer-events-none">
-                    {fmtValue(val)}
+                    <tspan fontSize={38} fontWeight={800}>{fmtValue(val)}</tspan>
                   </text>
 
-                  {/* Label: inside bubble if big, below if small */}
+                  {/* Label */}
                   {big ? (
-                    <text x={cx} y={cy + r * 0.45} textAnchor="middle"
-                      fontSize={Math.max(r * 0.6, 11)} fontWeight={600}
+                    <text x={cx} y={cy + 28} textAnchor="middle"
+                      fontSize={28} fontWeight={600}
                       fill="rgba(255,255,255,0.8)" className="pointer-events-none">
                       {label}
                     </text>
                   ) : (
                     <text x={cx} y={cy + r + 10} textAnchor="middle"
-                      fontSize={Math.max(r * 0.6, 11)} fontWeight={700}
+                      fontSize={28} fontWeight={700}
                       fill={isHov ? metricCfg.hoverColor : "#4a5568"}
                       className="pointer-events-none">
                       {label}
@@ -502,34 +507,43 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
             const iy = H + 100;
             const val = overseasStat[activeMetric];
             const isHov = hovered === "해외";
-            const br = Math.max(bubbleR(val, maxVal), 20);
+            const br = 45;
             return (
               <g
                 className="cursor-pointer"
                 onMouseEnter={() => setHovered("해외")}
                 onMouseLeave={() => setHovered(null)}
               >
-                {/* Airplane emoji */}
-                <text x={ix - 50} y={iy + 20} textAnchor="middle" fontSize={90} className="pointer-events-none">
-                  ✈️
-                </text>
-                {/* Bubble */}
-                <circle cx={ix + 25} cy={iy - 5} r={br}
-                  fill={isHov ? metricCfg.hoverColor : metricCfg.color}
-                  fillOpacity={isHov ? 0.95 : 0.85}
-                  stroke="rgba(255,255,255,0.5)" strokeWidth={0.8}
-                  className="transition-all duration-200"
-                />
-                <text x={ix + 25} y={iy - 5} textAnchor="middle" dominantBaseline="middle"
-                  fontSize={Math.max(br * 0.7, 13)} fontWeight={800} fill="#fff"
-                  className="pointer-events-none">
-                  {fmtValue(val)}
-                </text>
+                {/* Box background */}
+                <rect x={ix - 90} y={iy - 85} width={230} height={175} rx={16}
+                  fill="none" stroke="#CBD5E1" strokeWidth={2}
+                  strokeDasharray="6 3" />
                 {/* Label */}
-                <text x={ix} y={iy + 50} textAnchor="middle"
-                  fontSize={18} fontWeight={700}
+                <text x={ix + 25} y={iy - 40} textAnchor="middle"
+                  fontSize={28} fontWeight={700}
                   fill={isHov ? metricCfg.hoverColor : "#4a5568"}>
                   해외
+                </text>
+                {/* Shadow */}
+                <circle cx={ix + 26} cy={iy + 21.5} r={isHov ? br * 1.2 : br}
+                  fill="rgba(0,0,0,0.12)" className="pointer-events-none transition-all duration-200" />
+                {/* Hover ring */}
+                {isHov && (
+                  <circle cx={ix + 25} cy={iy + 20} r={br * 1.2 + 4}
+                    fill="none" stroke={metricCfg.color} strokeWidth="2" strokeOpacity="0.4"
+                    className="pointer-events-none" />
+                )}
+                {/* Bubble */}
+                <circle cx={ix + 25} cy={iy + 20} r={isHov ? br * 1.2 : br}
+                  fill={isHov ? metricCfg.hoverColor : metricCfg.color}
+                  fillOpacity={isHov ? 0.95 : 0.8}
+                  stroke="white" strokeWidth={isHov ? 2 : 0.8}
+                  className="transition-all duration-200"
+                />
+                <text x={ix + 25} y={iy + 20} textAnchor="middle" dominantBaseline="middle"
+                  fill="#fff"
+                  className="pointer-events-none">
+                  <tspan fontSize={38} fontWeight={800}>{fmtValue(val)}</tspan>
                 </text>
               </g>
             );
