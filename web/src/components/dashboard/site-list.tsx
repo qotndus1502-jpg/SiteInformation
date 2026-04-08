@@ -76,9 +76,9 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
   }, [sites, sortKeys]);
 
   return (
-    <div className="bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden">
+    <div className="bg-white/60 backdrop-blur-sm overflow-hidden">
       {/* 컬럼 헤더 */}
-      <div className={cn("grid gap-2 px-4 py-1.5 bg-muted/60 border-b border-border text-[13px] font-semibold text-muted-foreground tracking-wide", TABLE_COLS)}>
+      <div className={cn("grid gap-2 px-4 py-2 bg-slate-200/70 text-[13px] font-semibold text-muted-foreground tracking-wide mb-1", TABLE_COLS)}>
         {COLUMNS.map((col) => (
           <button
             key={col.key}
@@ -108,7 +108,7 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
           <p className="text-sm">검색 결과가 없습니다</p>
         </div>
       ) : (
-        <div className="divide-y divide-border/40 max-h-[calc(100vh-260px)] overflow-y-auto">
+        <div className="divide-y divide-border/40">
           {sorted.map((site) => {
             const companyConfig = COMPANY_CONFIG[site.corporation_name];
             const statusConfig = STATUS_CONFIG[site.status];
@@ -117,6 +117,7 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
             return (
               <div
                 key={site.id}
+                data-site-row={site.id}
                 onClick={() => onSelect(site)}
                 className={cn(
                   "grid gap-2 px-4 py-2 cursor-pointer transition-colors items-center",
@@ -133,10 +134,10 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
                     <span className="text-[16px] text-foreground">{site.corporation_name}</span>
                   )}
                 </span>
-                <span className="text-[16px] text-foreground">{site.division}</span>
-                <span className="text-[16px] text-foreground">{site.region_name}</span>
-                <span className="text-[16px] text-foreground truncate">{site.facility_type_name}</span>
-                <span className="text-[16px] text-foreground truncate">{site.order_type ?? "-"}</span>
+                <span className="text-[14px] text-foreground font-mono tabular-nums">{site.division}</span>
+                <span className="text-[14px] text-foreground font-mono tabular-nums">{site.region_name}</span>
+                <span className="text-[14px] text-foreground font-mono tabular-nums truncate">{site.facility_type_name}</span>
+                <span className="text-[14px] text-foreground font-mono tabular-nums truncate">{site.order_type ?? "-"}</span>
                 <span>
                   {statusConfig ? (
                     <Badge variant={statusConfig.variant} size="sm">{statusConfig.label}</Badge>
@@ -145,13 +146,10 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
                   )}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{site.site_name}</p>
-                  {site.office_address && (
-                    <p className="text-[12px] text-muted-foreground/70 truncate">{site.office_address}</p>
-                  )}
+                  <p className="text-[13.5px] font-semibold text-foreground truncate">{site.site_name}</p>
                 </div>
                 <span className="text-[14px] text-foreground font-mono text-right tabular-nums">
-                  {site.contract_amount != null ? `${Math.round(site.contract_amount / 100)}백억` : "-"}
+                  {site.contract_amount != null ? `${Math.round(site.contract_amount).toLocaleString()}억` : "-"}
                 </span>
                 <span />
                 <div className="text-right">

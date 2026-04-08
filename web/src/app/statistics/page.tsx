@@ -35,10 +35,13 @@ export default async function StatisticsPage() {
     statuses: [],
   };
 
+  let sites: any[] = [];
+
   try {
-    const [summaryRes, filterRes] = await Promise.all([
+    const [summaryRes, filterRes, sitesRes] = await Promise.all([
       fetch(`${API_BASE}/api/statistics/summary`, { cache: "no-store" }),
       fetch(`${API_BASE}/api/filter-options`, { cache: "no-store" }),
+      fetch(`${API_BASE}/api/sites`, { cache: "no-store" }),
     ]);
     if (summaryRes.ok) {
       const data = await summaryRes.json();
@@ -47,7 +50,10 @@ export default async function StatisticsPage() {
     if (filterRes.ok) {
       filterOptions = await filterRes.json();
     }
+    if (sitesRes.ok) {
+      sites = await sitesRes.json();
+    }
   } catch {}
 
-  return <StatisticsClient summary={summary} filterOptions={filterOptions} />;
+  return <StatisticsClient summary={summary} filterOptions={filterOptions} initialSites={sites} />;
 }

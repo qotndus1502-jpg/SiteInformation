@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { List, LayoutGrid, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FilterBar } from "./filter-bar";
@@ -11,6 +12,34 @@ import { SiteDetail } from "./site-detail";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+
+const DASH_BASE_W = 1560;
+
+function DashboardScaler({ children }: { children: React.ReactNode }) {
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    function update() {
+      const s = Math.max(window.innerWidth / DASH_BASE_W, 0.5);
+      setScale(s);
+      document.documentElement.style.setProperty("--dashboard-zoom", String(s));
+    }
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  return (
+    <div className="overflow-x-hidden" style={{ minHeight: "calc(100vh - 52px)" }}>
+      <div
+        className="flex flex-col gap-2 p-2 lg:p-3"
+        style={{ width: DASH_BASE_W, zoom: scale }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 import type { SiteDashboard } from "@/types/database";
 
 type ViewMode = "list" | "card" | "map";
@@ -57,7 +86,14 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
   const [filters, setFilters] = useState<SiteFilter>({});
   const [amountRanges, setAmountRanges] = useState<Set<string>>(new Set());
   const [progressRanges, setProgressRanges] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const searchParams = useSearchParams();
+  const initialView: ViewMode = searchParams?.get("view") === "map" ? "map" : "list";
+  const [viewMode, setViewMode] = useState<ViewMode>(initialView);
+
+  useEffect(() => {
+    const v = searchParams?.get("view");
+    setViewMode(v === "map" ? "map" : "list");
+  }, [searchParams]);
   const [mapColorCategory, setMapColorCategory] = useState<ColorCategory>("corporation");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -122,45 +158,29 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
   const stats = {
     total: sites.length,
     active: sites.filter((s) => s.status === "ACTIVE").length,
-    totalWorkers: sites.filter(s => s.status === "ACTIVE").reduce((sum, s) => sum + (s.headcount ?? 0), 0),
+    totalWorkers: sites.reduce((sum, s) => sum + (s.headcount ?? 0), 0),
     totalAmount: sites.reduce((sum, s) => sum + calcOurShare(s), 0),
   };
 
   return (
-    <div className="space-y-2">
-      {/* 1행: 통계 + 뷰토글 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-5">
-          <Stat label="전체 현장" value={stats.total} unit="개소" />
-          <div className="w-px h-4 bg-border" />
-          <Stat label="진행중" value={stats.active} />
-          <div className="w-px h-4 bg-border" />
-          <Stat label="총 인원" value={stats.totalWorkers.toLocaleString()} unit="명" />
-          <div className="w-px h-4 bg-border" />
-          <Stat label="총 도급액" value={`${Math.round(stats.totalAmount / 100)}`} unit="백억" />
+    <DashboardScaler>
+      {/* 1행: 통계 + 뷰토글 (지도 뷰에서는 숨김) */}
+      {viewMode !== "map" && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-5">
+            <Stat label="전체 현장" value={stats.total} unit="개소" />
+            <div className="w-px h-4 bg-border" />
+            <Stat label="진행중" value={stats.active} />
+            <div className="w-px h-4 bg-border" />
+            <Stat label="총 인원" value={stats.totalWorkers.toLocaleString()} unit="명" />
+            <div className="w-px h-4 bg-border" />
+            <Stat label="총 도급액" value={`${Math.round(stats.totalAmount / 100)}`} unit="백억" />
+          </div>
         </div>
-        <div className="flex items-center bg-muted rounded-lg p-0.5 gap-0.5">
-          {VIEW_OPTIONS.map(({ mode, icon: Icon, label }) => (
-            <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              title={label}
-              className={cn(
-                "flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer",
-                viewMode === mode
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
 
-      {/* 2행: 필터 (리스트 뷰가 아닐 때만 독립 배치) */}
-      {viewMode !== "list" && (
+      {/* 2행: 필터 (리스트/카드 뷰일 때만 표시, 지도에서는 숨김) */}
+      {viewMode !== "list" && viewMode !== "map" && (
         <FilterBar
           filterOptions={filterOptions}
           filters={filters}
@@ -249,7 +269,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
           </div>
         )}
       </div>
-    </div>
+    </DashboardScaler>
   );
 }
 

@@ -64,10 +64,10 @@ export function JvChart({ jvSummary, compact }: JvChartProps) {
     }
   });
 
-  const chartSize = compact ? 160 : 160;
-  const inner = compact ? 45 : 45;
-  const outer = compact ? 75 : 75;
-  const textSize = compact ? "text-sm" : "text-sm";
+  const chartSize = compact ? 110 : 160;
+  const inner = compact ? 30 : 45;
+  const outer = compact ? 50 : 75;
+  const textSize = compact ? "text-[11px]" : "text-sm";
 
   return (
     <div className={compact ? "flex flex-col items-center" : "flex items-center gap-4"}>
@@ -91,7 +91,7 @@ export function JvChart({ jvSummary, compact }: JvChartProps) {
             </Pie>
           </PieChart>
         </ResponsiveContainer>
-        <span className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground font-medium pointer-events-none">지분율</span>
+        <span className="absolute inset-0 flex items-center justify-center text-[10px] text-muted-foreground font-medium pointer-events-none">지분율</span>
       </div>
 
       {/* 범례 */}

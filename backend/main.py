@@ -168,18 +168,31 @@ async def get_sites(
     try:
         query = supabase.schema("pmis").from_("v_site_dashboard").select("*")
 
-        if corporation and corporation != "all":
-            query = query.eq("corporation_name", corporation)
-        if region and region != "all":
-            query = query.eq("region_name", region)
-        if facilityType and facilityType != "all":
-            query = query.eq("facility_type_name", facilityType)
-        if orderType and orderType != "all":
-            query = query.eq("order_type", orderType)
-        if division and division != "all":
-            query = query.eq("division", division)
-        if status and status != "all":
-            query = query.eq("status", status)
+        def split(v: Optional[str]) -> Optional[list[str]]:
+            if not v or v == "all":
+                return None
+            parts = [p.strip() for p in v.split(",") if p.strip() and p.strip() != "all"]
+            return parts or None
+
+        corp_list = split(corporation)
+        region_list = split(region)
+        facility_list = split(facilityType)
+        order_list = split(orderType)
+        division_list = split(division)
+        status_list = split(status)
+
+        if corp_list:
+            query = query.in_("corporation_name", corp_list)
+        if region_list:
+            query = query.in_("region_name", region_list)
+        if facility_list:
+            query = query.in_("facility_type_name", facility_list)
+        if order_list:
+            query = query.in_("order_type", order_list)
+        if division_list:
+            query = query.in_("division", division_list)
+        if status_list:
+            query = query.in_("status", status_list)
         if search:
             query = query.ilike("site_name", f"%{search}%")
 
@@ -539,19 +552,25 @@ async def get_statistics_summary(
     progressRanges: Optional[str] = Query(None),
 ):
     """Aggregate KPI summary from all sites, with optional filters."""
+    def split(v: Optional[str]) -> Optional[list[str]]:
+        if not v or v == "all":
+            return None
+        parts = [p.strip() for p in v.split(",") if p.strip() and p.strip() != "all"]
+        return parts or None
+
     query = supabase.schema("pmis").from_("v_site_dashboard").select("*")
-    if corporation and corporation != "all":
-        query = query.eq("corporation_name", corporation)
-    if region and region != "all":
-        query = query.eq("region_name", region)
-    if facilityType and facilityType != "all":
-        query = query.eq("facility_type_name", facilityType)
-    if orderType and orderType != "all":
-        query = query.eq("order_type", orderType)
-    if division and division != "all":
-        query = query.eq("division", division)
-    if status and status != "all":
-        query = query.eq("status", status)
+    if corp_list := split(corporation):
+        query = query.in_("corporation_name", corp_list)
+    if region_list := split(region):
+        query = query.in_("region_name", region_list)
+    if facility_list := split(facilityType):
+        query = query.in_("facility_type_name", facility_list)
+    if order_list := split(orderType):
+        query = query.in_("order_type", order_list)
+    if division_list := split(division):
+        query = query.in_("division", division_list)
+    if status_list := split(status):
+        query = query.in_("status", status_list)
     if search:
         query = query.ilike("site_name", f"%{search}%")
 
@@ -585,9 +604,9 @@ async def get_statistics_summary(
             grade_counts[g] += 1
 
     # 인원
-    total_headcount = sum(s.get("headcount") or 0 for s in active)
+    total_headcount = sum(s.get("headcount") or 0 for s in sites)
     hc_by_division = defaultdict(int)
-    for s in active:
+    for s in sites:
         div = s.get("division") or "기타"
         hc_by_division[div] += s.get("headcount") or 0
 

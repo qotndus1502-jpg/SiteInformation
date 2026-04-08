@@ -2,15 +2,22 @@
 
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { RangeFilter } from "./range-filter";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
+
+const STATUS_OPTIONS = [
+  { value: "ACTIVE", label: "진행중" },
+  { value: "PRE_START", label: "착공전" },
+];
+
+function strToSet(v: string | undefined): Set<string> {
+  if (!v || v === "all") return new Set();
+  return new Set(v.split(",").filter((p) => p && p !== "all"));
+}
+
+function setToStr(s: Set<string>): string {
+  return s.size === 0 ? "all" : Array.from(s).join(",");
+}
 
 const AMOUNT_OPTIONS = [
   { value: "0-100", label: "100억 미만" },
@@ -49,56 +56,42 @@ export function FilterBar({
 }: FilterBarProps) {
   return (
     <div className={`grid ${GRID_COLS} gap-1.5 px-4 py-1.5 items-center`}>
-      <Select value={filters.corporation ?? "all"} onValueChange={(v) => onFilterChange("corporation", v)}>
-        <SelectTrigger size="sm" className={TC}><SelectValue placeholder="전체 법인" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">전체 법인</SelectItem>
-          {filterOptions.corporations.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-        </SelectContent>
-      </Select>
-
-      <Select value={filters.division ?? "all"} onValueChange={(v) => onFilterChange("division", v)}>
-        <SelectTrigger size="sm" className={TC}><SelectValue placeholder="전체 부문" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">전체 부문</SelectItem>
-          {filterOptions.divisions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-        </SelectContent>
-      </Select>
-
-      <Select value={filters.region ?? "all"} onValueChange={(v) => onFilterChange("region", v)}>
-        <SelectTrigger size="sm" className={TC}><SelectValue placeholder="전체 지역" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">전체 지역</SelectItem>
-          {filterOptions.regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-        </SelectContent>
-      </Select>
-
-      <Select value={filters.facilityType ?? "all"} onValueChange={(v) => onFilterChange("facilityType", v)}>
-        <SelectTrigger size="sm" className={TC}><SelectValue placeholder="시설유형" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">전체 시설유형</SelectItem>
-          {filterOptions.facilityTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-        </SelectContent>
-      </Select>
-
-      <Select value={filters.orderType ?? "all"} onValueChange={(v) => onFilterChange("orderType", v)}>
-        <SelectTrigger size="sm" className={TC}><SelectValue placeholder="발주유형" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">전체 발주유형</SelectItem>
-          {filterOptions.orderTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-        </SelectContent>
-      </Select>
-
-      <Select value={filters.status ?? "all"} onValueChange={(v) => onFilterChange("status", v)}>
-        <SelectTrigger size="sm" className={TC}><SelectValue placeholder="전체 상태" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">전체 상태</SelectItem>
-          <SelectItem value="ACTIVE">진행중</SelectItem>
-          <SelectItem value="PRE_START">착공전</SelectItem>
-          <SelectItem value="COMPLETED">준공</SelectItem>
-          <SelectItem value="SUSPENDED">중지</SelectItem>
-        </SelectContent>
-      </Select>
+      <RangeFilter
+        label="전체 법인"
+        options={filterOptions.corporations.map((c) => ({ value: c, label: c }))}
+        selected={strToSet(filters.corporation)}
+        onChange={(s) => onFilterChange("corporation", setToStr(s))}
+      />
+      <RangeFilter
+        label="전체 부문"
+        options={filterOptions.divisions.map((d) => ({ value: d, label: d }))}
+        selected={strToSet(filters.division)}
+        onChange={(s) => onFilterChange("division", setToStr(s))}
+      />
+      <RangeFilter
+        label="전체 지역"
+        options={filterOptions.regions.map((r) => ({ value: r, label: r }))}
+        selected={strToSet(filters.region)}
+        onChange={(s) => onFilterChange("region", setToStr(s))}
+      />
+      <RangeFilter
+        label="시설유형"
+        options={filterOptions.facilityTypes.map((t) => ({ value: t, label: t }))}
+        selected={strToSet(filters.facilityType)}
+        onChange={(s) => onFilterChange("facilityType", setToStr(s))}
+      />
+      <RangeFilter
+        label="발주유형"
+        options={filterOptions.orderTypes.map((t) => ({ value: t, label: t }))}
+        selected={strToSet(filters.orderType)}
+        onChange={(s) => onFilterChange("orderType", setToStr(s))}
+      />
+      <RangeFilter
+        label="전체 상태"
+        options={STATUS_OPTIONS}
+        selected={strToSet(filters.status)}
+        onChange={(s) => onFilterChange("status", setToStr(s))}
+      />
 
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

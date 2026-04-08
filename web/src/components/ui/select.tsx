@@ -66,12 +66,18 @@ function SelectContent({
   className,
   children,
   position = "popper",
+  side = "bottom",
   align = "center",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const z = typeof document !== "undefined"
+    ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--dashboard-zoom")) || 1
+    : 1;
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
+        sideOffset={4}
+        style={{ zoom: z }}
         data-slot="select-content"
         className={cn(
           "bg-popover text-popover-foreground relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg border border-border shadow-lg",
@@ -81,6 +87,7 @@ function SelectContent({
           className
         )}
         position={position}
+        side={side}
         align={align}
         {...props}
       >

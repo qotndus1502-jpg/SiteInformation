@@ -21,6 +21,7 @@ interface BreakdownTabsProps {
   active_by_completion_year: { year: string; count: number }[];
   corpDivisionData: { corporation: string; division: string; count: number; total_contract: number; total_headcount: number }[];
   amount_heatmap: { by_contract: any[]; by_our_share: any[]; by_contract_division: any[]; by_our_share_division: any[]; labels: string[] };
+  onShowDetailMap?: () => void;
 }
 
 /* ── Constants ──────────────────────────────────────────── */
@@ -65,6 +66,7 @@ export function BreakdownTabs({
   active_by_completion_year: activeYears,
   amount_heatmap,
   corpDivisionData,
+  onShowDetailMap,
 }: BreakdownTabsProps) {
 
   // Build data for each category
@@ -88,22 +90,60 @@ export function BreakdownTabs({
 
   return (
     <div className="h-full overflow-hidden">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] h-full">
-        <div className="pr-5">
-          <KoreaMapChart data={by_region} />
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] h-full">
+        <div className="pr-0">
+          <KoreaMapChart data={by_region} onShowDetailMap={onShowDetailMap} />
         </div>
-        <div className="flex flex-col min-h-0 pl-5">
-          <div className="border-b border-slate-400 pb-3">
+        <div className="flex flex-col min-h-0 pl-0 gap-3">
+          {/* Row 1 — 법인별: 현장수 / 자사도급액 / 인원 (right edge aligned with row 3 below) */}
+          <div className="pb-3 flex justify-end">
             <CorpDivisionChart data={corpDivisionData} />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-[250px_1fr] border-b border-slate-400 py-3">
-            <div>
-              <StatusDonutChart data={by_status} />
+
+          {/* Row 2 — 상태별: 도넛 + 착공·준공예정 가로 배치 (Row 1 의 CorpDivisionChart 폭에 맞춰 우측 정렬) */}
+          <div className="relative pt-3 pb-3 border-t-[1.5px] border-slate-300">
+            {/* Legend — top-left of the row (matches Row 3 legend x position) */}
+            <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#2563EB" }} />
+                <span className="text-[11px] text-muted-foreground">진행중</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#F59E0B" }} />
+                <span className="text-[11px] text-muted-foreground">착공전</span>
+              </div>
             </div>
-            <CompletionYearChart preStartData={completionYears} activeData={activeYears} />
+            <div className="flex justify-end">
+              <div style={{ width: 956 }} className="flex items-start">
+                {/* 도넛 — 첫 번째 metric 컬럼(법인별 현장 수, x: 68~348) 중앙 */}
+                <div style={{ width: 348, paddingLeft: 68 }} className="flex justify-center shrink-0">
+                  <StatusDonutChart data={by_status} />
+                </div>
+                {/* CompletionYear — 도넛 우측 나머지 영역 */}
+                <div className="flex-1 flex items-start">
+                  <CompletionYearChart preStartData={completionYears} activeData={activeYears} />
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="pt-3">
-            <AmountHeatmapChart data={amount_heatmap} />
+
+          {/* Row 3 — 금액별: 자사도급액별(좌, mirror) | 총공사비별(우) — 두 차트가 중앙에서 맞닿도록 */}
+          <div className="relative pt-1 border-t-[1.5px] border-slate-300">
+            {/* Legend — top-left of the row (matches Row 2 legend x position) */}
+            <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#2563EB" }} />
+                <span className="text-[11px] text-muted-foreground">건축</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#BFDBFE" }} />
+                <span className="text-[11px] text-muted-foreground">토목</span>
+              </div>
+            </div>
+            <div className="flex items-start justify-center gap-0 [&>*]:-mx-2 [&>*]:-my-2">
+              <AmountHeatmapChart data={amount_heatmap} series="share" mirror />
+              <AmountHeatmapChart data={amount_heatmap} series="contract" />
+            </div>
           </div>
         </div>
       </div>

@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { BreakdownTabs } from "./breakdown-tabs";
 import { CorpDivisionChart } from "./corp-division-chart";
 import { KoreaMapChart } from "./korea-map-chart";
 import { FilterBar } from "@/components/dashboard/filter-bar";
+import { SiteList } from "@/components/dashboard/site-list";
+import { SiteDetail } from "@/components/dashboard/site-detail";
+import { SiteMap, type ColorCategory } from "@/components/dashboard/site-map";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
+import type { SiteDashboard } from "@/types/database";
 
 /* ── Dashboard Scaler ──────────────────────────────────── */
 
@@ -15,12 +19,12 @@ const BASE_H = 920;
 
 function DashboardScaler({ children }: { children: React.ReactNode }) {
   const [scale, setScale] = useState(1);
-  const innerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function update() {
-      const s = window.innerWidth / BASE_W;
-      setScale(Math.max(s, 0.5));
+      const s = Math.max(window.innerWidth / BASE_W, 0.5);
+      setScale(s);
+      document.documentElement.style.setProperty("--dashboard-zoom", String(s));
     }
     update();
     window.addEventListener("resize", update);
@@ -33,12 +37,10 @@ function DashboardScaler({ children }: { children: React.ReactNode }) {
       style={{ minHeight: "calc(100vh - 52px)" }}
     >
       <div
-        ref={innerRef}
-        className="flex flex-col gap-2 p-2 lg:p-3 origin-top-left"
+        className="flex flex-col gap-1 p-1 lg:p-2"
         style={{
           width: BASE_W,
-          transform: `scale(${scale})`,
-          marginBottom: `calc(${(scale - 1) * BASE_H}px)`,
+          zoom: scale,
         }}
       >
         {children}
@@ -73,6 +75,95 @@ interface StatisticsSummary {
 interface StatisticsClientProps {
   summary: StatisticsSummary;
   filterOptions: FilterOptions;
+  initialSites?: SiteDashboard[];
+}
+
+/* ── SiteList + Detail (detail aligned to selected row) ── */
+
+function SiteListWithDetail({
+  sites,
+  selectedSite,
+  displayedSite,
+  panelOpen,
+  onSelectSite,
+  onCloseSite,
+  embedded = false,
+}: {
+  sites: SiteDashboard[];
+  selectedSite: SiteDashboard | null;
+  displayedSite: SiteDashboard | null;
+  panelOpen: boolean;
+  onSelectSite: (s: SiteDashboard) => void;
+  onCloseSite: () => void;
+  embedded?: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [detailTop, setDetailTop] = useState(0);
+
+  // Recompute the absolute top whenever selection or list contents change.
+  // Tracks `displayedSite` so the panel keeps its position during close animation.
+  useLayoutEffect(() => {
+    if (!displayedSite || !containerRef.current) return;
+    let rafId = 0;
+    const measure = () => {
+      const root = containerRef.current;
+      if (!root) return;
+      const row = root.querySelector<HTMLElement>(
+        `[data-site-row="${displayedSite.id}"]`
+      );
+      if (!row) return;
+      let top = 0;
+      let cur: HTMLElement | null = row;
+      while (cur && cur !== root) {
+        top += cur.offsetTop;
+        cur = cur.offsetParent as HTMLElement | null;
+      }
+      setDetailTop(top);
+    };
+    measure();
+    rafId = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(rafId);
+  }, [displayedSite, sites]);
+
+  const content = (
+    <>
+      <h2 className="text-[20px] font-bold text-foreground uppercase tracking-wider mb-2">SITE LIST</h2>
+      <div ref={containerRef} className="relative">
+        {/* List transitions to make room for detail panel with same easing as dashboard map tab */}
+        <div
+          className="transition-[padding-right] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+          style={{ paddingRight: panelOpen ? 516 : 0 }}
+        >
+          <SiteList
+            sites={sites}
+            selectedSiteId={selectedSite?.id ?? null}
+            onSelect={onSelectSite}
+          />
+        </div>
+        {displayedSite && (
+          <div
+            className="absolute right-0 overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+            style={{
+              top: detailTop,
+              maxWidth: panelOpen ? 500 : 0,
+              opacity: panelOpen ? 1 : 0,
+            }}
+          >
+            <div className="w-[500px]">
+              <SiteDetail site={displayedSite} onClose={onCloseSite} />
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  if (embedded) return content;
+  return (
+    <div className="mt-1 bg-white/60 backdrop-blur-sm shadow-sm p-4">
+      {content}
+    </div>
+  );
 }
 
 /* ── Hero KPI Card ──────────────────────────────────────── */
@@ -81,7 +172,6 @@ function HeroKpi({
   label,
   value,
   unit,
-  isLast = false,
 }: {
   label: string;
   value: string;
@@ -89,9 +179,9 @@ function HeroKpi({
   isLast?: boolean;
 }) {
   return (
-    <div className={cn("flex items-center justify-center gap-2 py-2", !isLast && "border-r border-border/50")}>
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="text-2xl font-extrabold text-foreground tracking-tight">{value}<span className="text-sm font-medium text-muted-foreground ml-0.5">{unit}</span></p>
+    <div className="flex items-center justify-center gap-2 py-0.5">
+      <p className="text-[14px] text-muted-foreground">{label}</p>
+      <p className="inline-flex items-center text-[20px] font-extrabold text-foreground tracking-tight">{value}<span className="text-[14px] font-normal text-muted-foreground ml-0.5">{unit}</span></p>
     </div>
   );
 }
@@ -163,14 +253,64 @@ function setToParam(s: Set<string>): string {
   return Array.from(s).join(",");
 }
 
-export function StatisticsClient({ summary: initialSummary, filterOptions }: StatisticsClientProps) {
+export function StatisticsClient({ summary: initialSummary, filterOptions, initialSites = [] }: StatisticsClientProps) {
   const [summary, setSummary] = useState(initialSummary);
+  const [sites, setSites] = useState<SiteDashboard[]>(initialSites);
+  const [selectedSite, setSelectedSite] = useState<SiteDashboard | null>(null);
+  // Animation state for SiteDetail panel (mirrors dashboard-client.tsx map tab)
+  const [displayedSite, setDisplayedSite] = useState<SiteDashboard | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const closingTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleSelectSite = useCallback((site: SiteDashboard) => {
+    clearTimeout(closingTimer.current);
+    setSelectedSite(site);
+    setDisplayedSite(site);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setPanelOpen(true);
+      });
+    });
+  }, []);
+
+  const handleCloseSite = useCallback(() => {
+    setPanelOpen(false);
+    closingTimer.current = setTimeout(() => {
+      setSelectedSite(null);
+      setDisplayedSite(null);
+    }, 500);
+  }, []);
   const [filters, setFilters] = useState<SiteFilter>({});
   const [amountRanges, setAmountRanges] = useState<Set<string>>(new Set());
   const [progressRanges, setProgressRanges] = useState<Set<string>>(new Set());
+  const [pageScale, setPageScale] = useState(1);
+  const [stickyContentH, setStickyContentH] = useState(88);
+  const stickyContentRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [showDetailMap, setShowDetailMap] = useState(false);
+  const [mapColorCategory, setMapColorCategory] = useState<ColorCategory>("corporation");
+  const detailMapRef = useRef<HTMLDivElement>(null);
 
-  const fetchSummary = useCallback(async (f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>) => {
+  const handleShowDetailMap = useCallback(() => {
+    setShowDetailMap(true);
+    requestAnimationFrame(() => {
+      detailMapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
+  useEffect(() => {
+    function update() {
+      setPageScale(Math.max(window.innerWidth / BASE_W, 0.5));
+      if (stickyContentRef.current) {
+        setStickyContentH(stickyContentRef.current.offsetHeight);
+      }
+    }
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  const buildParams = useCallback((f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>) => {
     const params = new URLSearchParams();
     if (f.corporation && f.corporation !== "all") params.set("corporation", f.corporation);
     if (f.division && f.division !== "all") params.set("division", f.division);
@@ -181,16 +321,27 @@ export function StatisticsClient({ summary: initialSummary, filterOptions }: Sta
     if (f.search) params.set("search", f.search);
     if (aRanges.size > 0) params.set("amountRanges", setToParam(aRanges));
     if (pRanges.size > 0) params.set("progressRanges", setToParam(pRanges));
+    return params;
+  }, []);
 
+  const fetchSummary = useCallback(async (f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>) => {
+    const params = buildParams(f, aRanges, pRanges);
     try {
       const qs = params.toString();
-      const res = await fetch(`${API_BASE}/api/statistics/summary${qs ? `?${qs}` : ""}`);
-      if (res.ok) {
-        const data = await res.json();
+      const [summaryRes, sitesRes] = await Promise.all([
+        fetch(`${API_BASE}/api/statistics/summary${qs ? `?${qs}` : ""}`),
+        fetch(`${API_BASE}/api/sites${qs ? `?${qs}` : ""}`),
+      ]);
+      if (summaryRes.ok) {
+        const data = await summaryRes.json();
         setSummary({ ...initialSummary, ...data });
       }
+      if (sitesRes.ok) {
+        const data = await sitesRes.json();
+        setSites(data);
+      }
     } catch {}
-  }, [initialSummary]);
+  }, [initialSummary, buildParams]);
 
   const handleFilterChange = useCallback((key: keyof SiteFilter, value: string) => {
     const next = { ...filters, [key]: value };
@@ -225,45 +376,151 @@ export function StatisticsClient({ summary: initialSummary, filterOptions }: Sta
   const corpHeadcount = byCorp.map((d) => ({ name: d.corporation, value: d.total_headcount }));
 
   return (
+    <>
+      {/* Sticky Header: Filter + KPIs - 페이지 헤더 바로 아래 고정 */}
+      <div className="sticky top-14 z-30 bg-background border-b-[1.5px] border-slate-300 -mx-4 sm:-mx-6 overflow-x-hidden" style={{ height: `${stickyContentH * pageScale}px` }}>
+        <div
+          ref={stickyContentRef}
+          style={{
+            width: BASE_W,
+            transform: `scale(${pageScale})`,
+            transformOrigin: "top left",
+          }}
+          className="px-4 sm:px-6"
+        >
+          <FilterBar
+            filterOptions={filterOptions}
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            amountRanges={amountRanges}
+            progressRanges={progressRanges}
+            onAmountRangesChange={handleAmountChange}
+            onProgressRangesChange={handleProgressChange}
+          />
+          <div className="grid grid-cols-4 pb-4">
+            <HeroKpi label="총 현장" value={`${summary.total_sites}`} unit="개" />
+            <HeroKpi label="총 공사비" value={`${Math.round(budget.total_contract ?? 0).toLocaleString()}`} unit="억" />
+            <HeroKpi label="자사 도급액" value={`${Math.round((budget as any).total_group_share ?? 0).toLocaleString()}`} unit="억" />
+            <HeroKpi label="총 인원" value={`${(headcount.total ?? 0).toLocaleString()}`} unit="명" isLast />
+          </div>
+        </div>
+      </div>
+
     <DashboardScaler>
 
-      {/* Filter Bar */}
-      <div>
-        <FilterBar
-          filterOptions={filterOptions}
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          amountRanges={amountRanges}
-          progressRanges={progressRanges}
-          onAmountRangesChange={handleAmountChange}
-          onProgressRangesChange={handleProgressChange}
+      {/* ── Charts area (always visible) ── */}
+      <div className="flex-1 min-h-0">
+        <BreakdownTabs
+          by_corporation={summary.by_corporation ?? []}
+          by_division_detail={summary.by_division_detail ?? []}
+          by_region_group={summary.by_region_group ?? []}
+          by_status={summary.by_status ?? []}
+          by_amount_range={summary.by_amount_range ?? []}
+          by_region={summary.by_region ?? []}
+          pre_start_by_completion_year={summary.pre_start_by_completion_year ?? []}
+          active_by_completion_year={summary.active_by_completion_year ?? []}
+          amount_heatmap={summary.amount_heatmap ?? { by_contract: [], by_our_share: [], by_contract_division: [], by_our_share_division: [], labels: [] }}
+          corpDivisionData={summary.by_corporation_division ?? []}
+          onShowDetailMap={handleShowDetailMap}
         />
       </div>
 
-      {/* ── Hero KPIs ── */}
-      <div className="grid grid-cols-4 border-b border-border/50">
-        <HeroKpi label="총 현장" value={`${summary.total_sites}`} unit="개" />
-        <HeroKpi label="총 공사비" value={`${Math.round((budget.total_contract ?? 0) / 100)}`} unit="백억" />
-        <HeroKpi label="자사 도급액" value={`${Math.round((budget.total_our_share ?? 0) / 100)}`} unit="백억" />
-        <HeroKpi label="총 인원" value={`${(headcount.total ?? 0).toLocaleString()}`} unit="명" isLast />
-      </div>
+      {/* ── Site List area: switches between plain list and detail map + list ── */}
+      {!showDetailMap ? (
+        <SiteListWithDetail
+          sites={sites}
+          selectedSite={selectedSite}
+          displayedSite={displayedSite}
+          panelOpen={panelOpen}
+          onSelectSite={handleSelectSite}
+          onCloseSite={handleCloseSite}
+        />
+      ) : (
+        <div ref={detailMapRef} className="mt-1 bg-white/60 backdrop-blur-sm shadow-sm p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-[20px] font-bold text-foreground uppercase tracking-wider">DETAIL MAP</h2>
+            <button
+              type="button"
+              onClick={() => setShowDetailMap(false)}
+              className="text-[12px] text-muted-foreground hover:text-foreground transition-colors px-3 py-1 rounded border border-border/60"
+            >
+              ← 사이트 리스트로 돌아가기
+            </button>
+          </div>
+          {/* Map + animated detail card side-by-side (mirrors dashboard map tab 1:1) */}
+          <div className="flex gap-3 mb-4">
+            <div className="relative flex-1 min-w-0">
+              {/* Color category selector + legend — top-left overlay */}
+              <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
+                <div className="flex bg-card/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50">
+                  {([
+                    { key: "corporation" as ColorCategory, label: "법인별" },
+                    { key: "division" as ColorCategory, label: "부문별" },
+                    { key: "status" as ColorCategory, label: "상태별" },
+                  ]).map((c) => (
+                    <button
+                      key={c.key}
+                      type="button"
+                      onClick={() => setMapColorCategory(c.key)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all",
+                        mapColorCategory === c.key
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Legend — varies by category */}
+                <div className="flex flex-col gap-0.5 bg-card/90 backdrop-blur-sm rounded-lg px-2.5 py-1.5 shadow-sm border border-border/50">
+                  {(mapColorCategory === "corporation"
+                    ? [{ label: "남광토건", color: "#22c55e" }, { label: "극동건설", color: "#3b82f6" }, { label: "금광기업", color: "#f97316" }]
+                    : mapColorCategory === "division"
+                    ? [{ label: "건축", color: "#2563EB" }, { label: "토목", color: "#F97316" }]
+                    : [{ label: "진행중", color: "#3b82f6" }, { label: "착공전", color: "#f59e0b" }, { label: "준공", color: "#22c55e" }, { label: "중지", color: "#ef4444" }]
+                  ).map((item) => (
+                    <div key={item.label} className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-[10px] text-foreground font-medium">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <SiteMap
+                sites={sites}
+                selectedSiteId={selectedSite?.id ?? null}
+                onSelect={handleSelectSite}
+                colorCategory={mapColorCategory}
+              />
+            </div>
+            {displayedSite && (
+              <div
+                className="shrink-0 hidden lg:block overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                style={{
+                  maxWidth: panelOpen ? 700 : 0,
+                  opacity: panelOpen ? 1 : 0,
+                }}
+              >
+                <div className="w-[700px]">
+                  <SiteDetail site={displayedSite} onClose={handleCloseSite} />
+                </div>
+              </div>
+            )}
+          </div>
 
-      {/* ── Map + Charts ── */}
-      <div className="flex-1 min-h-0">
-      <BreakdownTabs
-        by_corporation={summary.by_corporation ?? []}
-        by_division_detail={summary.by_division_detail ?? []}
-        by_region_group={summary.by_region_group ?? []}
-        by_status={summary.by_status ?? []}
-        by_amount_range={summary.by_amount_range ?? []}
-        by_region={summary.by_region ?? []}
-        pre_start_by_completion_year={summary.pre_start_by_completion_year ?? []}
-        active_by_completion_year={summary.active_by_completion_year ?? []}
-        amount_heatmap={summary.amount_heatmap ?? { by_contract: [], by_our_share: [], labels: [] }}
-        corpDivisionData={summary.by_corporation_division ?? []}
-      />
-      </div>
+          {/* Site list below */}
+          <h2 className="text-[20px] font-bold text-foreground uppercase tracking-wider mb-2">SITE LIST</h2>
+          <SiteList
+            sites={sites}
+            selectedSiteId={selectedSite?.id ?? null}
+            onSelect={handleSelectSite}
+          />
+        </div>
+      )}
 
     </DashboardScaler>
+    </>
   );
 }

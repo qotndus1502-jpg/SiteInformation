@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 interface StatusData {
   status: string;
   count: number;
@@ -42,12 +44,14 @@ export function StatusDonutChart({ data }: StatusDonutChartProps) {
   const activeRotate = -90;
   const preStartRotate = -90 + activePct * 360;
 
+  const [hovSlice, setHovSlice] = useState<string | null>(null);
+
   return (
     <div className="p-2">
-      <div className="flex items-start gap-3 ml-[50px]">
-        <svg viewBox={`0 0 ${cx * 2} ${cy * 2}`} className="w-[140px] h-[140px] shrink-0">
-          {/* Active slice */}
-          {(() => {
+      <div className="flex items-center gap-3">
+        <svg viewBox={`0 0 ${cx * 2} ${cy * 2}`} className="w-[140px] h-[140px] shrink-0" onMouseLeave={() => setHovSlice(null)}>
+          {/* Active slice — only when value > 0 */}
+          {active > 0 && (() => {
             const startAngle = -90;
             const endAngle = startAngle + activePct * 360;
             const midAngle = (startAngle + endAngle) / 2;
@@ -55,14 +59,19 @@ export function StatusDonutChart({ data }: StatusDonutChartProps) {
             const start = polarToCartesian(cx, cy, r, startAngle);
             const end = polarToCartesian(cx, cy, r, endAngle);
             const largeArc = activePct > 0.5 ? 1 : 0;
-            const d = `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+            // When active is the only slice (preStart=0), draw a full circle instead of a wedge
+            const d = preStart === 0
+              ? `M ${cx - r} ${cy} a ${r} ${r} 0 1 0 ${r * 2} 0 a ${r} ${r} 0 1 0 ${-r * 2} 0`
+              : `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+            const textPos = preStart === 0 ? { x: cx, y: cy } : labelPos;
+            const isHov = hovSlice === "ACTIVE";
             return (<>
-              <path d={d} fill={STATUS_CONFIG[0].color} stroke="#F8FAFC" strokeWidth={4} className="transition-all duration-700" />
-              <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight={700} fill="white">{active}</text>
+              <path d={d} fill={STATUS_CONFIG[0].color} stroke="#EEF2F7" strokeWidth={4} className="transition-all duration-200 cursor-pointer" style={{ transform: isHov ? `scale(1.06)` : "scale(1)", transformOrigin: `${cx}px ${cy}px`, opacity: isHov ? 1 : 0.8 }} onMouseEnter={() => setHovSlice("ACTIVE")} />
+              <text x={textPos.x} y={textPos.y} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight={700} fill="white" className="pointer-events-none">{active}</text>
             </>);
           })()}
-          {/* PreStart slice */}
-          {(() => {
+          {/* PreStart slice — only when value > 0 */}
+          {preStart > 0 && (() => {
             const startAngle = -90 + activePct * 360;
             const endAngle = 270;
             const midAngle = (startAngle + endAngle) / 2;
@@ -70,26 +79,18 @@ export function StatusDonutChart({ data }: StatusDonutChartProps) {
             const start = polarToCartesian(cx, cy, r, startAngle);
             const end = polarToCartesian(cx, cy, r, endAngle);
             const largeArc = (1 - activePct) > 0.5 ? 1 : 0;
-            const d = `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+            // When preStart is the only slice (active=0), draw a full circle instead of a wedge
+            const d = active === 0
+              ? `M ${cx - r} ${cy} a ${r} ${r} 0 1 0 ${r * 2} 0 a ${r} ${r} 0 1 0 ${-r * 2} 0`
+              : `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+            const textPos = active === 0 ? { x: cx, y: cy } : labelPos;
+            const isHov = hovSlice === "PRE_START";
             return (<>
-              <path d={d} fill={STATUS_CONFIG[1].color} stroke="#F8FAFC" strokeWidth={4} className="transition-all duration-700" />
-              <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight={700} fill="white">{preStart}</text>
+              <path d={d} fill={STATUS_CONFIG[1].color} stroke="#EEF2F7" strokeWidth={4} className="transition-all duration-200 cursor-pointer" style={{ transform: isHov ? `scale(1.06)` : "scale(1)", transformOrigin: `${cx}px ${cy}px`, opacity: isHov ? 1 : 0.8 }} onMouseEnter={() => setHovSlice("PRE_START")} />
+              <text x={textPos.x} y={textPos.y} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight={700} fill="white">{preStart}</text>
             </>);
           })()}
         </svg>
-
-        {/* Legend */}
-        <div className="flex flex-col gap-1 shrink-0 whitespace-nowrap">
-          {STATUS_CONFIG.map((cfg) => {
-            const count = data.find((d) => d.status === cfg.key)?.count ?? 0;
-            return (
-              <div key={cfg.key} className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cfg.color }} />
-                <span className="text-[11px] text-muted-foreground">{cfg.label}</span>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );

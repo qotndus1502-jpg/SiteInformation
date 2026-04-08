@@ -230,7 +230,7 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
   // 이미지 없을 때
   if (!hasImage) {
     return (
-      <div className="relative w-full h-[350px] overflow-hidden group">
+      <div className="relative w-full h-[300px] overflow-hidden group">
         {fileInput}
         {division === "토목" ? <BridgeIllustration /> : <BuildingIllustration />}
         {/* 카메라 버튼 */}
@@ -249,7 +249,7 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[350px] overflow-hidden bg-muted select-none group"
+      className="relative w-full h-[300px] overflow-hidden bg-muted select-none group"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

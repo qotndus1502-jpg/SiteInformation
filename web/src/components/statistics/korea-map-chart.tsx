@@ -29,6 +29,7 @@ interface SitePoint {
 interface KoreaMapChartProps {
   data: RegionStat[];
   sites?: SitePoint[];
+  onShowDetailMap?: () => void;
 }
 
 /* ── GeoJSON name → region key ────────────────────────── */
@@ -84,9 +85,9 @@ const NUDGE: Record<string, { dx: number; dy: number }> = {
 type MetricKey = "count" | "total_headcount" | "total_contract";
 
 const METRICS: { key: MetricKey; label: string; color: string; hoverColor: string; unit: string }[] = [
-  { key: "count", label: "현장 수", color: "#2563EB", hoverColor: "#1D4ED8", unit: "개" },
-  { key: "total_headcount", label: "투입 인원", color: "#3B82F6", hoverColor: "#2563EB", unit: "명" },
-  { key: "total_contract", label: "자사도급액", color: "#3B82F6", hoverColor: "#2563EB", unit: "억" },
+  { key: "count", label: "현장 수", color: "#BFDBFE", hoverColor: "#93C5FD", unit: "개" },
+  { key: "total_headcount", label: "투입 인원", color: "#BFDBFE", hoverColor: "#93C5FD", unit: "명" },
+  { key: "total_contract", label: "자사도급액", color: "#BFDBFE", hoverColor: "#93C5FD", unit: "억" },
 ];
 
 /* ── Color category config ────────────────────────────── */
@@ -205,7 +206,7 @@ type ViewMode = "region" | "area";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
-export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaMapChartProps) {
+export function KoreaMapChart({ data: initialData, sites: initialSites, onShowDetailMap }: KoreaMapChartProps) {
   const [geo, setGeo] = useState<FeatureCollection | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [data, setData] = useState<RegionStat[]>(initialData);
@@ -272,7 +273,7 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
 
   const { pathGen, centroids, projection } = useMemo(() => {
     if (!geo) return { pathGen: null, centroids: new Map<string, [number, number]>(), projection: null };
-    const projection = geoMercator().center([127.8, 36.2]).scale(13000).translate([W / 2, H / 2 + 130]);
+    const projection = geoMercator().center([127.8, 36.2]).scale(13000).translate([W / 2, H / 2 + 30]);
     const pg = geoPath().projection(projection);
     const cm = new Map<string, [number, number]>();
     for (const feature of geo.features) {
@@ -344,8 +345,7 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
   const bubbleEntries = resolveOverlaps(rawBubbles);
 
   const fmtValue = (val: number) => {
-    if (activeMetric === "total_contract") return `${Math.round(val / 100)}`;
-    return val.toLocaleString();
+    return Math.round(val).toLocaleString();
   };
 
   const totalMetric = displayData.reduce((s, d) => s + d[activeMetric], 0);
@@ -360,40 +360,40 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
   return (
     <div className="p-2 relative">
 
-      {/* Unit label - left top */}
-      <div className="absolute top-3 left-3 z-20 text-[12px] text-muted-foreground font-medium">
-        (단위: {activeMetric === "count" ? "개" : activeMetric === "total_headcount" ? "명" : "백억"})
-      </div>
+      {/* 상세 지도 보기 버튼 - left top */}
+      <button
+        type="button"
+        onClick={() => onShowDetailMap?.()}
+        className="absolute top-3 left-3 z-20 flex items-center gap-1 px-3 py-1 rounded-full text-[12px] font-medium border transition-all hover:opacity-90"
+        style={{ borderColor: "#1E3A8A", color: "#fff", backgroundColor: "#1E3A8A" }}
+      >
+        상세 지도 보기 →
+      </button>
 
-      {/* Metric selector - right top */}
-      <div className="absolute top-3 right-10 z-20 flex flex-col gap-0">
+      {/* Metric selector - right top (shifted 50px to the left) */}
+      <div className="absolute top-3 right-[58px] z-20 flex flex-col gap-1 items-center">
         {METRICS.map((m) => {
           const isActive = activeMetric === m.key;
-          const val = m.key === "count" ? totalSiteCount : m.key === "total_headcount" ? totalHeadCount : totalContract;
-          const display = m.key === "total_contract" ? `${Math.round(val).toLocaleString()}억` : `${val.toLocaleString()}${m.unit}`;
           return (
             <button
               key={m.key}
               onClick={() => setActiveMetric(m.key)}
               className={cn(
-                "flex items-center justify-between gap-2 px-2 py-1 text-[12px] font-medium transition-all text-left",
+                "px-2.5 py-0.5 rounded-full text-[12px] font-medium transition-all border",
                 isActive
-                  ? "text-primary font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "text-primary border-primary/50 bg-primary/5"
+                  : "text-muted-foreground border-transparent hover:text-foreground"
               )}
             >
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
-                {m.label}
-              </span>
+              {m.label}
             </button>
           );
         })}
       </div>
 
-      {/* Map + overlays */}
-      <div className="relative" style={{ marginTop: 35 }}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxHeight: 550, overflow: "visible" }}>
+      {/* Map + overlays — fixed aspect ratio so the map keeps its proportions regardless of column width */}
+      <div className="relative" style={{ marginTop: 20, width: "100%", aspectRatio: `${W} / ${H}`, maxHeight: 430 }}>
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ width: "100%", height: "100%", overflow: "visible" }}>
 
           {/* Province shapes */}
           {geo.features.map((feature, i) => {
@@ -478,7 +478,7 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
 
                   {/* Value */}
                   <text x={cx} y={big ? cy - 4 : cy - 1} textAnchor="middle"
-                    fill="#fff" className="pointer-events-none">
+                    fill="#1E3A8A" className="pointer-events-none">
                     <tspan fontSize={38} fontWeight={800}>{fmtValue(val)}</tspan>
                   </text>
 
@@ -486,7 +486,9 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
                   {big ? (
                     <text x={cx} y={cy + 28} textAnchor="middle"
                       fontSize={28} fontWeight={600}
-                      fill="rgba(255,255,255,0.8)" className="pointer-events-none">
+                      fill="#1E3A8A"
+                      fillOpacity={0.7}
+                      className="pointer-events-none">
                       {label}
                     </text>
                   ) : (
@@ -503,8 +505,8 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
 
           {/* 해외 — 고정 크기 섬 + 버블 */}
           {overseasStat && overseasStat.count > 0 && (() => {
-            const ix = 550;
-            const iy = H + 100;
+            const ix = 720;
+            const iy = H - 80;
             const val = overseasStat[activeMetric];
             const isHov = hovered === "해외";
             const br = 45;
@@ -541,7 +543,7 @@ export function KoreaMapChart({ data: initialData, sites: initialSites }: KoreaM
                   className="transition-all duration-200"
                 />
                 <text x={ix + 25} y={iy + 20} textAnchor="middle" dominantBaseline="middle"
-                  fill="#fff"
+                  fill="#1E3A8A"
                   className="pointer-events-none">
                   <tspan fontSize={38} fontWeight={800}>{fmtValue(val)}</tspan>
                 </text>
