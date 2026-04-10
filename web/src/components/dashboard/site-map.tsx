@@ -137,15 +137,58 @@ const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "진행중", COMPLETED: "준공", SUSPENDED: "중지", PRE_START: "착공전",
 };
 
-function buildPopupHTML(name: string, corp: string, division: string, facilityType: string, orderType: string, status: string, amount: number | null) {
+// Tag colors mirror the SiteDetail badge palette (Badge variants:
+// success / brand / orange / warning / gray)
+const COMPANY_TAG_COLORS: Record<string, { bg: string; text: string }> = {
+  "남광토건": { bg: "#F0FDF4", text: "#15803D" }, // success
+  "극동건설": { bg: "#EFF6FF", text: "#1D4ED8" }, // brand
+  "금광기업": { bg: "#FFF7ED", text: "#C2410C" }, // orange
+};
+const STATUS_TAG_COLORS: Record<string, { bg: string; text: string }> = {
+  "ACTIVE":    { bg: "#EFF6FF", text: "#1D4ED8" }, // brand
+  "PRE_START": { bg: "#FFF7ED", text: "#C2410C" }, // orange
+  "COMPLETED": { bg: "#F1F5F9", text: "#64748B" }, // gray
+  "SUSPENDED": { bg: "#FEFCE8", text: "#A16207" }, // warning
+};
+const GRAY_TAG = { bg: "#F1F5F9", text: "#64748B" };
+
+function tagSpan(label: string, colors: { bg: string; text: string }): string {
+  return `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:10px;font-weight:500;background:${colors.bg};color:${colors.text};margin-right:3px;margin-top:3px;white-space:nowrap;line-height:1.4;">${label}</span>`;
+}
+
+function buildPopupHTML(name: string, corp: string, division: string, status: string, amount: number | null, jvSummary: string | null) {
   const amountStr = amount != null ? `${Math.round(amount).toLocaleString()}억` : "-";
-  const tagStyle = `display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;background:#eff6ff;color:#2563eb;margin-right:4px;margin-top:4px;white-space:nowrap;`;
-  const tags = [corp, division, facilityType, orderType, STATUS_LABEL[status] ?? status].filter(Boolean);
+
+  const tagsHtml = [
+    corp ? tagSpan(corp, COMPANY_TAG_COLORS[corp] ?? GRAY_TAG) : "",
+    division ? tagSpan(division, GRAY_TAG) : "",
+    status ? tagSpan(STATUS_LABEL[status] ?? status, STATUS_TAG_COLORS[status] ?? GRAY_TAG) : "",
+  ].join("");
+
+  // 자사 도급액 — 주도급사(자사 중 지분 1위) 1개만 표시. 회사명 없이 금액 + 퍼센트만.
+  let leadStr = "-";
+  if (amount != null && jvSummary) {
+    const regex = /(남광토건|극동건설|금광기업)\s+([\d.]+)%/g;
+    const matches = [...jvSummary.matchAll(regex)];
+    if (matches.length > 0) {
+      const lead = matches
+        .map((m) => ({ name: m[1], pct: parseFloat(m[2]) }))
+        .sort((a, b) => b.pct - a.pct)[0];
+      const leadAmount = Math.round(amount * lead.pct / 100);
+      leadStr = `${leadAmount.toLocaleString()}억 (${Math.round(lead.pct)}%)`;
+    }
+  }
+
   return `
-    <div style="padding:8px 12px;min-width:200px;max-width:280px;font-family:var(--font-sans,sans-serif);">
-      <strong style="font-size:var(--text-md);line-height:1.3;white-space:nowrap;">${name}</strong>
-      <div style="margin-top:4px;">${tags.map((t) => `<span style="${tagStyle}">${t}</span>`).join("")}</div>
-      <div style="margin-top:6px;font-size:var(--text-sm);color:#2563eb;font-weight:600;">도급액 ${amountStr}</div>
+    <div style="padding:6px 10px;min-width:160px;max-width:260px;font-family:var(--font-sans,sans-serif);">
+      <strong style="font-size:13px;line-height:1.25;color:#0f172a;white-space:nowrap;">${name}</strong>
+      <div style="margin-top:2px;">${tagsHtml}</div>
+      <div style="margin-top:5px;font-size:11px;color:#64748b;font-weight:500;">
+        공사금액 <span style="color:#0f172a;font-weight:700;font-size:12px;">${amountStr}</span>
+      </div>
+      <div style="margin-top:2px;font-size:11px;color:#64748b;font-weight:500;">
+        자사도급액 <span style="color:#2563eb;font-weight:700;font-size:12px;">${leadStr}</span>
+      </div>
     </div>
   `;
 }
@@ -168,6 +211,7 @@ function buildGeoJSON(sites: SiteDashboard[], selectedSiteId: number | null, col
         facility_type_name: s.facility_type_name ?? "",
         order_type: s.order_type ?? "",
         status: s.status ?? "",
+        jv_summary: s.jv_summary ?? "",
         color: getSiteColor({ corporation_name: s.corporation_name, division: s.division ?? "", status: s.status }, colorCategory),
         selected: s.id === selectedSiteId ? 1 : 0,
       },
@@ -186,6 +230,28 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
 
   /* 선택 마커 (DOM — 핀 모양, 1개만) */
   const selectedMarkerRef = useRef<maplibregl.Marker | null>(null);
+
+  /* Show a popup on the side opposite the marker (so it never overlaps the pin
+     and never falls off the right edge where the detail card lives). */
+  const showPopup = useCallback((lngLat: [number, number], html: string) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const point = map.project(lngLat);
+    const width = map.getCanvas().clientWidth;
+    // If marker is in the left half → put popup on its right (anchor "left").
+    // If marker is in the right half → put popup on its left (anchor "right").
+    const anchor: "left" | "right" = point.x < width / 2 ? "left" : "right";
+    popupRef.current?.remove();
+    popupRef.current = new maplibregl.Popup({
+      closeOnClick: false,
+      closeButton: false,
+      anchor,
+      offset: 24,
+    })
+      .setLngLat(lngLat)
+      .setHTML(html)
+      .addTo(map);
+  }, []);
 
   /* 지도 초기화 */
   useEffect(() => {
@@ -219,7 +285,8 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     mapRef.current = map;
-    popupRef.current = new maplibregl.Popup({ closeOnClick: false, offset: 14, closeButton: false });
+    // Popup is recreated on each show via showPopup() so its anchor (left/right of pin)
+    // can be picked dynamically based on the marker's screen position.
 
     map.on("load", () => {
       // GeoJSON source
@@ -269,10 +336,10 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
         const feature = e.features?.[0];
         if (!feature || !feature.geometry || feature.geometry.type !== "Point") return;
         const props = feature.properties!;
-        popupRef.current
-          ?.setLngLat(feature.geometry.coordinates as [number, number])
-          .setHTML(buildPopupHTML(props.site_name, props.corporation_name, props.division, props.facility_type_name, props.order_type, props.status, props.contract_amount))
-          .addTo(map);
+        showPopup(
+          feature.geometry.coordinates as [number, number],
+          buildPopupHTML(props.site_name, props.corporation_name, props.division, props.status, props.contract_amount, props.jv_summary)
+        );
       });
 
       map.on("mouseleave", CIRCLE_LAYER, () => {
@@ -315,7 +382,14 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
     // 선택된 현장 핀 마커
     const selectedSite = sites.find((s) => s.id === selectedSiteId);
     if (selectedSite?.latitude != null && selectedSite?.longitude != null) {
-      const color = CORP_COLORS[selectedSite.corporation_name] ?? DEFAULT_COLOR;
+      const color = getSiteColor(
+        {
+          corporation_name: selectedSite.corporation_name,
+          division: selectedSite.division ?? "",
+          status: selectedSite.status,
+        },
+        colorCategory
+      );
       const el = document.createElement("div");
       el.style.cursor = "pointer";
       el.innerHTML = `<svg viewBox="0 0 24 32" width="36" height="44">
@@ -330,12 +404,12 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
       selectedMarkerRef.current = marker;
 
       // 선택 핀 팝업
-      popupRef.current
-        ?.setLngLat([selectedSite.longitude!, selectedSite.latitude!])
-        .setHTML(buildPopupHTML(selectedSite.site_name, selectedSite.corporation_name, selectedSite.division, selectedSite.facility_type_name ?? "", selectedSite.order_type ?? "", selectedSite.status, selectedSite.contract_amount))
-        .addTo(map);
+      showPopup(
+        [selectedSite.longitude!, selectedSite.latitude!],
+        buildPopupHTML(selectedSite.site_name, selectedSite.corporation_name, selectedSite.division, selectedSite.status, selectedSite.contract_amount, selectedSite.jv_summary ?? null)
+      );
     }
-  }, [sites, selectedSiteId, colorCategory]);
+  }, [sites, selectedSiteId, colorCategory, showPopup]);
 
   useEffect(() => {
     const map = mapRef.current;

@@ -13,6 +13,10 @@ interface CorpDivisionData {
 
 interface CorpDivisionChartProps {
   data: CorpDivisionData[];
+  /** Cross-filter: currently filtered corporation (for highlight). */
+  selectedCorp?: string | null;
+  /** Cross-filter: called when user clicks a corp row. Pass null to clear. */
+  onCorpClick?: (corp: string | null) => void;
 }
 
 const CORP_ORDER = ["남광토건", "극동건설", "금광기업"];
@@ -65,17 +69,32 @@ function BarCell({
   isHov: boolean;
   s: BarCellStyle;
 }) {
-  const HALF_W = s.barAreaW / 2;
-  const archW = archVal > 0 ? Math.max((archVal / maxArch) * HALF_W, 24) : 0;
-  const civilW = civilVal > 0 ? Math.max((civilVal / maxCivil) * HALF_W, 24) : 0;
+  // Distribute the cell width between 건축 / 토목 in proportion to their max
+  // values, while keeping a *single* px-per-unit so the two bars remain
+  // directly comparable. The total cell width is unchanged — only the
+  // internal split point shifts.
+  //
+  // We use a square-root scale instead of linear because metrics like
+  // 자사도급액 have a very large dynamic range (e.g. 152억 vs 16,980억) —
+  // pure linear scaling collapses small values into the min-width floor and
+  // makes them visually indistinguishable. sqrt preserves order/sign but
+  // compresses the high end so small values stay readable.
+  const sqrtMaxArch = Math.sqrt(maxArch) || 1;
+  const sqrtMaxCivil = Math.sqrt(maxCivil) || 1;
+  const totalSqrtMax = sqrtMaxArch + sqrtMaxCivil || 1;
+  const pxPerSqrtUnit = s.barAreaW / totalSqrtMax;
+  const archHalfW = sqrtMaxArch * pxPerSqrtUnit;
+  const civilHalfW = sqrtMaxCivil * pxPerSqrtUnit;
+  const archW = archVal > 0 ? Math.max(Math.sqrt(archVal) * pxPerSqrtUnit, 36) : 0;
+  const civilW = civilVal > 0 ? Math.max(Math.sqrt(civilVal) * pxPerSqrtUnit, 36) : 0;
 
   return (
-    <div className="flex items-center justify-center" style={{ opacity: isHov ? 1 : 0.8 }}>
+    <div className="flex items-center justify-center" style={{ opacity: isHov ? 1 : 0.8, height: s.rowH }}>
       {/* Left half - 건축 */}
-      <div className="flex justify-end" style={{ width: HALF_W }}>
+      <div className="flex justify-end transition-[width] duration-200 ease-out" style={{ width: archHalfW }}>
         {archVal > 0 && (
           <div
-            className="flex items-center justify-center transition-all duration-200"
+            className="flex items-center justify-center transition-all duration-200 ease-out"
             style={{
               width: archW,
               height: s.rowH,
@@ -91,10 +110,10 @@ function BarCell({
         )}
       </div>
       {/* Right half - 토목 */}
-      <div className="flex justify-start" style={{ width: HALF_W }}>
+      <div className="flex justify-start transition-[width] duration-200 ease-out" style={{ width: civilHalfW }}>
         {civilVal > 0 && (
           <div
-            className="flex items-center justify-center transition-all duration-200"
+            className="flex items-center justify-center transition-all duration-200 ease-out"
             style={{
               width: civilW,
               height: s.rowH,
@@ -115,7 +134,7 @@ function BarCell({
 
 /* ── Main Component ────────────────────────────────── */
 
-export function CorpDivisionChart({ data }: CorpDivisionChartProps) {
+export function CorpDivisionChart({ data, selectedCorp, onCorpClick }: CorpDivisionChartProps) {
   const [hovIdx, setHovIdx] = useState<number | null>(null);
 
   const cellStyle: BarCellStyle = {
@@ -139,11 +158,11 @@ export function CorpDivisionChart({ data }: CorpDivisionChartProps) {
   }
 
   const groupedCount = buildGrouped("count");
-  const knownCorps = CORP_ORDER.filter((c) => c in groupedCount);
+  // Always render the 3 group corps so the chart height stays constant even
+  // when filters reduce the dataset to a subset (e.g. clicking 극동건설 only).
+  // Empty rows render zero-width bars in their slot.
   const otherCorps = Object.keys(groupedCount).filter((c) => !CORP_ORDER.includes(c));
-  const corps = [...knownCorps, ...otherCorps];
-
-  if (corps.length === 0) return null;
+  const corps = [...CORP_ORDER, ...otherCorps];
 
   // Build data for each metric and yMax (per-division max for diverging bars)
   const metricData = METRICS.map((m) => {
@@ -178,14 +197,21 @@ export function CorpDivisionChart({ data }: CorpDivisionChartProps) {
       <div className="flex flex-col" style={{ gap: rowGap }}>
         {corps.map((corp, i) => {
           const isHov = hovIdx === i;
+          const isSelected = selectedCorp === corp;
+          const isDimmed = selectedCorp != null && !isSelected;
           return (
             <div
               key={corp}
-              className="flex items-center gap-0"
+              className="flex items-center gap-0 cursor-pointer transition-opacity"
+              style={{ opacity: isDimmed ? 0.4 : 1 }}
               onMouseEnter={() => setHovIdx(i)}
+              onClick={() => onCorpClick?.(isSelected ? null : corp)}
             >
               {/* Corp name */}
-              <span className="text-foreground font-semibold w-14 shrink-0" style={{ fontSize: cellStyle.fontSize }}>{corp}</span>
+              <span
+                className={cn("font-semibold w-14 shrink-0", isSelected ? "text-primary" : "text-foreground")}
+                style={{ fontSize: cellStyle.fontSize }}
+              >{corp}</span>
 
               {/* 3 metric cells */}
               {metricData.map((m, mi) => {

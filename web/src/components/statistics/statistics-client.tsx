@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { BreakdownTabs } from "./breakdown-tabs";
 import { CorpDivisionChart } from "./corp-division-chart";
@@ -97,42 +98,33 @@ function SiteListWithDetail({
   onCloseSite: () => void;
   embedded?: boolean;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [detailTop, setDetailTop] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  // Recompute the absolute top whenever selection or list contents change.
-  // Tracks `displayedSite` so the panel keeps its position during close animation.
-  useLayoutEffect(() => {
-    if (!displayedSite || !containerRef.current) return;
-    let rafId = 0;
-    const measure = () => {
-      const root = containerRef.current;
-      if (!root) return;
-      const row = root.querySelector<HTMLElement>(
-        `[data-site-row="${displayedSite.id}"]`
-      );
-      if (!row) return;
-      let top = 0;
-      let cur: HTMLElement | null = row;
-      while (cur && cur !== root) {
-        top += cur.offsetTop;
-        cur = cur.offsetParent as HTMLElement | null;
-      }
-      setDetailTop(top);
-    };
-    measure();
-    rafId = requestAnimationFrame(measure);
-    return () => cancelAnimationFrame(rafId);
-  }, [displayedSite, sites]);
+  // Track whether the SITE LIST section is visible in the viewport so the
+  // floating detail card hides when the user scrolls up to the dashboard area.
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const [sectionInView, setSectionInView] = useState(false);
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setSectionInView(entry.isIntersecting),
+      { root: null, threshold: 0, rootMargin: "0px 0px -50% 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  const cardVisible = panelOpen && sectionInView;
 
   const content = (
     <>
-      <h2 className="text-[20px] font-bold text-foreground uppercase tracking-wider mb-2">SITE LIST</h2>
-      <div ref={containerRef} className="relative">
-        {/* List transitions to make room for detail panel with same easing as dashboard map tab */}
+      <div ref={sectionRef} className="relative">
+        {/* List transitions to make room for floating detail panel */}
         <div
           className="transition-[padding-right] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
-          style={{ paddingRight: panelOpen ? 516 : 0 }}
+          style={{ paddingRight: cardVisible ? 516 : 0 }}
         >
           <SiteList
             sites={sites}
@@ -140,27 +132,53 @@ function SiteListWithDetail({
             onSelect={onSelectSite}
           />
         </div>
-        {displayedSite && (
+      </div>
+      {/* Floating detail card: portal to body so it escapes DashboardScaler's zoom,
+          but then re-applies the same zoom internally so the card scales in sync
+          with the list. The card is only shown while the SITE LIST section is in
+          the viewport — scrolling up to the dashboard/charts hides it. */}
+      {mounted && displayedSite &&
+        createPortal(
           <div
-            className="absolute right-0 overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+            className="fixed right-4 z-50 pointer-events-none transition-opacity duration-300"
             style={{
-              top: detailTop,
-              maxWidth: panelOpen ? 500 : 0,
-              opacity: panelOpen ? 1 : 0,
+              top: "calc(var(--sticky-header-bottom, 200px) + 40px)",
+              opacity: cardVisible ? 1 : 0,
+              visibility: cardVisible ? "visible" : "hidden",
             }}
           >
-            <div className="w-[500px]">
-              <SiteDetail site={displayedSite} onClose={onCloseSite} />
+            {/* Zoom layer — matches DashboardScaler so the card is drawn at the
+                same scale as the site list next to it */}
+            <div style={{ zoom: "var(--dashboard-zoom, 1)" }}>
+              <div
+                className="overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] pointer-events-auto shadow-2xl rounded-2xl"
+                style={{
+                  maxWidth: cardVisible ? 500 : 0,
+                  opacity: cardVisible ? 1 : 0,
+                }}
+              >
+                {/* CSS height divided by zoom so the *visual* height fills from
+                    just below the sticky header down to ~16px above the viewport bottom. */}
+                <div
+                  className="w-[500px]"
+                  style={{
+                    height:
+                      "calc((100vh - var(--sticky-header-bottom, 200px) - 56px) / var(--dashboard-zoom, 1))",
+                  }}
+                >
+                  <SiteDetail site={displayedSite} onClose={onCloseSite} />
+                </div>
+              </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
-      </div>
     </>
   );
 
   if (embedded) return content;
   return (
-    <div className="mt-1 bg-white/60 backdrop-blur-sm shadow-sm p-4">
+    <div className="mt-[10px] p-4">
       {content}
     </div>
   );
@@ -283,6 +301,9 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
   const [filters, setFilters] = useState<SiteFilter>({});
   const [amountRanges, setAmountRanges] = useState<Set<string>>(new Set());
   const [progressRanges, setProgressRanges] = useState<Set<string>>(new Set());
+  // 자사 도급액 별 필터 — FilterBar에는 노출하지 않고, AmountHeatmapChart의
+  // 자사도급액 시리즈 클릭으로만 토글된다.
+  const [shareRanges, setShareRanges] = useState<Set<string>>(new Set());
   const [pageScale, setPageScale] = useState(1);
   const [stickyContentH, setStickyContentH] = useState(88);
   const stickyContentRef = useRef<HTMLDivElement>(null);
@@ -293,24 +314,44 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
 
   const handleShowDetailMap = useCallback(() => {
     setShowDetailMap(true);
-    requestAnimationFrame(() => {
-      detailMapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
   }, []);
+
+  // Lock page scroll while the DETAIL MAP view is active — only the detail card
+  // scrolls internally; the map itself fills the viewport. Reset scroll to 0 so
+  // both the page header (top-0) and the sticky KPI header (top-14) stay visible.
+  useEffect(() => {
+    if (!showDetailMap) return;
+    window.scrollTo(0, 0);
+    const prevHtml = document.documentElement.style.overflow;
+    const prevBody = document.body.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.documentElement.style.overflow = prevHtml;
+      document.body.style.overflow = prevBody;
+    };
+  }, [showDetailMap]);
 
   useEffect(() => {
     function update() {
-      setPageScale(Math.max(window.innerWidth / BASE_W, 0.5));
+      const nextScale = Math.max(window.innerWidth / BASE_W, 0.5);
+      setPageScale(nextScale);
+      let nextStickyH = stickyContentH;
       if (stickyContentRef.current) {
-        setStickyContentH(stickyContentRef.current.offsetHeight);
+        nextStickyH = stickyContentRef.current.offsetHeight;
+        setStickyContentH(nextStickyH);
       }
+      // Expose sticky header bottom (top-14 + header height) as a CSS var so the
+      // floating detail card can anchor itself below it regardless of viewport width.
+      const headerBottom = 56 + nextStickyH * nextScale;
+      document.documentElement.style.setProperty("--sticky-header-bottom", `${headerBottom}px`);
     }
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, []);
+  }, [stickyContentH]);
 
-  const buildParams = useCallback((f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>) => {
+  const buildParams = useCallback((f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>) => {
     const params = new URLSearchParams();
     if (f.corporation && f.corporation !== "all") params.set("corporation", f.corporation);
     if (f.division && f.division !== "all") params.set("division", f.division);
@@ -321,11 +362,12 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     if (f.search) params.set("search", f.search);
     if (aRanges.size > 0) params.set("amountRanges", setToParam(aRanges));
     if (pRanges.size > 0) params.set("progressRanges", setToParam(pRanges));
+    if (sRanges.size > 0) params.set("groupShareRanges", setToParam(sRanges));
     return params;
   }, []);
 
-  const fetchSummary = useCallback(async (f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>) => {
-    const params = buildParams(f, aRanges, pRanges);
+  const fetchSummary = useCallback(async (f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>) => {
+    const params = buildParams(f, aRanges, pRanges, sRanges);
     try {
       const qs = params.toString();
       const [summaryRes, sitesRes] = await Promise.all([
@@ -348,21 +390,90 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     setFilters(next);
     if (key === "search") {
       if (searchTimer.current) clearTimeout(searchTimer.current);
-      searchTimer.current = setTimeout(() => fetchSummary(next, amountRanges, progressRanges), 300);
+      searchTimer.current = setTimeout(() => fetchSummary(next, amountRanges, progressRanges, shareRanges), 300);
     } else {
-      fetchSummary(next, amountRanges, progressRanges);
+      fetchSummary(next, amountRanges, progressRanges, shareRanges);
     }
-  }, [filters, amountRanges, progressRanges, fetchSummary]);
+  }, [filters, amountRanges, progressRanges, shareRanges, fetchSummary]);
 
   const handleAmountChange = useCallback((v: Set<string>) => {
     setAmountRanges(v);
-    fetchSummary(filters, v, progressRanges);
-  }, [filters, progressRanges, fetchSummary]);
+    fetchSummary(filters, v, progressRanges, shareRanges);
+  }, [filters, progressRanges, shareRanges, fetchSummary]);
 
   const handleProgressChange = useCallback((v: Set<string>) => {
     setProgressRanges(v);
-    fetchSummary(filters, amountRanges, v);
-  }, [filters, amountRanges, fetchSummary]);
+    fetchSummary(filters, amountRanges, v, shareRanges);
+  }, [filters, amountRanges, shareRanges, fetchSummary]);
+
+  const handleResetFilters = useCallback(() => {
+    const empty: SiteFilter = {};
+    const emptyAmount = new Set<string>();
+    const emptyProgress = new Set<string>();
+    const emptyShare = new Set<string>();
+    setFilters(empty);
+    setAmountRanges(emptyAmount);
+    setProgressRanges(emptyProgress);
+    setShareRanges(emptyShare);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    fetchSummary(empty, emptyAmount, emptyProgress, emptyShare);
+  }, [fetchSummary]);
+
+  /* ── Cross-filter handlers (Power BI style) ──
+     Clicking a chart element toggles the corresponding filter. Clicking the
+     same element again clears it. The shared `handleFilterChange` already
+     re-fetches summary + sites, so all charts and the site list update. */
+  const handleCrossFilter = useCallback((key: keyof SiteFilter, value: string | null) => {
+    const current = filters[key];
+    const next = value == null || current === value ? "all" : value;
+    handleFilterChange(key, next);
+  }, [filters, handleFilterChange]);
+
+  const handleRegionCrossFilter = useCallback((region: string | null) => {
+    handleCrossFilter("region", region);
+  }, [handleCrossFilter]);
+  const handleCorpCrossFilter = useCallback((corp: string | null) => {
+    handleCrossFilter("corporation", corp);
+  }, [handleCrossFilter]);
+  const handleStatusCrossFilter = useCallback((status: string | null) => {
+    handleCrossFilter("status", status);
+  }, [handleCrossFilter]);
+
+  const handleAmountRangeCrossFilter = useCallback((rangeKey: string | null) => {
+    if (rangeKey == null) {
+      const empty = new Set<string>();
+      setAmountRanges(empty);
+      fetchSummary(filters, empty, progressRanges, shareRanges);
+      return;
+    }
+    // Toggle: if already the only selected one, clear; otherwise select just it.
+    const isOnlySelected = amountRanges.size === 1 && amountRanges.has(rangeKey);
+    const next = new Set<string>(isOnlySelected ? [] : [rangeKey]);
+    setAmountRanges(next);
+    fetchSummary(filters, next, progressRanges, shareRanges);
+  }, [filters, amountRanges, progressRanges, shareRanges, fetchSummary]);
+
+  // 자사 도급액 별 — 백엔드 필터(`groupShareRanges`)에는 적용되지만 FilterBar에는 안 보임
+  const handleShareRangeCrossFilter = useCallback((rangeKey: string | null) => {
+    if (rangeKey == null) {
+      const empty = new Set<string>();
+      setShareRanges(empty);
+      fetchSummary(filters, amountRanges, progressRanges, empty);
+      return;
+    }
+    const isOnlySelected = shareRanges.size === 1 && shareRanges.has(rangeKey);
+    const next = new Set<string>(isOnlySelected ? [] : [rangeKey]);
+    setShareRanges(next);
+    fetchSummary(filters, amountRanges, progressRanges, next);
+  }, [filters, amountRanges, progressRanges, shareRanges, fetchSummary]);
+
+  // Single-value selection state derived from current filter strings.
+  // (Filter strings can be comma-separated; we treat exactly one value as "selected".)
+  const selectedRegion = filters.region && filters.region !== "all" && !filters.region.includes(",") ? filters.region : null;
+  const selectedCorp = filters.corporation && filters.corporation !== "all" && !filters.corporation.includes(",") ? filters.corporation : null;
+  const selectedStatus = filters.status && filters.status !== "all" && !filters.status.includes(",") ? filters.status : null;
+  const selectedAmountRange = amountRanges.size === 1 ? Array.from(amountRanges)[0] : null;
+  const selectedShareRange = shareRanges.size === 1 ? Array.from(shareRanges)[0] : null;
 
   const progress = summary.progress;
   const headcount = summary.headcount;
@@ -396,6 +507,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
             progressRanges={progressRanges}
             onAmountRangesChange={handleAmountChange}
             onProgressRangesChange={handleProgressChange}
+            onReset={handleResetFilters}
           />
           <div className="grid grid-cols-4 pb-4">
             <HeroKpi label="총 현장" value={`${summary.total_sites}`} unit="개" />
@@ -408,48 +520,66 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
 
     <DashboardScaler>
 
-      {/* ── Charts area (always visible) ── */}
-      <div className="flex-1 min-h-0">
-        <BreakdownTabs
-          by_corporation={summary.by_corporation ?? []}
-          by_division_detail={summary.by_division_detail ?? []}
-          by_region_group={summary.by_region_group ?? []}
-          by_status={summary.by_status ?? []}
-          by_amount_range={summary.by_amount_range ?? []}
-          by_region={summary.by_region ?? []}
-          pre_start_by_completion_year={summary.pre_start_by_completion_year ?? []}
-          active_by_completion_year={summary.active_by_completion_year ?? []}
-          amount_heatmap={summary.amount_heatmap ?? { by_contract: [], by_our_share: [], by_contract_division: [], by_our_share_division: [], labels: [] }}
-          corpDivisionData={summary.by_corporation_division ?? []}
-          onShowDetailMap={handleShowDetailMap}
-        />
-      </div>
-
-      {/* ── Site List area: switches between plain list and detail map + list ── */}
       {!showDetailMap ? (
-        <SiteListWithDetail
-          sites={sites}
-          selectedSite={selectedSite}
-          displayedSite={displayedSite}
-          panelOpen={panelOpen}
-          onSelectSite={handleSelectSite}
-          onCloseSite={handleCloseSite}
-        />
-      ) : (
-        <div ref={detailMapRef} className="mt-1 bg-white/60 backdrop-blur-sm shadow-sm p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-[20px] font-bold text-foreground uppercase tracking-wider">DETAIL MAP</h2>
-            <button
-              type="button"
-              onClick={() => setShowDetailMap(false)}
-              className="text-[12px] text-muted-foreground hover:text-foreground transition-colors px-3 py-1 rounded border border-border/60"
-            >
-              ← 사이트 리스트로 돌아가기
-            </button>
+        <>
+          {/* ── Charts area ── */}
+          <div className="flex-1 min-h-0">
+            <BreakdownTabs
+              by_corporation={summary.by_corporation ?? []}
+              by_division_detail={summary.by_division_detail ?? []}
+              by_region_group={summary.by_region_group ?? []}
+              by_status={summary.by_status ?? []}
+              by_amount_range={summary.by_amount_range ?? []}
+              by_region={summary.by_region ?? []}
+              pre_start_by_completion_year={summary.pre_start_by_completion_year ?? []}
+              active_by_completion_year={summary.active_by_completion_year ?? []}
+              amount_heatmap={summary.amount_heatmap ?? { by_contract: [], by_our_share: [], by_contract_division: [], by_our_share_division: [], labels: [] }}
+              corpDivisionData={summary.by_corporation_division ?? []}
+              onShowDetailMap={handleShowDetailMap}
+              selectedRegion={selectedRegion}
+              selectedCorp={selectedCorp}
+              selectedStatus={selectedStatus}
+              selectedAmountRange={selectedAmountRange}
+              selectedShareRange={selectedShareRange}
+              onRegionClick={handleRegionCrossFilter}
+              onCorpClick={handleCorpCrossFilter}
+              onStatusClick={handleStatusCrossFilter}
+              onAmountRangeClick={handleAmountRangeCrossFilter}
+              onShareRangeClick={handleShareRangeCrossFilter}
+            />
           </div>
-          {/* Map + animated detail card side-by-side (mirrors dashboard map tab 1:1) */}
-          <div className="flex gap-3 mb-4">
+
+          {/* ── Site List area ── */}
+          <SiteListWithDetail
+            sites={sites}
+            selectedSite={selectedSite}
+            displayedSite={displayedSite}
+            panelOpen={panelOpen}
+            onSelectSite={handleSelectSite}
+            onCloseSite={handleCloseSite}
+          />
+        </>
+      ) : (
+        /* ── Detail map fills the whole body under the header (no heading row, no page scroll) ── */
+        <div ref={detailMapRef} className="pt-1.5 px-4 overflow-hidden">
+          {/* Map + animated detail card side-by-side — fills viewport, no page scroll */}
+          <div
+            className="flex gap-3"
+            style={{
+              height:
+                "calc((100vh - var(--sticky-header-bottom, 200px) - 50px) / var(--dashboard-zoom, 1))",
+            }}
+          >
             <div className="relative flex-1 min-w-0">
+              {/* Floating return button — top-right of map */}
+              <button
+                type="button"
+                onClick={() => setShowDetailMap(false)}
+                className="absolute top-3 right-10 z-20 flex items-center gap-1 px-3 py-1 rounded-full text-[12px] font-medium border transition-all hover:opacity-90"
+                style={{ borderColor: "#1E3A8A", color: "#fff", backgroundColor: "#1E3A8A" }}
+              >
+                ← 대시보드로 돌아가기
+              </button>
               {/* Color category selector + legend — top-left overlay */}
               <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
                 <div className="flex bg-card/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50">
@@ -479,7 +609,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
                     ? [{ label: "남광토건", color: "#22c55e" }, { label: "극동건설", color: "#3b82f6" }, { label: "금광기업", color: "#f97316" }]
                     : mapColorCategory === "division"
                     ? [{ label: "건축", color: "#2563EB" }, { label: "토목", color: "#F97316" }]
-                    : [{ label: "진행중", color: "#3b82f6" }, { label: "착공전", color: "#f59e0b" }, { label: "준공", color: "#22c55e" }, { label: "중지", color: "#ef4444" }]
+                    : [{ label: "진행중", color: "#3b82f6" }, { label: "착공전", color: "#f59e0b" }]
                   ).map((item) => (
                     <div key={item.label} className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
@@ -488,35 +618,30 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
                   ))}
                 </div>
               </div>
-              <SiteMap
-                sites={sites}
-                selectedSiteId={selectedSite?.id ?? null}
-                onSelect={handleSelectSite}
-                colorCategory={mapColorCategory}
-              />
+              {/* Force SiteMap (which has its own h-[calc(100vh-280px)]) to fill the parent box */}
+              <div className="absolute inset-0 [&>div]:h-full [&>div>div]:!h-full [&>div>div]:!min-h-0">
+                <SiteMap
+                  sites={sites}
+                  selectedSiteId={selectedSite?.id ?? null}
+                  onSelect={handleSelectSite}
+                  colorCategory={mapColorCategory}
+                />
+              </div>
             </div>
             {displayedSite && (
               <div
-                className="shrink-0 hidden lg:block overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                className="shrink-0 hidden lg:block h-full overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
                 style={{
-                  maxWidth: panelOpen ? 700 : 0,
+                  maxWidth: panelOpen ? 500 : 0,
                   opacity: panelOpen ? 1 : 0,
                 }}
               >
-                <div className="w-[700px]">
+                <div className="w-[500px] h-full">
                   <SiteDetail site={displayedSite} onClose={handleCloseSite} />
                 </div>
               </div>
             )}
           </div>
-
-          {/* Site list below */}
-          <h2 className="text-[20px] font-bold text-foreground uppercase tracking-wider mb-2">SITE LIST</h2>
-          <SiteList
-            sites={sites}
-            selectedSiteId={selectedSite?.id ?? null}
-            onSelect={handleSelectSite}
-          />
         </div>
       )}
 

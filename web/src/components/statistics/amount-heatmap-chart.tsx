@@ -21,14 +21,25 @@ interface AmountHeatmapChartProps {
   series?: "contract" | "share" | "both";
   /** When true, rows are anchored to the right edge (mirrors left-anchored layout) */
   mirror?: boolean;
+  /** Cross-filter: currently selected amount range key (e.g. "100-500") */
+  selectedRangeKey?: string | null;
+  /** Cross-filter: called when user clicks a row. Pass null to clear. */
+  onRangeClick?: (rangeKey: string | null) => void;
 }
 
-// Transform labels like "100억 미만" → "<100억", "100~500억" → "100-500억", "2,000억 이상" → "2,000억<"
+// Map display labels (from backend) to the range keys used in filter.amountRanges
+const LABEL_TO_RANGE_KEY: Record<string, string> = {
+  "≤ 100억":   "0-100",
+  "≤ 500억":   "100-500",
+  "≤ 1,000억": "500-1000",
+  "≤ 2,000억": "1000-2000",
+  "≤ 3,000억": "2000-3000",
+  "> 3,000억": "3000-",
+};
+
+// Backend already sends labels in the desired display form ("≤ 100억", "> 3,000억")
 function toHundredBillion(label: string): string {
-  const stripped = label.replace(/억/g, "").replace(/\s/g, "");
-  if (stripped.includes("미만")) return `< ${stripped.replace("미만", "")}억`;
-  if (stripped.includes("이상")) return `${stripped.replace("이상", "")}억 <`;
-  return `${stripped.replace(/~/g, "-")}억`;
+  return label;
 }
 
 interface HeatmapStyle {
@@ -78,7 +89,7 @@ function HalfBar({
     <div className={cn("flex items-center", justify)} style={{ width: HALF_W, height: s.rowH, opacity: isHov ? 1 : 0.8 }}>
       {value > 0 && (
         <div
-          className={cn("flex items-center transition-all duration-200", innerJustify)}
+          className={cn("flex items-center transition-all duration-200 ease-out", innerJustify)}
           style={{
             width: w,
             height: s.rowH,
@@ -97,7 +108,7 @@ function HalfBar({
   );
 }
 
-export function AmountHeatmapChart({ data, series: which = "both", mirror = false }: AmountHeatmapChartProps) {
+export function AmountHeatmapChart({ data, series: which = "both", mirror = false, selectedRangeKey, onRangeClick }: AmountHeatmapChartProps) {
   const labels = data.labels ?? [];
   const contractRows = data.by_contract_division ?? [];
   const shareRows = data.by_our_share_division ?? [];
@@ -188,12 +199,19 @@ export function AmountHeatmapChart({ data, series: which = "both", mirror = fals
               />
               {labels.map((label, i) => {
                 const isHov = hovIdx === i;
+                const rangeKey = LABEL_TO_RANGE_KEY[label];
+                const isSelected = !!rangeKey && selectedRangeKey === rangeKey;
+                const isDimmed = selectedRangeKey != null && !isSelected;
                 return (
                   <div
                     key={label}
-                    className="flex items-center gap-0 relative"
-                    style={{ height: heatStyle.rowH }}
+                    className="flex items-center gap-0 relative cursor-pointer transition-opacity"
+                    style={{ height: heatStyle.rowH, opacity: isDimmed ? 0.4 : 1 }}
                     onMouseEnter={() => setHovIdx(i)}
+                    onClick={() => {
+                      if (!rangeKey) return;
+                      onRangeClick?.(isSelected ? null : rangeKey);
+                    }}
                   >
                     <HalfBar
                       value={s.bars[i].arch}

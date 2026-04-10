@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import os
 import json
 import math
+import time
 import traceback
 import httpx
 from typing import Optional
@@ -153,6 +154,128 @@ def attach_coords(sites: list[dict]) -> list[dict]:
     return sites
 
 
+# ── In-memory cache for the dashboard sites view ─────────────────────────
+# Supabase round-trips are the dominant latency for /api/sites and
+# /api/statistics/summary (~400ms each). Filters change rapidly under
+# Power BI-style cross-filtering, so we fetch the full dashboard view once,
+# cache it, and apply all filters in-memory afterwards. TTL is short enough
+# that DB updates surface within a minute without manual invalidation.
+
+_SITES_CACHE: dict = {"data": None, "ts": 0.0}
+SITES_CACHE_TTL = 60.0  # seconds
+
+
+def get_all_sites_cached() -> list[dict]:
+    """Return the full dashboard site list, fetching from Supabase only when
+    the in-memory cache is empty or stale. Result is already deduped and
+    enriched (clean_facility_type + attach_share_amounts + attach_coords)."""
+    now = time.time()
+    cached = _SITES_CACHE["data"]
+    if cached is not None and (now - _SITES_CACHE["ts"]) < SITES_CACHE_TTL:
+        return cached
+
+    response = supabase.schema("pmis").from_("v_site_dashboard").select("*").order(
+        "progress_rate", desc=False
+    ).execute()
+    raw = response.data or []
+
+    # Deduplicate by site_name + corporation_code
+    seen = set()
+    deduped: list[dict] = []
+    for s in raw:
+        key = f"{s.get('site_name')}::{s.get('corporation_code')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(s)
+
+    deduped = clean_facility_type(deduped)
+    deduped = attach_share_amounts(deduped)
+    deduped = attach_coords(deduped)
+
+    _SITES_CACHE["data"] = deduped
+    _SITES_CACHE["ts"] = now
+    return deduped
+
+
+def invalidate_sites_cache() -> None:
+    _SITES_CACHE["data"] = None
+    _SITES_CACHE["ts"] = 0.0
+
+
+def _split_csv(v: Optional[str]) -> Optional[list[str]]:
+    if not v or v == "all":
+        return None
+    parts = [p.strip() for p in v.split(",") if p.strip() and p.strip() != "all"]
+    return parts or None
+
+
+def filter_sites_in_memory(
+    sites: list[dict],
+    corporation: Optional[str] = None,
+    region: Optional[str] = None,
+    facilityType: Optional[str] = None,
+    orderType: Optional[str] = None,
+    division: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    amountRanges: Optional[str] = None,
+    progressRanges: Optional[str] = None,
+    groupShareRanges: Optional[str] = None,
+) -> list[dict]:
+    """Apply the same filter logic as the previous Supabase queries, but
+    against an in-memory list. Used by both /api/sites and the summary
+    endpoint so they share a single cached source of truth."""
+    corp_list = _split_csv(corporation)
+    region_list = _split_csv(region)
+    facility_list = _split_csv(facilityType)
+    order_list = _split_csv(orderType)
+    division_list = _split_csv(division)
+    status_list = _split_csv(status)
+    search_lc = (search or "").strip().lower() or None
+
+    out = sites
+    if corp_list:
+        cs = set(corp_list)
+        out = [s for s in out if s.get("corporation_name") in cs]
+    if region_list:
+        rs = set(region_list)
+        out = [s for s in out if s.get("region_name") in rs]
+    if facility_list:
+        fs = set(facility_list)
+        out = [s for s in out if s.get("facility_type_name") in fs]
+    if order_list:
+        os_ = set(order_list)
+        out = [s for s in out if s.get("order_type") in os_]
+    if division_list:
+        ds = set(division_list)
+        out = [s for s in out if s.get("division") in ds]
+    if status_list:
+        ss = set(status_list)
+        out = [s for s in out if s.get("status") in ss]
+    if search_lc:
+        out = [s for s in out if search_lc in (s.get("site_name") or "").lower()]
+    if amountRanges:
+        ranges = parse_ranges(amountRanges)
+        out = [
+            s for s in out
+            if any(r["min"] <= (s.get("contract_amount") or 0) < r["max"] for r in ranges)
+        ]
+    if progressRanges:
+        ranges = parse_ranges(progressRanges)
+        out = [
+            s for s in out
+            if any(r["min"] <= (s.get("progress_rate") or 0) * 100 < r["max"] for r in ranges)
+        ]
+    if groupShareRanges:
+        ranges = parse_ranges(groupShareRanges)
+        out = [
+            s for s in out
+            if any(r["min"] <= (s.get("group_share_amount") or 0) < r["max"] for r in ranges)
+        ]
+    return out
+
+
 @app.get("/api/sites")
 async def get_sites(
     corporation: Optional[str] = Query(None),
@@ -164,73 +287,23 @@ async def get_sites(
     search: Optional[str] = Query(None),
     amountRanges: Optional[str] = Query(None),
     progressRanges: Optional[str] = Query(None),
+    groupShareRanges: Optional[str] = Query(None),
 ):
     try:
-        query = supabase.schema("pmis").from_("v_site_dashboard").select("*")
-
-        def split(v: Optional[str]) -> Optional[list[str]]:
-            if not v or v == "all":
-                return None
-            parts = [p.strip() for p in v.split(",") if p.strip() and p.strip() != "all"]
-            return parts or None
-
-        corp_list = split(corporation)
-        region_list = split(region)
-        facility_list = split(facilityType)
-        order_list = split(orderType)
-        division_list = split(division)
-        status_list = split(status)
-
-        if corp_list:
-            query = query.in_("corporation_name", corp_list)
-        if region_list:
-            query = query.in_("region_name", region_list)
-        if facility_list:
-            query = query.in_("facility_type_name", facility_list)
-        if order_list:
-            query = query.in_("order_type", order_list)
-        if division_list:
-            query = query.in_("division", division_list)
-        if status_list:
-            query = query.in_("status", status_list)
-        if search:
-            query = query.ilike("site_name", f"%{search}%")
-
-        response = query.order("progress_rate", desc=False).execute()
-        results = response.data or []
-
-        # Deduplicate by site_name + corporation_code
-        seen = set()
-        deduped = []
-        for site in results:
-            key = f"{site.get('site_name')}::{site.get('corporation_code')}"
-            if key not in seen:
-                seen.add(key)
-                deduped.append(site)
-        results = deduped
-
-        # Amount range filter
-        if amountRanges:
-            ranges = parse_ranges(amountRanges)
-            results = [
-                s for s in results
-                if any(r["min"] <= (s.get("contract_amount") or 0) < r["max"] for r in ranges)
-            ]
-
-        # Progress range filter
-        if progressRanges:
-            ranges = parse_ranges(progressRanges)
-            results = [
-                s for s in results
-                if any(r["min"] <= (s.get("progress_rate") or 0) * 100 < r["max"] for r in ranges)
-            ]
-
-        # Attach coordinates & share amounts
-        results = clean_facility_type(results)
-        results = attach_coords(results)
-        results = attach_share_amounts(results)
-
-        return results
+        # Cached source of truth → in-memory filter (no Supabase round-trip on hot path)
+        return filter_sites_in_memory(
+            get_all_sites_cached(),
+            corporation=corporation,
+            region=region,
+            facilityType=facilityType,
+            orderType=orderType,
+            division=division,
+            status=status,
+            search=search,
+            amountRanges=amountRanges,
+            progressRanges=progressRanges,
+            groupShareRanges=groupShareRanges,
+        )
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -302,29 +375,35 @@ async def upload_org_photo(file: UploadFile = File(...), member_id: str = Form(.
     return {"ok": True, "url": url}
 
 
+_FILTER_OPTIONS_CACHE: dict = {"data": None, "ts": 0.0}
+
+
 @app.get("/api/filter-options")
 async def get_filter_options():
-    corps = supabase.schema("pmis").from_("corporation").select("name").order("name").execute()
-    regions = supabase.schema("pmis").from_("region_code").select("name").order("name").execute()
-    types = supabase.schema("pmis").from_("facility_type").select("name").order("name").execute()
+    """Derive filter options from the cached dashboard view. No extra DB round-trip."""
+    now = time.time()
+    cached = _FILTER_OPTIONS_CACHE["data"]
+    if cached is not None and (now - _FILTER_OPTIONS_CACHE["ts"]) < SITES_CACHE_TTL:
+        return cached
 
-    # order_type은 별도 테이블 없이 뷰에서 distinct 추출
-    all_sites = supabase.schema("pmis").from_("v_site_dashboard").select("order_type").execute()
-    order_type_set = sorted(set(
-        r["order_type"] for r in (all_sites.data or []) if r.get("order_type")
-    ))
+    sites = get_all_sites_cached()
+    corporations = sorted({s.get("corporation_name") for s in sites if s.get("corporation_name")})
+    regions = sorted({s.get("region_name") for s in sites if s.get("region_name")})
+    order_types = sorted({s.get("order_type") for s in sites if s.get("order_type")})
+    # facility_type_name is already cleaned in get_all_sites_cached (ORDER_TYPES stripped to None)
+    facility_types = sorted({s.get("facility_type_name") for s in sites if s.get("facility_type_name")})
 
-    # 발주유형(BTL, CMR, 민간, 민참, 종심제)을 시설유형에서 제외
-    facility_types = [r["name"] for r in (types.data or []) if r["name"] not in order_type_set]
-
-    return {
-        "corporations": [r["name"] for r in (corps.data or [])],
-        "regions": [r["name"] for r in (regions.data or [])],
+    result = {
+        "corporations": corporations,
+        "regions": regions,
         "facilityTypes": facility_types,
-        "orderTypes": order_type_set,
+        "orderTypes": order_types,
         "divisions": ["토목", "건축"],
         "statuses": ["ACTIVE", "COMPLETED", "SUSPENDED", "PRE_START"],
     }
+    _FILTER_OPTIONS_CACHE["data"] = result
+    _FILTER_OPTIONS_CACHE["ts"] = now
+    return result
 
 
 # ── Org Chart ──────────────────────────────────────────────
@@ -550,44 +629,28 @@ async def get_statistics_summary(
     search: Optional[str] = Query(None),
     amountRanges: Optional[str] = Query(None),
     progressRanges: Optional[str] = Query(None),
+    groupShareRanges: Optional[str] = Query(None),
 ):
-    """Aggregate KPI summary from all sites, with optional filters."""
-    def split(v: Optional[str]) -> Optional[list[str]]:
-        if not v or v == "all":
-            return None
-        parts = [p.strip() for p in v.split(",") if p.strip() and p.strip() != "all"]
-        return parts or None
+    """Aggregate KPI summary from all sites, with optional filters.
+    Sources sites from the in-memory cache (no Supabase round-trip on hot path)."""
+    sites = filter_sites_in_memory(
+        get_all_sites_cached(),
+        corporation=corporation,
+        region=region,
+        facilityType=facilityType,
+        orderType=orderType,
+        division=division,
+        status=status,
+        search=search,
+        amountRanges=amountRanges,
+        progressRanges=progressRanges,
+        groupShareRanges=groupShareRanges,
+    )
 
-    query = supabase.schema("pmis").from_("v_site_dashboard").select("*")
-    if corp_list := split(corporation):
-        query = query.in_("corporation_name", corp_list)
-    if region_list := split(region):
-        query = query.in_("region_name", region_list)
-    if facility_list := split(facilityType):
-        query = query.in_("facility_type_name", facility_list)
-    if order_list := split(orderType):
-        query = query.in_("order_type", order_list)
-    if division_list := split(division):
-        query = query.in_("division", division_list)
-    if status_list := split(status):
-        query = query.in_("status", status_list)
-    if search:
-        query = query.ilike("site_name", f"%{search}%")
-
-    response = query.execute()
-    sites = attach_share_amounts(response.data or [])
-
-    # Amount range filter
-    if amountRanges:
-        ranges = parse_ranges(amountRanges)
-        sites = [s for s in sites if any(r["min"] <= (s.get("contract_amount") or 0) < r["max"] for r in ranges)]
-
-    # Progress range filter
-    if progressRanges:
-        ranges = parse_ranges(progressRanges)
-        sites = [s for s in sites if any(r["min"] <= (s.get("progress_rate") or 0) * 100 < r["max"] for r in ranges)]
-
-    active = [s for s in sites if s.get("status") == "ACTIVE"]
+    # NOTE: previously this hard-filtered to status == "ACTIVE", which made all the
+    # downstream chart aggregations empty when the user filtered to a non-ACTIVE
+    # status (e.g. 착공전). Trust the user-supplied status filter instead.
+    active = sites
     total = len(sites)
 
     # 공정률
@@ -773,14 +836,14 @@ def _group_by_region_name(sites: list[dict]) -> list[dict]:
 
 
 def _pre_start_by_completion_year(sites: list[dict]) -> list[dict]:
-    """Group PRE_START sites by end_date year."""
+    """Group PRE_START sites by start_date year (착공 시작년도)."""
     pre = [s for s in sites if s.get("status") == "PRE_START"]
     years: dict[str, int] = defaultdict(int)
     no_date = 0
     for s in pre:
-        ed = s.get("end_date")
-        if ed:
-            years[ed[:4]] += 1
+        sd = s.get("start_date")
+        if sd:
+            years[sd[:4]] += 1
         else:
             no_date += 1
     result = [{"year": k, "count": v} for k, v in sorted(years.items())]
@@ -885,11 +948,12 @@ def _group_by_division_detail(sites: list[dict]) -> list[dict]:
 
 def _amount_range_distribution(sites: list[dict]) -> list[dict]:
     bins = [
-        {"label": "100억 미만", "min": 0, "max": 100, "count": 0, "contract": 0.0, "headcount": 0},
-        {"label": "100-500억", "min": 100, "max": 500, "count": 0, "contract": 0.0, "headcount": 0},
-        {"label": "500-1,000억", "min": 500, "max": 1000, "count": 0, "contract": 0.0, "headcount": 0},
-        {"label": "1,000-2,000억", "min": 1000, "max": 2000, "count": 0, "contract": 0.0, "headcount": 0},
-        {"label": "2,000억 이상", "min": 2000, "max": float("inf"), "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "≤ 100억",   "min": 0,    "max": 100,         "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "≤ 500억",   "min": 100,  "max": 500,         "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "≤ 1,000억", "min": 500,  "max": 1000,        "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "≤ 2,000억", "min": 1000, "max": 2000,        "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "≤ 3,000억", "min": 2000, "max": 3000,        "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "> 3,000억", "min": 3000, "max": float("inf"), "count": 0, "contract": 0.0, "headcount": 0},
     ]
     for s in sites:
         amt = s.get("contract_amount") or 0
@@ -903,11 +967,12 @@ def _amount_range_distribution(sites: list[dict]) -> list[dict]:
 
 
 AMOUNT_BINS = [
-    {"label": "100억 미만", "min": 0, "max": 100},
-    {"label": "100~500억", "min": 100, "max": 500},
-    {"label": "500~1,000억", "min": 500, "max": 1000},
-    {"label": "1,000~2,000억", "min": 1000, "max": 2000},
-    {"label": "2,000억 이상", "min": 2000, "max": float("inf")},
+    {"label": "≤ 100억",   "min": 0,    "max": 100},
+    {"label": "≤ 500억",   "min": 100,  "max": 500},
+    {"label": "≤ 1,000억", "min": 500,  "max": 1000},
+    {"label": "≤ 2,000억", "min": 1000, "max": 2000},
+    {"label": "≤ 3,000억", "min": 2000, "max": 3000},
+    {"label": "> 3,000억", "min": 3000, "max": float("inf")},
 ]
 
 
@@ -950,9 +1015,9 @@ def _amount_heatmap(sites: list[dict]) -> dict:
 
     return {
         "by_contract": build_grid("contract_amount"),
-        "by_our_share": build_grid("our_share_amount"),
+        "by_our_share": build_grid("group_share_amount"),
         "by_contract_division": build_division_grid("contract_amount"),
-        "by_our_share_division": build_division_grid("our_share_amount"),
+        "by_our_share_division": build_division_grid("group_share_amount"),
         "labels": [b["label"] for b in AMOUNT_BINS],
     }
 

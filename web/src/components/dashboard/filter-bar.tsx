@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Search, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RangeFilter } from "./range-filter";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
@@ -20,11 +20,12 @@ function setToStr(s: Set<string>): string {
 }
 
 const AMOUNT_OPTIONS = [
-  { value: "0-100", label: "100억 미만" },
-  { value: "100-500", label: "100~500억" },
-  { value: "500-1000", label: "500~1,000억" },
-  { value: "1000-2000", label: "1,000~2,000억" },
-  { value: "2000-", label: "2,000억 이상" },
+  { value: "0-100",    label: "≤ 100억" },
+  { value: "100-500",  label: "≤ 500억" },
+  { value: "500-1000", label: "≤ 1,000억" },
+  { value: "1000-2000", label: "≤ 2,000억" },
+  { value: "2000-3000", label: "≤ 3,000억" },
+  { value: "3000-",    label: "> 3,000억" },
 ];
 
 const PROGRESS_OPTIONS = [
@@ -48,11 +49,13 @@ export interface FilterBarProps {
   progressRanges: Set<string>;
   onAmountRangesChange: (v: Set<string>) => void;
   onProgressRangesChange: (v: Set<string>) => void;
+  onReset?: () => void;
 }
 
 export function FilterBar({
   filterOptions, filters, onFilterChange,
   amountRanges, progressRanges, onAmountRangesChange, onProgressRangesChange,
+  onReset,
 }: FilterBarProps) {
   return (
     <div className={`grid ${GRID_COLS} gap-1.5 px-4 py-1.5 items-center`}>
@@ -105,7 +108,22 @@ export function FilterBar({
       </div>
 
       <RangeFilter label="공사금액" options={AMOUNT_OPTIONS} selected={amountRanges} onChange={onAmountRangesChange} />
-      <RangeFilter label="공정률" options={PROGRESS_OPTIONS} selected={progressRanges} onChange={onProgressRangesChange} />
+      <div className="flex items-center gap-1 min-w-0">
+        <div className="flex-1 min-w-0">
+          <RangeFilter label="공정률" options={PROGRESS_OPTIONS} selected={progressRanges} onChange={onProgressRangesChange} />
+        </div>
+        {onReset && (
+          <button
+            type="button"
+            onClick={onReset}
+            title="필터 초기화"
+            aria-label="필터 초기화"
+            className="shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

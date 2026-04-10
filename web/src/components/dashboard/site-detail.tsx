@@ -66,27 +66,35 @@ export function SiteDetail({ site, onClose }: SiteDetailProps) {
   const progressPct = (site.progress_rate ?? 0) * 100;
   const executionPct = (site.execution_rate ?? 0) * 100;
 
-  // 도급액 계산 — JV에 포함된 자사 전체를 표시
-  const OUR_COMPANIES = ["남광토건", "극동건설", "금광기업"];
+  // 도급액 계산 — JV에 포함된 자사 중 주도급사(지분율 1위)를 파란색으로,
+  // 그 외 자사 주관사들은 아래에 작은 회색 글씨로 나열
   let ourShareDisplay: React.ReactNode = <span className="text-muted-foreground">-</span>;
   if (site.contract_amount != null && site.jv_summary) {
     const regex = /(남광토건|극동건설|금광기업)\s+([\d.]+)%/g;
     const matches = [...site.jv_summary.matchAll(regex)];
     if (matches.length > 0) {
-      const items = matches.map((m) => ({
-        name: m[1],
-        pct: parseFloat(m[2]),
-        amount: Math.round(site.contract_amount! * parseFloat(m[2]) / 100),
-      }));
-      const totalAmount = items.reduce((sum, i) => sum + i.amount, 0);
-      const totalPct = items.reduce((sum, i) => sum + i.pct, 0);
+      const items = matches
+        .map((m) => ({
+          name: m[1],
+          pct: parseFloat(m[2]),
+          amount: Math.round(site.contract_amount! * parseFloat(m[2]) / 100),
+        }))
+        .sort((a, b) => b.pct - a.pct);
+      const lead = items[0];
+      const others = items.slice(1);
       ourShareDisplay = (
         <div>
-          <span className="font-mono font-bold text-primary">{totalAmount.toLocaleString()}억 <span className="font-normal text-muted-foreground">({Math.round(totalPct)}%)</span></span>
-          {items.length > 1 && (
+          <span className="font-mono font-bold text-primary">
+            {lead.name} {lead.amount.toLocaleString()}억{" "}
+            <span className="font-normal text-muted-foreground">({Math.round(lead.pct)}%)</span>
+          </span>
+          {others.length > 0 && (
             <div className="mt-0.5 space-y-0.5">
-              {items.map((item) => (
-                <p key={item.name} className="text-xs text-muted-foreground font-mono">
+              {others.map((item) => (
+                <p
+                  key={item.name}
+                  className="text-muted-foreground/80 font-mono leading-tight"
+                >
                   {item.name} {item.amount.toLocaleString()}억 ({Math.round(item.pct)}%)
                 </p>
               ))}
@@ -100,7 +108,7 @@ export function SiteDetail({ site, onClose }: SiteDetailProps) {
   }
 
   return (
-    <div className="bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden max-h-[calc(100vh-120px)] overflow-y-auto">
+    <div className="bg-card rounded-2xl border border-border/40 shadow-sm h-full overflow-y-auto">
       {/* 조감도 + 닫기 버튼 */}
       <div className="relative">
         <SiteImage siteId={site.id} siteName={site.site_name} division={site.division} />
@@ -194,7 +202,7 @@ export function SiteDetail({ site, onClose }: SiteDetailProps) {
       <div className="px-4 py-3 flex gap-3">
         <div className="min-w-0" style={{ flex: "1 1 60%" }}>
           <Row label="총공사금액"><span className="font-mono">{site.contract_amount != null ? `${Math.round(site.contract_amount).toLocaleString()}억` : "-"}</span></Row>
-          <Row label="도급액">{ourShareDisplay}</Row>
+          <Row label="자사도급액">{ourShareDisplay}</Row>
           <Row label="발주처"><span className="font-medium">{site.client_name ?? "-"}</span></Row>
           <Row label="지역">{site.region_group} / {site.region_name}</Row>
           <Row label="투입 인원">

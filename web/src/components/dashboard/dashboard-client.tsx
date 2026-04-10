@@ -139,6 +139,17 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
     buildAndFetch(filters, amountRanges, v);
   }, [buildAndFetch, filters, amountRanges]);
 
+  const handleResetFilters = useCallback(() => {
+    const empty: SiteFilter = {};
+    const emptyAmount = new Set<string>();
+    const emptyProgress = new Set<string>();
+    setFilters(empty);
+    setAmountRanges(emptyAmount);
+    setProgressRanges(emptyProgress);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    buildAndFetch(empty, emptyAmount, emptyProgress);
+  }, [buildAndFetch]);
+
   const OUR_COMPANIES = ["남광토건", "극동건설", "금광기업"];
 
   function calcOurShare(site: SiteDashboard): number {
@@ -189,6 +200,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
           progressRanges={progressRanges}
           onAmountRangesChange={handleAmountRangesChange}
           onProgressRangesChange={handleProgressRangesChange}
+          onReset={handleResetFilters}
         />
       )}
 
@@ -205,6 +217,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
                 progressRanges={progressRanges}
                 onAmountRangesChange={handleAmountRangesChange}
                 onProgressRangesChange={handleProgressRangesChange}
+                onReset={handleResetFilters}
               />
               <SiteList sites={sites} selectedSiteId={selectedSite?.id ?? null} onSelect={handleSelect} />
             </>
@@ -242,7 +255,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
                     ? [{ label: "남광토건", color: "#22c55e" }, { label: "극동건설", color: "#3b82f6" }, { label: "금광기업", color: "#f97316" }]
                     : mapColorCategory === "division"
                     ? [{ label: "건축", color: "#2563EB" }, { label: "토목", color: "#F97316" }]
-                    : [{ label: "진행중", color: "#3b82f6" }, { label: "착공전", color: "#f59e0b" }, { label: "준공", color: "#22c55e" }, { label: "중지", color: "#ef4444" }]
+                    : [{ label: "진행중", color: "#3b82f6" }, { label: "착공전", color: "#f59e0b" }]
                   ).map((item) => (
                     <div key={item.label} className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />

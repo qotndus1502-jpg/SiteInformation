@@ -16,20 +16,13 @@ interface RegionStat {
   avg_progress: number;
 }
 
-interface SitePoint {
-  id: number;
-  site_name: string;
-  latitude: number | null;
-  longitude: number | null;
-  corporation_name: string;
-  division: string;
-  status: string;
-}
-
 interface KoreaMapChartProps {
   data: RegionStat[];
-  sites?: SitePoint[];
   onShowDetailMap?: () => void;
+  /** Cross-filter: currently filtered region (for highlight). null/undefined = none */
+  selectedRegion?: string | null;
+  /** Cross-filter: called when user clicks a bubble. Pass null to clear. */
+  onRegionClick?: (region: string | null) => void;
 }
 
 /* ── GeoJSON name → region key ────────────────────────── */
@@ -89,53 +82,6 @@ const METRICS: { key: MetricKey; label: string; color: string; hoverColor: strin
   { key: "total_headcount", label: "투입 인원", color: "#BFDBFE", hoverColor: "#93C5FD", unit: "명" },
   { key: "total_contract", label: "자사도급액", color: "#BFDBFE", hoverColor: "#93C5FD", unit: "억" },
 ];
-
-/* ── Color category config ────────────────────────────── */
-
-type ColorCategory = "corporation" | "division" | "status";
-
-const COLOR_CATEGORIES: { key: ColorCategory; label: string }[] = [
-  { key: "corporation", label: "법인별" },
-  { key: "division", label: "부문별" },
-  { key: "status", label: "상태별" },
-];
-
-const CORP_MARKER_COLORS: Record<string, string> = {
-  "남광토건": "#3B82F6",
-  "극동건설": "#3B82F6",
-  "금광기업": "#3B82F6",
-};
-
-const DIV_MARKER_COLORS: Record<string, string> = {
-  "건축": "#2563EB",
-  "토목": "#F97316",
-};
-
-const STATUS_MARKER_COLORS: Record<string, string> = {
-  "ACTIVE": "#2563EB",
-  "PRE_START": "#F59E0B",
-  "COMPLETED": "#22C55E",
-  "SUSPENDED": "#EF4444",
-};
-
-const STATUS_MARKER_LABELS: Record<string, string> = {
-  "ACTIVE": "진행중",
-  "PRE_START": "착공전",
-  "COMPLETED": "준공",
-  "SUSPENDED": "중지",
-};
-
-function getSiteColor(site: SitePoint, category: ColorCategory): string {
-  if (category === "corporation") return CORP_MARKER_COLORS[site.corporation_name] ?? "#94A3B8";
-  if (category === "division") return DIV_MARKER_COLORS[site.division] ?? "#94A3B8";
-  return STATUS_MARKER_COLORS[site.status] ?? "#94A3B8";
-}
-
-function getCategoryLegend(category: ColorCategory): { label: string; color: string }[] {
-  if (category === "corporation") return Object.entries(CORP_MARKER_COLORS).map(([k, v]) => ({ label: k, color: v }));
-  if (category === "division") return Object.entries(DIV_MARKER_COLORS).map(([k, v]) => ({ label: k, color: v }));
-  return Object.entries(STATUS_MARKER_COLORS).map(([k, v]) => ({ label: STATUS_MARKER_LABELS[k] ?? k, color: v }));
-}
 
 /* ── Bubble radius ────────────────────────────────────── */
 
@@ -204,37 +150,18 @@ function resolveOverlaps(bubbles: BubblePos[], iterations = 30): BubblePos[] {
 
 type ViewMode = "region" | "area";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
-
-export function KoreaMapChart({ data: initialData, sites: initialSites, onShowDetailMap }: KoreaMapChartProps) {
+export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegion, onRegionClick }: KoreaMapChartProps) {
   const [geo, setGeo] = useState<FeatureCollection | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
-  const [data, setData] = useState<RegionStat[]>(initialData);
-  const [sites, setSites] = useState<SitePoint[]>(initialSites ?? []);
   const [mode, setMode] = useState<ViewMode>("region");
   const [activeMetric, setActiveMetric] = useState<MetricKey>("count");
-  const [colorCategory, setColorCategory] = useState<ColorCategory>("corporation");
 
   useEffect(() => {
     fetch("/korea-provinces.json").then((r) => r.json()).then(setGeo).catch(() => {});
   }, []);
 
-  // Fetch sites if not provided
-  useEffect(() => {
-    if (initialSites && initialSites.length > 0) { setSites(initialSites); return; }
-    fetch(`${API_BASE}/api/sites`)
-      .then((r) => r.json())
-      .then((d) => setSites(d))
-      .catch(() => {});
-  }, [initialSites]);
-
-  useEffect(() => {
-    if (initialData.length > 0) { setData(initialData); return; }
-    fetch(`${API_BASE}/api/statistics/summary`)
-      .then((r) => r.json())
-      .then((d) => { if (d.by_region?.length) setData(d.by_region); })
-      .catch(() => {});
-  }, [initialData]);
+  // Trust the parent's filtered prop directly — no local copy, no fallback fetch.
+  const data = initialData;
 
   const byRegion = useMemo(() => new Map(data.map((d) => [d.region, d])), [data]);
 
@@ -350,13 +277,6 @@ export function KoreaMapChart({ data: initialData, sites: initialSites, onShowDe
 
   const totalMetric = displayData.reduce((s, d) => s + d[activeMetric], 0);
 
-  const totalSiteCount = data.reduce((s, d) => s + d.count, 0);
-  const totalHeadCount = data.reduce((s, d) => s + d.total_headcount, 0);
-  const totalContract = data.reduce((s, d) => s + d.total_contract, 0);
-
-  const validSites = sites.filter((s) => s.latitude != null && s.longitude != null);
-  const legendItems = getCategoryLegend(colorCategory);
-
   return (
     <div className="p-2 relative">
 
@@ -449,6 +369,8 @@ export function KoreaMapChart({ data: initialData, sites: initialSites, onShowDe
             .map(({ key, cx, cy, r, stat }) => {
               const s = stat!;
               const isHov = hovered === key;
+              const isSelected = selectedRegion === key;
+              const isDimmed = selectedRegion != null && !isSelected;
               const val = s[activeMetric];
               const pct = totalMetric > 0 ? ((val / totalMetric) * 100).toFixed(1) : "0";
               const label = mode === "area" ? AREA_GROUPS[key]?.label ?? key : key;
@@ -456,29 +378,34 @@ export function KoreaMapChart({ data: initialData, sites: initialSites, onShowDe
 
               return (
                 <g key={key} className="cursor-pointer"
+                  style={{ opacity: isDimmed ? 0.35 : 1 }}
                   onMouseEnter={() => setHovered(key)}
-                  onMouseLeave={() => setHovered(null)}>
+                  onMouseLeave={() => setHovered(null)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRegionClick?.(isSelected ? null : key);
+                  }}>
 
                   {/* Shadow for depth */}
-                  <circle cx={cx + 1} cy={cy + 1.5} r={isHov ? r * 1.2 : r}
-                    fill="rgba(0,0,0,0.12)" className="pointer-events-none transition-all duration-200" />
+                  <circle cx={cx + 1} cy={cy + 1.5} r={isHov || isSelected ? r * 1.2 : r}
+                    fill="rgba(0,0,0,0.12)" className="pointer-events-none transition-all duration-200 ease-out" />
 
-                  {/* Hover ring */}
-                  {isHov && (
+                  {/* Selection / Hover ring */}
+                  {(isHov || isSelected) && (
                     <circle cx={cx} cy={cy} r={r * 1.2 + 4}
-                      fill="none" stroke={metricCfg.color} strokeWidth="2" strokeOpacity="0.4"
-                      className="pointer-events-none" />
+                      fill="none" stroke={metricCfg.color} strokeWidth={isSelected ? 3 : 2} strokeOpacity={isSelected ? 0.85 : 0.4}
+                      className="pointer-events-none transition-all duration-200 ease-out" />
                   )}
                   {/* Bubble */}
-                  <circle cx={cx} cy={cy} r={isHov ? r * 1.2 : r}
-                    fill={isHov ? metricCfg.hoverColor : metricCfg.color}
-                    fillOpacity={isHov ? 0.95 : 0.8}
-                    stroke="white" strokeWidth={isHov ? 2 : 0.8}
-                    className="transition-all duration-200" />
+                  <circle cx={cx} cy={cy} r={isHov || isSelected ? r * 1.2 : r}
+                    fill={isHov || isSelected ? metricCfg.hoverColor : metricCfg.color}
+                    fillOpacity={isHov || isSelected ? 0.95 : 0.8}
+                    stroke="white" strokeWidth={isHov || isSelected ? 2 : 0.8}
+                    className="transition-all duration-200 ease-out" />
 
                   {/* Value */}
                   <text x={cx} y={big ? cy - 4 : cy - 1} textAnchor="middle"
-                    fill="#1E3A8A" className="pointer-events-none">
+                    fill="#1E3A8A" className="pointer-events-none transition-all duration-200 ease-out">
                     <tspan fontSize={38} fontWeight={800}>{fmtValue(val)}</tspan>
                   </text>
 
@@ -488,14 +415,14 @@ export function KoreaMapChart({ data: initialData, sites: initialSites, onShowDe
                       fontSize={28} fontWeight={600}
                       fill="#1E3A8A"
                       fillOpacity={0.7}
-                      className="pointer-events-none">
+                      className="pointer-events-none transition-all duration-200 ease-out">
                       {label}
                     </text>
                   ) : (
                     <text x={cx} y={cy + r + 10} textAnchor="middle"
                       fontSize={28} fontWeight={700}
                       fill={isHov ? metricCfg.hoverColor : "#4a5568"}
-                      className="pointer-events-none">
+                      className="pointer-events-none transition-all duration-200 ease-out">
                       {label}
                     </text>
                   )}

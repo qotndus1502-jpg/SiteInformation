@@ -22,6 +22,17 @@ interface BreakdownTabsProps {
   corpDivisionData: { corporation: string; division: string; count: number; total_contract: number; total_headcount: number }[];
   amount_heatmap: { by_contract: any[]; by_our_share: any[]; by_contract_division: any[]; by_our_share_division: any[]; labels: string[] };
   onShowDetailMap?: () => void;
+  /* ── Cross-filter (Power BI style) ───────────────────── */
+  selectedRegion?: string | null;
+  selectedCorp?: string | null;
+  selectedStatus?: string | null;
+  selectedAmountRange?: string | null;
+  selectedShareRange?: string | null;
+  onRegionClick?: (region: string | null) => void;
+  onCorpClick?: (corp: string | null) => void;
+  onStatusClick?: (status: string | null) => void;
+  onAmountRangeClick?: (rangeKey: string | null) => void;
+  onShareRangeClick?: (rangeKey: string | null) => void;
 }
 
 /* ── Constants ──────────────────────────────────────────── */
@@ -67,6 +78,16 @@ export function BreakdownTabs({
   amount_heatmap,
   corpDivisionData,
   onShowDetailMap,
+  selectedRegion,
+  selectedCorp,
+  selectedStatus,
+  selectedAmountRange,
+  selectedShareRange,
+  onRegionClick,
+  onCorpClick,
+  onStatusClick,
+  onAmountRangeClick,
+  onShareRangeClick,
 }: BreakdownTabsProps) {
 
   // Build data for each category
@@ -92,16 +113,16 @@ export function BreakdownTabs({
     <div className="h-full overflow-hidden">
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] h-full">
         <div className="pr-0">
-          <KoreaMapChart data={by_region} onShowDetailMap={onShowDetailMap} />
+          <KoreaMapChart data={by_region} onShowDetailMap={onShowDetailMap} selectedRegion={selectedRegion} onRegionClick={onRegionClick} />
         </div>
         <div className="flex flex-col min-h-0 pl-0 gap-3">
           {/* Row 1 — 법인별: 현장수 / 자사도급액 / 인원 (right edge aligned with row 3 below) */}
           <div className="pb-3 flex justify-end">
-            <CorpDivisionChart data={corpDivisionData} />
+            <CorpDivisionChart data={corpDivisionData} selectedCorp={selectedCorp} onCorpClick={onCorpClick} />
           </div>
 
           {/* Row 2 — 상태별: 도넛 + 착공·준공예정 가로 배치 (Row 1 의 CorpDivisionChart 폭에 맞춰 우측 정렬) */}
-          <div className="relative pt-3 pb-3 border-t-[1.5px] border-slate-300">
+          <div className="relative pt-3 pb-0 border-t-[1.5px] border-slate-300">
             {/* Legend — top-left of the row (matches Row 3 legend x position) */}
             <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
@@ -117,7 +138,7 @@ export function BreakdownTabs({
               <div style={{ width: 956 }} className="flex items-start">
                 {/* 도넛 — 첫 번째 metric 컬럼(법인별 현장 수, x: 68~348) 중앙 */}
                 <div style={{ width: 348, paddingLeft: 68 }} className="flex justify-center shrink-0">
-                  <StatusDonutChart data={by_status} />
+                  <StatusDonutChart data={by_status} selectedStatus={selectedStatus} onStatusClick={onStatusClick} />
                 </div>
                 {/* CompletionYear — 도넛 우측 나머지 영역 */}
                 <div className="flex-1 flex items-start">
@@ -141,8 +162,8 @@ export function BreakdownTabs({
               </div>
             </div>
             <div className="flex items-start justify-center gap-0 [&>*]:-mx-2 [&>*]:-my-2">
-              <AmountHeatmapChart data={amount_heatmap} series="share" mirror />
-              <AmountHeatmapChart data={amount_heatmap} series="contract" />
+              <AmountHeatmapChart data={amount_heatmap} series="share" mirror selectedRangeKey={selectedShareRange} onRangeClick={onShareRangeClick} />
+              <AmountHeatmapChart data={amount_heatmap} series="contract" selectedRangeKey={selectedAmountRange} onRangeClick={onAmountRangeClick} />
             </div>
           </div>
         </div>

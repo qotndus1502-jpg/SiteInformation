@@ -11,6 +11,10 @@ interface StatusData {
 
 interface StatusDonutChartProps {
   data: StatusData[];
+  /** Cross-filter: currently filtered status (for highlight). */
+  selectedStatus?: string | null;
+  /** Cross-filter: called when user clicks a slice. Pass null to clear. */
+  onStatusClick?: (status: string | null) => void;
 }
 
 const STATUS_CONFIG: { key: string; label: string; color: string }[] = [
@@ -23,7 +27,7 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
 
-export function StatusDonutChart({ data }: StatusDonutChartProps) {
+export function StatusDonutChart({ data, selectedStatus, onStatusClick }: StatusDonutChartProps) {
   const active = data.find((d) => d.status === "ACTIVE")?.count ?? 0;
   const preStart = data.find((d) => d.status === "PRE_START")?.count ?? 0;
   const total = active + preStart;
@@ -65,8 +69,10 @@ export function StatusDonutChart({ data }: StatusDonutChartProps) {
               : `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
             const textPos = preStart === 0 ? { x: cx, y: cy } : labelPos;
             const isHov = hovSlice === "ACTIVE";
+            const isSelected = selectedStatus === "ACTIVE";
+            const isDimmed = selectedStatus != null && !isSelected;
             return (<>
-              <path d={d} fill={STATUS_CONFIG[0].color} stroke="#EEF2F7" strokeWidth={4} className="transition-all duration-200 cursor-pointer" style={{ transform: isHov ? `scale(1.06)` : "scale(1)", transformOrigin: `${cx}px ${cy}px`, opacity: isHov ? 1 : 0.8 }} onMouseEnter={() => setHovSlice("ACTIVE")} />
+              <path d={d} fill={STATUS_CONFIG[0].color} stroke="#EEF2F7" strokeWidth={isSelected ? 6 : 4} className="transition-all duration-200 ease-out cursor-pointer" style={{ transform: isHov || isSelected ? `scale(1.06)` : "scale(1)", transformOrigin: `${cx}px ${cy}px`, opacity: isDimmed ? 0.35 : (isHov || isSelected ? 1 : 0.8) }} onMouseEnter={() => setHovSlice("ACTIVE")} onClick={(e) => { e.stopPropagation(); onStatusClick?.(isSelected ? null : "ACTIVE"); }} />
               <text x={textPos.x} y={textPos.y} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight={700} fill="white" className="pointer-events-none">{active}</text>
             </>);
           })()}
@@ -85,8 +91,10 @@ export function StatusDonutChart({ data }: StatusDonutChartProps) {
               : `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
             const textPos = active === 0 ? { x: cx, y: cy } : labelPos;
             const isHov = hovSlice === "PRE_START";
+            const isSelected = selectedStatus === "PRE_START";
+            const isDimmed = selectedStatus != null && !isSelected;
             return (<>
-              <path d={d} fill={STATUS_CONFIG[1].color} stroke="#EEF2F7" strokeWidth={4} className="transition-all duration-200 cursor-pointer" style={{ transform: isHov ? `scale(1.06)` : "scale(1)", transformOrigin: `${cx}px ${cy}px`, opacity: isHov ? 1 : 0.8 }} onMouseEnter={() => setHovSlice("PRE_START")} />
+              <path d={d} fill={STATUS_CONFIG[1].color} stroke="#EEF2F7" strokeWidth={isSelected ? 6 : 4} className="transition-all duration-200 ease-out cursor-pointer" style={{ transform: isHov || isSelected ? `scale(1.06)` : "scale(1)", transformOrigin: `${cx}px ${cy}px`, opacity: isDimmed ? 0.35 : (isHov || isSelected ? 1 : 0.8) }} onMouseEnter={() => setHovSlice("PRE_START")} onClick={(e) => { e.stopPropagation(); onStatusClick?.(isSelected ? null : "PRE_START"); }} />
               <text x={textPos.x} y={textPos.y} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight={700} fill="white">{preStart}</text>
             </>);
           })()}

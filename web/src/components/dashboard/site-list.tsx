@@ -120,7 +120,7 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
                 data-site-row={site.id}
                 onClick={() => onSelect(site)}
                 className={cn(
-                  "grid gap-2 px-4 py-2 cursor-pointer transition-colors items-center",
+                  "grid gap-2 px-4 py-0.5 cursor-pointer transition-colors items-center",
                   TABLE_COLS,
                   selectedSiteId === site.id
                     ? "bg-accent border-l-[3px] border-l-primary"
