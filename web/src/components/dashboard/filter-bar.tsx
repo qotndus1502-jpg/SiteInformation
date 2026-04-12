@@ -8,6 +8,7 @@ import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
 const STATUS_OPTIONS = [
   { value: "ACTIVE", label: "진행중" },
   { value: "PRE_START", label: "착공전" },
+  { value: "COMPLETED", label: "준공" },
 ];
 
 function strToSet(v: string | undefined): Set<string> {
