@@ -74,19 +74,17 @@ function BarCell({
   // directly comparable. The total cell width is unchanged — only the
   // internal split point shifts.
   //
-  // We use a square-root scale instead of linear because metrics like
-  // 자사도급액 have a very large dynamic range (e.g. 152억 vs 16,980억) —
-  // pure linear scaling collapses small values into the min-width floor and
-  // makes them visually indistinguishable. sqrt preserves order/sign but
-  // compresses the high end so small values stay readable.
-  const sqrtMaxArch = Math.sqrt(maxArch) || 1;
-  const sqrtMaxCivil = Math.sqrt(maxCivil) || 1;
-  const totalSqrtMax = sqrtMaxArch + sqrtMaxCivil || 1;
-  const pxPerSqrtUnit = s.barAreaW / totalSqrtMax;
-  const archHalfW = sqrtMaxArch * pxPerSqrtUnit;
-  const civilHalfW = sqrtMaxCivil * pxPerSqrtUnit;
-  const archW = archVal > 0 ? Math.max(Math.sqrt(archVal) * pxPerSqrtUnit, 36) : 0;
-  const civilW = civilVal > 0 ? Math.max(Math.sqrt(civilVal) * pxPerSqrtUnit, 36) : 0;
+  // 자사도급액은 범위가 넓어 sqrt 스케일, 현장 수/인원은 linear 스케일
+  const useSqrt = metric === "total_contract";
+  const scale = (v: number) => useSqrt ? Math.sqrt(v) : v;
+  const scaledMaxArch = scale(maxArch) || 1;
+  const scaledMaxCivil = scale(maxCivil) || 1;
+  const totalScaledMax = scaledMaxArch + scaledMaxCivil || 1;
+  const pxPerUnit = s.barAreaW / totalScaledMax;
+  const archHalfW = scaledMaxArch * pxPerUnit;
+  const civilHalfW = scaledMaxCivil * pxPerUnit;
+  const archW = archVal > 0 ? Math.max(scale(archVal) * pxPerUnit, 36) : 0;
+  const civilW = civilVal > 0 ? Math.max(scale(civilVal) * pxPerUnit, 36) : 0;
 
   return (
     <div className="flex items-center justify-center" style={{ opacity: isHov ? 1 : 0.8, height: s.rowH }}>
