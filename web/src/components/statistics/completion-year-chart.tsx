@@ -16,8 +16,8 @@ interface CompletionYearChartProps {
   onEndYearClick?: (year: string | null) => void;
 }
 
-const PRE_COLOR = "#F59E0B";
-const ACTIVE_COLOR = "#2563EB";
+const PRE_COLOR = "#14B8A6";
+const ACTIVE_COLOR = "#3B82F6";
 
 function HorizontalTimeline({
   label,

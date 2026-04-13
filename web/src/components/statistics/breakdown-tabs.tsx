@@ -56,14 +56,14 @@ const CORP_COLORS: Record<string, string> = {
 
 const DIV_COLORS: Record<string, string> = {
   "건축": "#2563EB",
-  "토목": "#94A3B8",
+  "토목": "#BFDBFE",
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  ACTIVE: "#2563EB",
-  PRE_START: "#F59E0B",
+  ACTIVE: "#3B82F6",
+  PRE_START: "#14B8A6",
   COMPLETED: "#94A3B8",
-  SUSPENDED: "#94A3B8",
+  SUSPENDED: "#EF4444",
 };
 
 const AMOUNT_COLORS = ["#BFDBFE", "#93C5FD", "#60A5FA", "#3B82F6", "#1D4ED8"];

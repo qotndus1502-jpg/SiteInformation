@@ -15,8 +15,8 @@ interface StatusDonutChartProps {
   onStatusClick?: (status: string | null) => void;
 }
 
-const ACTIVE_COLOR = "#2563EB";
-const PRE_START_COLOR = "#F59E0B";
+const ACTIVE_COLOR = "#3B82F6";
+const PRE_START_COLOR = "#14B8A6";
 const COMPLETED_COLOR = "#94A3B8";
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
@@ -75,13 +75,13 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
               return (
                 <g key={s.key}>
                   <path
-                    d={d} fill={s.color} stroke="#EEF2F7"
+                    d={d} fill={s.color} stroke="#FFFFFF"
                     strokeWidth={isSelected ? 3 : 2}
                     className="transition-all duration-200 ease-out cursor-pointer"
                     style={{
                       transform: isHov || isSelected ? "scale(1.06)" : "scale(1)",
                       transformOrigin: `${cx}px ${cy}px`,
-                      opacity: isDimmed ? 0.35 : (isHov || isSelected ? 1 : 0.8),
+                      opacity: isDimmed ? 0.4 : (isHov || isSelected ? 1 : 0.8),
                     }}
                     onMouseEnter={() => setHovSlice(s.key)}
                     onClick={(e) => { e.stopPropagation(); onStatusClick?.(isSelected ? null : s.key); }}
