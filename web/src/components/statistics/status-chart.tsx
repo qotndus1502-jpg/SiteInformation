@@ -9,7 +9,7 @@ interface StatusChartProps {
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   ACTIVE: { label: "진행중", color: "#3B82F6" },
   PRE_START: { label: "착공전", color: "#14B8A6" },
-  COMPLETED: { label: "준공", color: "#94A3B8" },
+  COMPLETED: { label: "준공", color: "#64748B" },
   SUSPENDED: { label: "중단", color: "#EF4444" },
 };
 

@@ -17,7 +17,7 @@ interface StatusDonutChartProps {
 
 const ACTIVE_COLOR = "#3B82F6";
 const PRE_START_COLOR = "#14B8A6";
-const COMPLETED_COLOR = "#94A3B8";
+const COMPLETED_COLOR = "#64748B";
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180;
