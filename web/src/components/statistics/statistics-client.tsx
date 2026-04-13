@@ -70,7 +70,7 @@ interface StatisticsSummary {
   by_region: { region: string; count: number; total_contract: number; total_headcount: number; avg_progress: number }[];
   pre_start_by_completion_year: { year: string; count: number }[];
   active_by_completion_year: { year: string; count: number }[];
-  amount_heatmap: { by_contract: any[]; by_our_share: any[]; by_contract_division: any[]; by_our_share_division: any[]; labels: string[] };
+  amount_heatmap: { by_contract: any[]; by_our_share: any[]; by_contract_division: any[]; by_our_share_division: any[]; labels: string[]; no_contract_count?: number; no_share_count?: number };
 }
 
 interface StatisticsClientProps {
@@ -533,7 +533,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
               by_region={summary.by_region ?? []}
               pre_start_by_completion_year={summary.pre_start_by_completion_year ?? []}
               active_by_completion_year={summary.active_by_completion_year ?? []}
-              amount_heatmap={summary.amount_heatmap ?? { by_contract: [], by_our_share: [], by_contract_division: [], by_our_share_division: [], labels: [] }}
+              amount_heatmap={summary.amount_heatmap ?? { by_contract: [], by_our_share: [], by_contract_division: [], by_our_share_division: [], labels: [], no_contract_count: 0, no_share_count: 0 }}
               corpDivisionData={summary.by_corporation_division ?? []}
               onShowDetailMap={handleShowDetailMap}
               selectedRegion={selectedRegion}

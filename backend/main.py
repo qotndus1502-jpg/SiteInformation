@@ -1045,12 +1045,17 @@ def _amount_heatmap(sites: list[dict]) -> dict:
                 rows.append({"division": div, **grid[div]})
         return rows
 
+    no_contract = sum(1 for s in sites if not s.get("contract_amount"))
+    no_share = sum(1 for s in sites if not s.get("group_share_amount"))
+
     return {
         "by_contract": build_grid("contract_amount"),
         "by_our_share": build_grid("group_share_amount"),
         "by_contract_division": build_division_grid("contract_amount"),
         "by_our_share_division": build_division_grid("group_share_amount"),
         "labels": [b["label"] for b in AMOUNT_BINS],
+        "no_contract_count": no_contract,
+        "no_share_count": no_share,
     }
 
 

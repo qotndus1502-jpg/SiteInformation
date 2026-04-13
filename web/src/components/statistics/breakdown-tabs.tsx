@@ -20,7 +20,7 @@ interface BreakdownTabsProps {
   pre_start_by_completion_year: { year: string; count: number }[];
   active_by_completion_year: { year: string; count: number }[];
   corpDivisionData: { corporation: string; division: string; count: number; total_contract: number; total_headcount: number }[];
-  amount_heatmap: { by_contract: any[]; by_our_share: any[]; by_contract_division: any[]; by_our_share_division: any[]; labels: string[] };
+  amount_heatmap: { by_contract: any[]; by_our_share: any[]; by_contract_division: any[]; by_our_share_division: any[]; labels: string[]; no_contract_count?: number; no_share_count?: number };
   onShowDetailMap?: () => void;
   /* ── Cross-filter (Power BI style) ───────────────────── */
   selectedRegion?: string | null;
@@ -160,6 +160,11 @@ export function BreakdownTabs({
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#BFDBFE" }} />
                 <span className="text-[11px] text-muted-foreground">토목</span>
               </div>
+              {(amount_heatmap.no_contract_count > 0 || amount_heatmap.no_share_count > 0) && (
+                <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+                  미입력 {amount_heatmap.no_contract_count ?? 0}개
+                </div>
+              )}
             </div>
             <div className="flex items-start justify-center gap-0 [&>*]:-mx-2 [&>*]:-my-2">
               <AmountHeatmapChart data={amount_heatmap} series="share" mirror selectedRangeKey={selectedShareRange} onRangeClick={onShareRangeClick} />
