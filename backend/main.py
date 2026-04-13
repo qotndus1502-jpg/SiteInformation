@@ -134,6 +134,28 @@ def attach_share_amounts(sites: list[dict]) -> list[dict]:
     return sites
 
 
+def auto_status(sites: list[dict]) -> list[dict]:
+    """start_date/end_date 기준으로 status 자동 판정.
+    - start_date > 오늘 → PRE_START
+    - start_date <= 오늘 && (end_date 없음 || end_date >= 오늘) → ACTIVE
+    - end_date < 오늘 → COMPLETED
+    SUSPENDED는 수동 관리이므로 건드리지 않는다.
+    """
+    today = date.today().isoformat()
+    for s in sites:
+        if s.get("status") == "SUSPENDED":
+            continue
+        sd = s.get("start_date")
+        ed = s.get("end_date")
+        if sd and sd > today:
+            s["status"] = "PRE_START"
+        elif ed and ed < today:
+            s["status"] = "COMPLETED"
+        elif sd and sd <= today:
+            s["status"] = "ACTIVE"
+    return sites
+
+
 def clean_facility_type(sites: list[dict]) -> list[dict]:
     """facility_type_name이 발주유형과 동일하면 비워서 중복 표시 방지."""
     for site in sites:
@@ -193,6 +215,7 @@ def get_all_sites_cached() -> list[dict]:
         deduped.append(s)
 
     deduped = clean_facility_type(deduped)
+    deduped = auto_status(deduped)
     deduped = attach_share_amounts(deduped)
     deduped = attach_coords(deduped)
 
