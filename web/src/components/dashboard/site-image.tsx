@@ -121,7 +121,7 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
   const lastPos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    setImgSrc(`${STORAGE_URL}/site_${siteId}.jpg?t=${Date.now()}`);
+    setImgSrc(`${STORAGE_URL}/site_${siteId}.jpg`);
     setHasImage(true);
     const loaded = loadSettings(siteId);
     setSettings(loaded);
