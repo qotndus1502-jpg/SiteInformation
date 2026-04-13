@@ -98,23 +98,11 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
   ],
 };
 
-const CORP_COLORS: Record<string, string> = {
-  "남광토건": charts.siteMap.corporation.namgwang,
-  "극동건설": charts.siteMap.corporation.geukdong,
-  "금광기업": charts.siteMap.corporation.geumgwang,
-};
-
-const DIV_COLORS: Record<string, string> = {
-  "건축": charts.siteMap.division.arch,
-  "토목": charts.siteMap.division.civil,
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  "ACTIVE": charts.siteMap.status.active,
-  "PRE_START": charts.siteMap.status.preStart,
-  "COMPLETED": charts.siteMap.status.completed,
-  "SUSPENDED": charts.siteMap.status.suspended,
-};
+/* 범례와 동일한 배열에서 key→color lookup 생성. 이 Map을 바꾸려면
+   chart-colors.ts의 siteMap 배열에서 엔트리를 수정하면 된다. */
+const CORP_COLORS = Object.fromEntries(charts.siteMap.corporation.map((e) => [e.key, e.color]));
+const DIV_COLORS = Object.fromEntries(charts.siteMap.division.map((e) => [e.key, e.color]));
+const STATUS_COLORS = Object.fromEntries(charts.siteMap.status.map((e) => [e.key, e.color]));
 
 const DEFAULT_COLOR = charts.siteMap.fallback;
 

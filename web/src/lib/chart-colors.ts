@@ -137,23 +137,30 @@ export const charts = {
     },
   },
 
-  /* 대시보드 — 지도 마커 (상태/공종/법인 카테고리) */
+  /* 대시보드/통계 — 지도 마커 (상태/공종/법인 카테고리)
+   *
+   * ⚠️ 구조 중요 — 범례와 마커는 같은 배열을 공유한다.
+   *    각 카테고리는 `{ key, label, color }` 엔트리의 배열이다.
+   *    - 범례:  이 배열을 순회해 swatch+label 렌더
+   *    - 마커:  이 배열을 key 기준 lookup으로 색 매핑
+   *    한 엔트리의 color를 바꾸면 범례와 마커가 동시에 바뀐다.
+   *    엔트리 자체를 추가/삭제해도 범례와 마커가 동시에 반영된다.
+   */
   siteMap: {
-    status: {
-      active:    semantic.status.active,
-      preStart:  semantic.status.preStart,
-      completed: semantic.status.completed,
-      suspended: semantic.status.suspended,
-    },
-    division: {
-      arch:  semantic.division.arch,
-      civil: semantic.division.civil,
-    },
-    corporation: {
-      namgwang:  semantic.corporation.namgwang,
-      geukdong:  semantic.corporation.geukdong,
-      geumgwang: semantic.corporation.geumgwang,
-    },
+    status: [
+      { key: "ACTIVE",    label: "진행중", color: semantic.status.active },
+      /* 지도 마커는 크기가 작아 teal이 blue와 구분 안 됨 → amber로 override */
+      { key: "PRE_START", label: "착공전", color: "#F97316" },
+    ] as readonly { key: string; label: string; color: string }[],
+    division: [
+      { key: "건축", label: "건축", color: semantic.division.arch },
+      { key: "토목", label: "토목", color: semantic.division.civil },
+    ] as readonly { key: string; label: string; color: string }[],
+    corporation: [
+      { key: "남광토건",  label: "남광토건",  color: semantic.corporation.namgwang },
+      { key: "극동건설",  label: "극동건설",  color: semantic.corporation.geukdong },
+      { key: "금광기업",  label: "금광기업",  color: semantic.corporation.geumgwang },
+    ] as readonly { key: string; label: string; color: string }[],
     fallback: semantic.neutral.fallback,
   },
 

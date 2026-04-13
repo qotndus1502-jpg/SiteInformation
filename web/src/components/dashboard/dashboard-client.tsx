@@ -253,20 +253,10 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
                 {/* Legend */}
                 <div className="flex flex-col gap-0.5 bg-card/90 backdrop-blur-sm rounded-lg px-2.5 py-1.5 shadow-sm border border-border/50">
                   {(mapColorCategory === "corporation"
-                    ? [
-                        { label: "남광토건", color: charts.siteMap.corporation.namgwang },
-                        { label: "극동건설", color: charts.siteMap.corporation.geukdong },
-                        { label: "금광기업", color: charts.siteMap.corporation.geumgwang },
-                      ]
+                    ? charts.siteMap.corporation
                     : mapColorCategory === "division"
-                    ? [
-                        { label: "건축", color: charts.siteMap.division.arch },
-                        { label: "토목", color: charts.siteMap.division.civil },
-                      ]
-                    : [
-                        { label: "진행중", color: charts.siteMap.status.active },
-                        { label: "착공전", color: charts.siteMap.status.preStart },
-                      ]
+                    ? charts.siteMap.division
+                    : charts.siteMap.status
                   ).map((item) => (
                     <div key={item.label} className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
