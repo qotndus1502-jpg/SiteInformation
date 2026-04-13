@@ -62,7 +62,7 @@ const DIV_COLORS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   ACTIVE: "#3B82F6",
   PRE_START: "#14B8A6",
-  COMPLETED: "#64748B",
+  COMPLETED: "#BFDBFE",
   SUSPENDED: "#EF4444",
 };
 

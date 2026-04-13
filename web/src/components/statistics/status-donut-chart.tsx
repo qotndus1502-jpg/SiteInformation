@@ -17,7 +17,7 @@ interface StatusDonutChartProps {
 
 const ACTIVE_COLOR = "#3B82F6";
 const PRE_START_COLOR = "#14B8A6";
-const COMPLETED_COLOR = "#64748B";
+const COMPLETED_COLOR = "#BFDBFE";
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180;
@@ -75,8 +75,8 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
               return (
                 <g key={s.key}>
                   <path
-                    d={d} fill={s.color} stroke="#FFFFFF"
-                    strokeWidth={isSelected ? 3 : 2}
+                    d={d} fill={s.color} stroke="none"
+                    strokeWidth={0}
                     className="transition-all duration-200 ease-out cursor-pointer"
                     style={{
                       transform: isHov || isSelected ? "scale(1.06)" : "scale(1)",
