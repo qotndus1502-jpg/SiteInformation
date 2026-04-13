@@ -304,7 +304,7 @@ def filter_sites_in_memory(
     if startYear:
         out = [s for s in out if s.get("start_date") and _date_to_ym(s["start_date"]) == startYear]
     if endYear:
-        out = [s for s in out if s.get("end_date") and _date_to_ym(s["end_date"]) == endYear]
+        out = [s for s in out if s.get("end_date") and s["end_date"][:4] == endYear]
     return out
 
 
@@ -906,7 +906,7 @@ def _date_to_ym(d: str) -> str:
 
 
 def _pre_start_by_completion_year(sites: list[dict]) -> list[dict]:
-    """Group PRE_START sites by start_date year-month (착공 시작월)."""
+    """Group PRE_START sites by start_date month (착공 시작월)."""
     pre = [s for s in sites if s.get("status") == "PRE_START"]
     months: dict[str, int] = defaultdict(int)
     no_date = 0
@@ -923,17 +923,17 @@ def _pre_start_by_completion_year(sites: list[dict]) -> list[dict]:
 
 
 def _active_by_completion_year(sites: list[dict]) -> list[dict]:
-    """Group ACTIVE sites by end_date year-month (준공 예정월)."""
+    """Group ACTIVE sites by end_date year (준공 예정년도)."""
     active = [s for s in sites if s.get("status") == "ACTIVE"]
-    months: dict[str, int] = defaultdict(int)
+    years: dict[str, int] = defaultdict(int)
     no_date = 0
     for s in active:
         ed = s.get("end_date")
         if ed:
-            months[_date_to_ym(ed)] += 1
+            years[ed[:4]] += 1
         else:
             no_date += 1
-    result = [{"year": k, "count": v} for k, v in sorted(months.items())]
+    result = [{"year": k, "count": v} for k, v in sorted(years.items())]
     if no_date > 0:
         result.append({"year": "미정", "count": no_date})
     return result
