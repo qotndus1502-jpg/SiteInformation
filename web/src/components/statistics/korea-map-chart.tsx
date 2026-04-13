@@ -436,12 +436,15 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
             const iy = H - 80;
             const val = overseasStat[activeMetric];
             const isHov = hovered === "해외";
+            const isSelected = selectedRegion === "해외";
+            const isDimmed = selectedRegion != null && !isSelected;
             const br = 45;
             return (
               <g
                 className="cursor-pointer"
                 onMouseEnter={() => setHovered("해외")}
                 onMouseLeave={() => setHovered(null)}
+                onClick={() => onRegionClick?.(selectedRegion === "해외" ? null : "해외")}
               >
                 {/* Box background */}
                 <rect x={ix - 90} y={iy - 85} width={230} height={175} rx={16}
@@ -462,10 +465,16 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
                     fill="none" stroke={metricCfg.color} strokeWidth="2" strokeOpacity="0.4"
                     className="pointer-events-none" />
                 )}
+                {/* Selected ring */}
+                {isSelected && (
+                  <circle cx={ix + 25} cy={iy + 20} r={br + 6}
+                    fill="none" stroke={metricCfg.color} strokeWidth="3"
+                    className="pointer-events-none" />
+                )}
                 {/* Bubble */}
                 <circle cx={ix + 25} cy={iy + 20} r={isHov ? br * 1.2 : br}
-                  fill={isHov ? metricCfg.hoverColor : metricCfg.color}
-                  fillOpacity={isHov ? 0.95 : 0.8}
+                  fill={isHov || isSelected ? metricCfg.hoverColor : metricCfg.color}
+                  fillOpacity={isDimmed ? 0.35 : (isHov || isSelected ? 0.95 : 0.8)}
                   stroke="white" strokeWidth={isHov ? 2 : 0.8}
                   className="transition-all duration-200"
                 />
