@@ -183,13 +183,35 @@ function buildPopupHTML(name: string, corp: string, division: string, status: st
 }
 
 function buildGeoJSON(sites: SiteDashboard[], selectedSiteId: number | null, colorCategory: ColorCategory = "corporation") {
-  const features = sites
-    .filter((s) => s.latitude != null && s.longitude != null)
-    .map((s) => ({
+  /* 동일 좌표 겹침 해소: 같은 (lat,lon)에 여러 현장이 있으면 아주 작은
+     원 위에 분산 배치한다. 50% overlap 허용 — 완전 중첩만 방지. */
+  const valid = sites.filter((s) => s.latitude != null && s.longitude != null);
+  const groups = new Map<string, SiteDashboard[]>();
+  for (const s of valid) {
+    const key = `${s.latitude!.toFixed(5)},${s.longitude!.toFixed(5)}`;
+    const arr = groups.get(key);
+    if (arr) arr.push(s); else groups.set(key, [s]);
+  }
+  const jitter = new Map<number, [number, number]>();
+  for (const arr of groups.values()) {
+    if (arr.length <= 1) continue;
+    const R = 0.008;
+    for (let i = 0; i < arr.length; i++) {
+      const angle = (2 * Math.PI * i) / arr.length - Math.PI / 2;
+      jitter.set(arr[i].id, [Math.cos(angle) * R, Math.sin(angle) * R]);
+    }
+  }
+
+  const features = valid
+    .map((s) => {
+      const off = jitter.get(s.id);
+      const lon = s.longitude! + (off ? off[0] : 0);
+      const lat = s.latitude!  + (off ? off[1] : 0);
+      return {
       type: "Feature" as const,
       geometry: {
         type: "Point" as const,
-        coordinates: [s.longitude!, s.latitude!],
+        coordinates: [lon, lat],
       },
       properties: {
         id: s.id,
@@ -204,7 +226,8 @@ function buildGeoJSON(sites: SiteDashboard[], selectedSiteId: number | null, col
         color: getSiteColor({ corporation_name: s.corporation_name, division: s.division ?? "", status: s.status }, colorCategory),
         selected: s.id === selectedSiteId ? 1 : 0,
       },
-    }));
+      };
+    });
   return { type: "FeatureCollection" as const, features };
 }
 
