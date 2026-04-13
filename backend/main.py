@@ -984,7 +984,9 @@ def _amount_range_distribution(sites: list[dict]) -> list[dict]:
         {"label": "> 3,000억", "min": 3000, "max": float("inf"), "count": 0, "contract": 0.0, "headcount": 0},
     ]
     for s in sites:
-        amt = s.get("contract_amount") or 0
+        amt = s.get("contract_amount")
+        if not amt:
+            continue
         for b in bins:
             if b["min"] <= amt < b["max"]:
                 b["count"] += 1
@@ -1011,7 +1013,9 @@ def _amount_heatmap(sites: list[dict]) -> dict:
         grid: dict[str, dict[str, int]] = defaultdict(lambda: {b["label"]: 0 for b in AMOUNT_BINS})
         for s in sites:
             corp = s.get("corporation_name") or "기타"
-            amt = s.get(amount_key) or 0
+            amt = s.get(amount_key)
+            if not amt:
+                continue
             for b in AMOUNT_BINS:
                 if b["min"] <= amt < b["max"]:
                     grid[corp][b["label"]] += 1
@@ -1030,7 +1034,9 @@ def _amount_heatmap(sites: list[dict]) -> dict:
         grid: dict[str, dict[str, int]] = defaultdict(lambda: {b["label"]: 0 for b in AMOUNT_BINS})
         for s in sites:
             div = s.get("division") or "기타"
-            amt = s.get(amount_key) or 0
+            amt = s.get(amount_key)
+            if not amt:
+                continue
             for b in AMOUNT_BINS:
                 if b["min"] <= amt < b["max"]:
                     grid[div][b["label"]] += 1
