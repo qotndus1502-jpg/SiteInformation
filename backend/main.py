@@ -111,14 +111,14 @@ def calc_group_share(site: dict) -> dict:
 
     # 자사(현장 법인) 지분
     our_ratio = shares.get(corp, 1.0)  # JV 없으면 100%
-    our_amount = round(contract * our_ratio, 1)
+    our_amount = round(contract * our_ratio)
 
     # 그룹 3사 합산 지분 (JV 없으면 소유 법인이 100%)
     if shares:
         group_ratio = sum(r for c, r in shares.items() if c in GROUP_COMPANIES)
     else:
         group_ratio = 1.0 if corp in GROUP_COMPANIES else 0.0
-    group_amount = round(contract * group_ratio, 1)
+    group_amount = round(contract * group_ratio)
 
     site["our_share_amount"] = our_amount
     site["group_share_amount"] = group_amount
@@ -748,9 +748,9 @@ async def get_statistics_summary(
             "by_division": dict(hc_by_division),
         },
         "budget": {
-            "total_contract": round(total_contract, 1),
-            "total_our_share": round(total_our_share, 1),
-            "total_group_share": round(total_group_share, 1),
+            "total_contract": round(total_contract),
+            "total_our_share": round(total_our_share),
+            "total_group_share": round(total_group_share),
             "average_execution_rate": round(avg_execution, 4),
         },
         "by_status": _group_by_status(sites),
@@ -803,7 +803,7 @@ def _group_by_status(sites: list[dict]) -> list[dict]:
         {
             "status": k,
             "count": v["count"],
-            "total_contract": round(v["contract"], 1),
+            "total_contract": round(v["contract"]),
             "total_headcount": v["headcount"],
         }
         for k, v in groups.items()
@@ -825,7 +825,7 @@ def _group_by_corporation(sites: list[dict]) -> list[dict]:
             "corporation": k,
             "count": v["count"],
             "avg_progress": round(v["progress_sum"] / v["count"], 4) if v["count"] else 0,
-            "total_contract": round(v["contract"], 1),
+            "total_contract": round(v["contract"]),
             "total_headcount": v["headcount"],
         }
         for k, v in groups.items()
@@ -852,7 +852,7 @@ def _group_by_corporation_division(sites: list[dict]) -> list[dict]:
                 "corporation": corp,
                 "division": div,
                 "count": vals["count"],
-                "total_contract": round(vals["contract"], 1),
+                "total_contract": round(vals["contract"]),
                 "total_headcount": vals["headcount"],
             })
     return result
@@ -871,7 +871,7 @@ def _group_by_region_name(sites: list[dict]) -> list[dict]:
         {
             "region": k,
             "count": v["count"],
-            "total_contract": round(v["contract"], 1),
+            "total_contract": round(v["contract"]),
             "total_headcount": v["headcount"],
             "avg_progress": round(v["progress_sum"] / v["count"], 4) if v["count"] else 0,
         }
@@ -930,7 +930,7 @@ def _group_by_region(sites: list[dict]) -> list[dict]:
         {
             "region_group": k,
             "count": v["count"],
-            "total_contract": round(v["contract"], 1),
+            "total_contract": round(v["contract"]),
             "total_headcount": v["headcount"],
             "avg_progress": round(v["progress_sum"] / v["count"], 4) if v["count"] else 0,
         }
@@ -988,7 +988,7 @@ def _group_by_division_detail(sites: list[dict]) -> list[dict]:
             "division": k,
             "count": v["count"],
             "avg_progress": round(v["progress_sum"] / v["count"], 4) if v["count"] else 0,
-            "total_contract": round(v["contract"], 1),
+            "total_contract": round(v["contract"]),
             "total_headcount": v["headcount"],
         }
         for k, v in groups.items()
@@ -1013,7 +1013,7 @@ def _amount_range_distribution(sites: list[dict]) -> list[dict]:
                 b["contract"] += amt
                 b["headcount"] += s.get("headcount") or 0
                 break
-    return [{"label": b["label"], "count": b["count"], "total_contract": round(b["contract"], 1), "total_headcount": b["headcount"]} for b in bins]
+    return [{"label": b["label"], "count": b["count"], "total_contract": round(b["contract"]), "total_headcount": b["headcount"]} for b in bins]
 
 
 AMOUNT_BINS = [
