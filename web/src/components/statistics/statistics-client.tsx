@@ -110,7 +110,7 @@ function SiteListWithDetail({
     if (!el) return;
     const io = new IntersectionObserver(
       ([entry]) => setSectionInView(entry.isIntersecting),
-      { root: null, threshold: 0, rootMargin: "0px 0px -80% 0px" }
+      { root: null, threshold: 0, rootMargin: "0px 0px -20% 0px" }
     );
     io.observe(el);
     return () => io.disconnect();
