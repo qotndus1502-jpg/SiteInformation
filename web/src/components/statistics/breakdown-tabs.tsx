@@ -160,7 +160,7 @@ export function BreakdownTabs({
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#BFDBFE" }} />
                 <span className="text-[11px] text-muted-foreground">토목</span>
               </div>
-              {(amount_heatmap.no_contract_count > 0 || amount_heatmap.no_share_count > 0) && (
+              {((amount_heatmap.no_contract_count ?? 0) > 0 || (amount_heatmap.no_share_count ?? 0) > 0) && (
                 <div className="mt-0.5 text-[10px] text-muted-foreground/70">
                   미입력 {amount_heatmap.no_contract_count ?? 0}개
                 </div>
