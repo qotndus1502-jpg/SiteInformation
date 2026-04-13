@@ -35,6 +35,7 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
   const cx = 70;
   const cy = 70;
   const r = 55;
+  const innerR = 22;
 
   const slices = [
     { key: "ACTIVE", count: active, color: ACTIVE_COLOR },
@@ -62,13 +63,16 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
         <svg viewBox={`0 0 ${cx * 2} ${cy * 2}`} className="w-[140px] h-[140px] shrink-0" onMouseLeave={() => setHovSlice(null)}>
             {sliceData.map((s) => {
               const isOnly = slices.length === 1;
-              const start = polarToCartesian(cx, cy, r, s.startAngle);
-              const end = polarToCartesian(cx, cy, r, s.endAngle);
+              const startOuter = polarToCartesian(cx, cy, r, s.startAngle);
+              const endOuter = polarToCartesian(cx, cy, r, s.endAngle);
+              const startInner = polarToCartesian(cx, cy, innerR, s.endAngle);
+              const endInner = polarToCartesian(cx, cy, innerR, s.startAngle);
               const largeArc = s.pct > 0.5 ? 1 : 0;
               const d = isOnly
-                ? `M ${cx - r} ${cy} a ${r} ${r} 0 1 0 ${r * 2} 0 a ${r} ${r} 0 1 0 ${-r * 2} 0`
-                : `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
-              const labelPos = isOnly ? { x: cx, y: cy } : polarToCartesian(cx, cy, r * 0.6, s.midAngle);
+                ? `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy} M ${cx - innerR} ${cy} A ${innerR} ${innerR} 0 1 1 ${cx + innerR} ${cy} A ${innerR} ${innerR} 0 1 1 ${cx - innerR} ${cy} Z`
+                : `M ${startOuter.x} ${startOuter.y} A ${r} ${r} 0 ${largeArc} 1 ${endOuter.x} ${endOuter.y} L ${startInner.x} ${startInner.y} A ${innerR} ${innerR} 0 ${largeArc} 0 ${endInner.x} ${endInner.y} Z`;
+              const labelR = (r + innerR) / 2;
+              const labelPos = isOnly ? { x: cx, y: cy - labelR } : polarToCartesian(cx, cy, labelR, s.midAngle);
               const isHov = hovSlice === s.key;
               const isSelected = selectedStatus === s.key;
               const isDimmed = selectedStatus != null && !isSelected;

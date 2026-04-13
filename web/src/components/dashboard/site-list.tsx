@@ -7,7 +7,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import type { SiteDashboard } from "@/types/database";
 import { COMPANY_CONFIG, STATUS_CONFIG } from "@/types/database";
 
-const TABLE_COLS = "grid-cols-[minmax(80px,0.8fr)_minmax(70px,0.7fr)_minmax(70px,0.7fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(140px,2fr)_minmax(75px,0.9fr)_minmax(30px,0.2fr)_minmax(70px,0.9fr)]";
+const TABLE_COLS = "grid-cols-[minmax(36px,0.35fr)_minmax(80px,0.8fr)_minmax(70px,0.7fr)_minmax(70px,0.7fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(140px,2fr)_minmax(75px,0.9fr)_minmax(30px,0.2fr)_minmax(70px,0.9fr)]";
 
 type SortKey = "corporation_name" | "division" | "region_name" | "facility_type_name" | "order_type" | "status" | "site_name" | "contract_amount" | "progress_rate";
 type SortDir = "asc" | "desc";
@@ -79,6 +79,7 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
     <div className="bg-white/60 backdrop-blur-sm overflow-hidden">
       {/* 컬럼 헤더 */}
       <div className={cn("grid gap-2 px-4 py-2 bg-slate-200/70 text-[13px] font-semibold text-muted-foreground tracking-wide mb-1", TABLE_COLS)}>
+        <span className="text-center">No.</span>
         {COLUMNS.map((col) => (
           <button
             key={col.key}
@@ -109,7 +110,7 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
         </div>
       ) : (
         <div className="divide-y divide-border/40">
-          {sorted.map((site) => {
+          {sorted.map((site, idx) => {
             const companyConfig = COMPANY_CONFIG[site.corporation_name];
             const statusConfig = STATUS_CONFIG[site.status];
             const progressPct = (site.progress_rate ?? 0) * 100;
@@ -127,6 +128,7 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
                     : "hover:bg-muted/30"
                 )}
               >
+                <span className="text-[13px] text-muted-foreground font-mono tabular-nums text-center">{idx + 1}</span>
                 <span>
                   {companyConfig ? (
                     <Badge variant={companyConfig.variant} size="sm">{companyConfig.label}</Badge>
