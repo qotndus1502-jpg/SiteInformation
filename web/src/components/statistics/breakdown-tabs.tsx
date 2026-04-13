@@ -141,12 +141,10 @@ export function BreakdownTabs({
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#F59E0B" }} />
                 <span className="text-[11px] text-muted-foreground">착공전</span>
               </div>
-              {(() => {
-                const completedCount = by_status.find((d) => d.status === "COMPLETED")?.count ?? 0;
-                return completedCount > 0 ? (
-                  <span className="text-[11px] text-muted-foreground">준공 {completedCount}개</span>
-                ) : null;
-              })()}
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#94A3B8" }} />
+                <span className="text-[11px] text-muted-foreground">준공</span>
+              </div>
             </div>
             <div className="flex justify-end">
               <div style={{ width: 956 }} className="flex items-start">
