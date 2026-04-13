@@ -182,25 +182,92 @@ function buildPopupHTML(name: string, corp: string, division: string, status: st
   `;
 }
 
-function buildGeoJSON(sites: SiteDashboard[], selectedSiteId: number | null, colorCategory: ColorCategory = "corporation") {
-  /* 동일 좌표 겹침 해소: 같은 (lat,lon)에 여러 현장이 있으면 아주 작은
-     원 위에 분산 배치한다. 50% overlap 허용 — 완전 중첩만 방지. */
-  const valid = sites.filter((s) => s.latitude != null && s.longitude != null);
-  const groups = new Map<string, SiteDashboard[]>();
-  for (const s of valid) {
-    const key = `${s.latitude!.toFixed(5)},${s.longitude!.toFixed(5)}`;
-    const arr = groups.get(key);
-    if (arr) arr.push(s); else groups.set(key, [s]);
-  }
-  const jitter = new Map<number, [number, number]>();
-  for (const arr of groups.values()) {
-    if (arr.length <= 1) continue;
-    const R = 0.008;
-    for (let i = 0; i < arr.length; i++) {
-      const angle = (2 * Math.PI * i) / arr.length - Math.PI / 2;
-      jitter.set(arr[i].id, [Math.cos(angle) * R, Math.sin(angle) * R]);
+/* 현재 줌에서 마커 반지름(px). CIRCLE_LAYER의 circle-radius interpolation과 동일하게 맞춰야 함. */
+function markerRadiusPx(zoom: number): number {
+  const stops: [number, number][] = [[4, 6], [8, 10], [12, 15], [16, 22]];
+  if (zoom <= stops[0][0]) return stops[0][1];
+  if (zoom >= stops[stops.length - 1][0]) return stops[stops.length - 1][1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [z0, r0] = stops[i];
+    const [z1, r1] = stops[i + 1];
+    if (zoom >= z0 && zoom <= z1) {
+      const t = (zoom - z0) / (z1 - z0);
+      return r0 + (r1 - r0) * t;
     }
   }
+  return stops[stops.length - 1][1];
+}
+
+/* 픽셀 공간에서 겹침 해소. 50% overlap 허용 → 중심 간 최소 거리 = 반지름 × 1 */
+function resolveMarkerOverlaps(
+  map: maplibregl.Map,
+  valid: SiteDashboard[]
+): Map<number, [number, number]> {
+  const result = new Map<number, [number, number]>();
+  if (valid.length === 0) return result;
+
+  const r = markerRadiusPx(map.getZoom());
+  const minDist = r * 1.0; // 50% overlap 허용
+  const padding = 1;
+
+  type Node = { id: number; x: number; y: number };
+  const nodes: Node[] = valid.map((s) => {
+    const p = map.project([s.longitude!, s.latitude!]);
+    return { id: s.id, x: p.x, y: p.y };
+  });
+
+  for (let iter = 0; iter < 40; iter++) {
+    let moved = false;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        const need = minDist + padding;
+        if (dist < need) {
+          if (dist < 0.001) {
+            // 완전 중첩 시 결정적 방향으로 분리
+            dx = ((i + 1) % 2 === 0 ? 1 : -1);
+            dy = ((j + 1) % 2 === 0 ? 1 : -1);
+            dist = Math.sqrt(dx * dx + dy * dy);
+          }
+          const ux = dx / dist;
+          const uy = dy / dist;
+          const overlap = (need - dist) / 2;
+          a.x -= ux * overlap;
+          a.y -= uy * overlap;
+          b.x += ux * overlap;
+          b.y += uy * overlap;
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
+  }
+
+  for (let i = 0; i < nodes.length; i++) {
+    const orig = valid[i];
+    const origPx = map.project([orig.longitude!, orig.latitude!]);
+    const dx = nodes[i].x - origPx.x;
+    const dy = nodes[i].y - origPx.y;
+    if (dx !== 0 || dy !== 0) {
+      const newLngLat = map.unproject([nodes[i].x, nodes[i].y]);
+      result.set(orig.id, [newLngLat.lng - orig.longitude!, newLngLat.lat - orig.latitude!]);
+    }
+  }
+  return result;
+}
+
+function buildGeoJSON(
+  map: maplibregl.Map | null,
+  sites: SiteDashboard[],
+  selectedSiteId: number | null,
+  colorCategory: ColorCategory = "corporation"
+) {
+  const valid = sites.filter((s) => s.latitude != null && s.longitude != null);
+  const jitter = map ? resolveMarkerOverlaps(map, valid) : new Map<number, [number, number]>();
 
   const features = valid
     .map((s) => {
@@ -237,8 +304,12 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const onSelectRef = useRef(onSelect);
   const sitesRef = useRef(sites);
+  const selectedSiteIdRef = useRef(selectedSiteId);
+  const colorCategoryRef = useRef(colorCategory);
   onSelectRef.current = onSelect;
   sitesRef.current = sites;
+  selectedSiteIdRef.current = selectedSiteId;
+  colorCategoryRef.current = colorCategory;
 
   /* 선택 마커 (DOM — 핀 모양, 1개만) */
   const selectedMarkerRef = useRef<maplibregl.Marker | null>(null);
@@ -304,8 +375,15 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
       // GeoJSON source
       map.addSource(SOURCE_ID, {
         type: "geojson",
-        data: buildGeoJSON(sitesRef.current, null, colorCategory),
+        data: buildGeoJSON(map, sitesRef.current, null, colorCategory),
       });
+
+      // 줌 변경 시 겹침 재계산 (픽셀 기반이므로 줌에 따라 offset 달라짐)
+      const onZoomEnd = () => {
+        const src = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+        if (src) src.setData(buildGeoJSON(map, sitesRef.current, selectedSiteIdRef.current, colorCategoryRef.current));
+      };
+      map.on("zoomend", onZoomEnd);
 
       // 비선택 원형 — 흰색 테두리
       map.addLayer({
@@ -373,7 +451,7 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
     if (!map || !map.getSource(SOURCE_ID)) return;
 
     const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource;
-    source.setData(buildGeoJSON(sites, selectedSiteId, colorCategory));
+    source.setData(buildGeoJSON(map, sites, selectedSiteId, colorCategory));
 
     // 현장들의 bounds로 자동 이동
     const validSites = sites.filter((s) => s.latitude != null && s.longitude != null);
