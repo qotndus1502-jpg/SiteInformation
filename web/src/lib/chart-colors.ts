@@ -151,6 +151,7 @@ export const charts = {
       { key: "ACTIVE",    label: "진행중", color: semantic.status.active },
       /* 지도 마커는 크기가 작아 teal이 blue와 구분 안 됨 → amber로 override */
       { key: "PRE_START", label: "착공전", color: "#F97316" },
+      { key: "COMPLETED", label: "준공",   color: semantic.status.completed },
     ] as readonly { key: string; label: string; color: string }[],
     division: [
       { key: "건축", label: "건축", color: semantic.division.arch },
