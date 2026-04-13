@@ -86,7 +86,7 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
                     onMouseEnter={() => setHovSlice(s.key)}
                     onClick={(e) => { e.stopPropagation(); onStatusClick?.(isSelected ? null : s.key); }}
                   />
-                  <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700} fill="white" className="pointer-events-none">
+                  <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700} fill={s.key === "COMPLETED" ? "#1E3A8A" : "white"} className="pointer-events-none">
                     {s.count}
                   </text>
                 </g>

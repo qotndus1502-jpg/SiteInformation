@@ -134,15 +134,15 @@ export function BreakdownTabs({
             {/* Legend — top-left of the row (matches Row 3 legend x position) */}
             <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#2563EB" }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#3B82F6" }} />
                 <span className="text-[11px] text-muted-foreground">진행중</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#F59E0B" }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#14B8A6" }} />
                 <span className="text-[11px] text-muted-foreground">착공전</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#94A3B8" }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#BFDBFE" }} />
                 <span className="text-[11px] text-muted-foreground">준공</span>
               </div>
             </div>
