@@ -607,6 +607,10 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
               >
                 ← 대시보드로 돌아가기
               </button>
+              {/* 안내 문구 — 복귀 버튼 아래 */}
+              <div className="absolute top-12 right-10 z-20 bg-card/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-sm border border-border/50 text-[11px] text-muted-foreground">
+                ℹ 착공일·준공일(공기)이 입력되지 않은 현장은 지도에 표시되지 않습니다
+              </div>
               {/* Color category selector + legend — top-left overlay */}
               <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
                 <div className="flex bg-card/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50">
