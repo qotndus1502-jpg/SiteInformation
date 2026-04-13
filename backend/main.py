@@ -248,6 +248,8 @@ def filter_sites_in_memory(
     amountRanges: Optional[str] = None,
     progressRanges: Optional[str] = None,
     groupShareRanges: Optional[str] = None,
+    startYear: Optional[str] = None,
+    endYear: Optional[str] = None,
 ) -> list[dict]:
     """Apply the same filter logic as the previous Supabase queries, but
     against an in-memory list. Used by both /api/sites and the summary
@@ -299,6 +301,10 @@ def filter_sites_in_memory(
             s for s in out
             if any(r["min"] <= (s.get("group_share_amount") or 0) < r["max"] for r in ranges)
         ]
+    if startYear:
+        out = [s for s in out if (s.get("start_date") or "")[:4] == startYear]
+    if endYear:
+        out = [s for s in out if (s.get("end_date") or "")[:4] == endYear]
     return out
 
 
@@ -314,6 +320,8 @@ async def get_sites(
     amountRanges: Optional[str] = Query(None),
     progressRanges: Optional[str] = Query(None),
     groupShareRanges: Optional[str] = Query(None),
+    startYear: Optional[str] = Query(None),
+    endYear: Optional[str] = Query(None),
 ):
     try:
         # Cached source of truth → in-memory filter (no Supabase round-trip on hot path)
@@ -329,6 +337,8 @@ async def get_sites(
             amountRanges=amountRanges,
             progressRanges=progressRanges,
             groupShareRanges=groupShareRanges,
+            startYear=startYear,
+            endYear=endYear,
         )
     except Exception as e:
         return JSONResponse(
@@ -656,6 +666,8 @@ async def get_statistics_summary(
     amountRanges: Optional[str] = Query(None),
     progressRanges: Optional[str] = Query(None),
     groupShareRanges: Optional[str] = Query(None),
+    startYear: Optional[str] = Query(None),
+    endYear: Optional[str] = Query(None),
 ):
     """Aggregate KPI summary from all sites, with optional filters.
     Sources sites from the in-memory cache (no Supabase round-trip on hot path)."""
@@ -671,6 +683,8 @@ async def get_statistics_summary(
         amountRanges=amountRanges,
         progressRanges=progressRanges,
         groupShareRanges=groupShareRanges,
+        startYear=startYear,
+        endYear=endYear,
     )
 
     # NOTE: previously this hard-filtered to status == "ACTIVE", which made all the

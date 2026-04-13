@@ -10,6 +10,10 @@ interface YearData {
 interface CompletionYearChartProps {
   preStartData: YearData[];
   activeData: YearData[];
+  selectedStartYear?: string | null;
+  selectedEndYear?: string | null;
+  onStartYearClick?: (year: string | null) => void;
+  onEndYearClick?: (year: string | null) => void;
 }
 
 const PRE_COLOR = "#F59E0B";
@@ -21,12 +25,16 @@ function HorizontalTimeline({
   color,
   maxCount,
   maxSlots,
+  selectedYear,
+  onYearClick,
 }: {
   label: string;
   data: YearData[];
   color: string;
   maxCount: number;
   maxSlots: number;
+  selectedYear?: string | null;
+  onYearClick?: (year: string | null) => void;
 }) {
   const [hovIdx, setHovIdx] = useState<number | null>(null);
 
@@ -73,23 +81,27 @@ function HorizontalTimeline({
           const isHov = hovIdx === i;
           const r = maxCount > 0 ? 10 + (d.count / maxCount) * 14 : 10;
           const cx = firstBubbleCx + i * SLOT_W;
+          const isSelected = selectedYear === d.year;
+          const isDimmed = selectedYear != null && !isSelected;
           return (
             <div key={d.year} onMouseEnter={() => setHovIdx(i)}>
               {/* Bubble — center pinned to (cx, BUBBLE_CY) */}
               <div
                 className="absolute rounded-full flex items-center justify-center transition-all duration-200 z-10 cursor-pointer"
+                onClick={() => onYearClick?.(isSelected ? null : d.year)}
                 style={{
                   left: cx,
                   top: BUBBLE_CY,
                   transform: "translate(-50%, -50%)",
                   width: r * 2,
                   height: r * 2,
-                  backgroundColor: color,
-                  opacity: isHov ? 1 : 0.85,
-                  boxShadow: isHov ? `0 0 0 2px white, 0 0 0 4px ${color}` : undefined,
+                  backgroundColor: isSelected ? "white" : color,
+                  border: isSelected ? `3px solid ${color}` : undefined,
+                  opacity: isDimmed ? 0.35 : isHov ? 1 : 0.85,
+                  boxShadow: isHov && !isSelected ? `0 0 0 2px white, 0 0 0 4px ${color}` : undefined,
                 }}
               >
-                <span className="text-white font-bold text-[9px]">{d.count}</span>
+                <span className="font-bold text-[9px]" style={{ color: isSelected ? color : "white" }}>{d.count}</span>
               </div>
               {/* Year label — below bubble, horizontally centered on cx */}
               <span
@@ -110,7 +122,7 @@ function HorizontalTimeline({
   );
 }
 
-export function CompletionYearChart({ preStartData, activeData }: CompletionYearChartProps) {
+export function CompletionYearChart({ preStartData, activeData, selectedStartYear, selectedEndYear, onStartYearClick, onEndYearClick }: CompletionYearChartProps) {
   const allCounts = [...preStartData.map((d) => d.count), ...activeData.map((d) => d.count)];
   const maxCount = Math.max(...allCounts, 1);
   const maxSlots = Math.max(preStartData.length, activeData.length, 1);
@@ -122,8 +134,8 @@ export function CompletionYearChart({ preStartData, activeData }: CompletionYear
   return (
     <div className="px-2 pt-0 pb-2 -mt-3">
       <div className="flex flex-col items-end gap-0">
-        <HorizontalTimeline label={"착공예정 현장"} data={preStartData} color={PRE_COLOR} maxCount={maxCount} maxSlots={maxSlots} />
-        <HorizontalTimeline label={"준공예정 현장"} data={activeData} color={ACTIVE_COLOR} maxCount={maxCount} maxSlots={maxSlots} />
+        <HorizontalTimeline label={"착공예정 현장"} data={preStartData} color={PRE_COLOR} maxCount={maxCount} maxSlots={maxSlots} selectedYear={selectedStartYear} onYearClick={onStartYearClick} />
+        <HorizontalTimeline label={"준공예정 현장"} data={activeData} color={ACTIVE_COLOR} maxCount={maxCount} maxSlots={maxSlots} selectedYear={selectedEndYear} onYearClick={onEndYearClick} />
       </div>
     </div>
   );

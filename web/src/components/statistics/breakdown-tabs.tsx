@@ -33,6 +33,10 @@ interface BreakdownTabsProps {
   onStatusClick?: (status: string | null) => void;
   onAmountRangeClick?: (rangeKey: string | null) => void;
   onShareRangeClick?: (rangeKey: string | null) => void;
+  selectedStartYear?: string | null;
+  selectedEndYear?: string | null;
+  onStartYearClick?: (year: string | null) => void;
+  onEndYearClick?: (year: string | null) => void;
 }
 
 /* ── Constants ──────────────────────────────────────────── */
@@ -88,6 +92,10 @@ export function BreakdownTabs({
   onStatusClick,
   onAmountRangeClick,
   onShareRangeClick,
+  selectedStartYear,
+  selectedEndYear,
+  onStartYearClick,
+  onEndYearClick,
 }: BreakdownTabsProps) {
 
   // Build data for each category
@@ -142,7 +150,7 @@ export function BreakdownTabs({
                 </div>
                 {/* CompletionYear — 도넛 우측 나머지 영역 */}
                 <div className="flex-1 flex items-start">
-                  <CompletionYearChart preStartData={completionYears} activeData={activeYears} />
+                  <CompletionYearChart preStartData={completionYears} activeData={activeYears} selectedStartYear={selectedStartYear} selectedEndYear={selectedEndYear} onStartYearClick={onStartYearClick} onEndYearClick={onEndYearClick} />
                 </div>
               </div>
             </div>

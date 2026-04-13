@@ -304,6 +304,8 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
   // 자사 도급액 별 필터 — FilterBar에는 노출하지 않고, AmountHeatmapChart의
   // 자사도급액 시리즈 클릭으로만 토글된다.
   const [shareRanges, setShareRanges] = useState<Set<string>>(new Set());
+  const [selectedStartYear, setSelectedStartYear] = useState<string | null>(null);
+  const [selectedEndYear, setSelectedEndYear] = useState<string | null>(null);
   const [pageScale, setPageScale] = useState(1);
   const [stickyContentH, setStickyContentH] = useState(88);
   const stickyContentRef = useRef<HTMLDivElement>(null);
@@ -351,7 +353,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     return () => window.removeEventListener("resize", update);
   }, [stickyContentH]);
 
-  const buildParams = useCallback((f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>) => {
+  const buildParams = useCallback((f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>, sYear?: string | null, eYear?: string | null) => {
     const params = new URLSearchParams();
     if (f.corporation && f.corporation !== "all") params.set("corporation", f.corporation);
     if (f.division && f.division !== "all") params.set("division", f.division);
@@ -363,11 +365,13 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     if (aRanges.size > 0) params.set("amountRanges", setToParam(aRanges));
     if (pRanges.size > 0) params.set("progressRanges", setToParam(pRanges));
     if (sRanges.size > 0) params.set("groupShareRanges", setToParam(sRanges));
+    if (sYear) params.set("startYear", sYear);
+    if (eYear) params.set("endYear", eYear);
     return params;
   }, []);
 
-  const fetchSummary = useCallback(async (f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>) => {
-    const params = buildParams(f, aRanges, pRanges, sRanges);
+  const fetchSummary = useCallback(async (f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>, sYear?: string | null, eYear?: string | null) => {
+    const params = buildParams(f, aRanges, pRanges, sRanges, sYear, eYear);
     try {
       const qs = params.toString();
       const [summaryRes, sitesRes] = await Promise.all([
@@ -390,21 +394,21 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     setFilters(next);
     if (key === "search") {
       if (searchTimer.current) clearTimeout(searchTimer.current);
-      searchTimer.current = setTimeout(() => fetchSummary(next, amountRanges, progressRanges, shareRanges), 300);
+      searchTimer.current = setTimeout(() => fetchSummary(next, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear), 300);
     } else {
-      fetchSummary(next, amountRanges, progressRanges, shareRanges);
+      fetchSummary(next, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
     }
   }, [filters, amountRanges, progressRanges, shareRanges, fetchSummary]);
 
   const handleAmountChange = useCallback((v: Set<string>) => {
     setAmountRanges(v);
-    fetchSummary(filters, v, progressRanges, shareRanges);
-  }, [filters, progressRanges, shareRanges, fetchSummary]);
+    fetchSummary(filters, v, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
+  }, [filters, progressRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
 
   const handleProgressChange = useCallback((v: Set<string>) => {
     setProgressRanges(v);
-    fetchSummary(filters, amountRanges, v, shareRanges);
-  }, [filters, amountRanges, shareRanges, fetchSummary]);
+    fetchSummary(filters, amountRanges, v, shareRanges, selectedStartYear, selectedEndYear);
+  }, [filters, amountRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
 
   const handleResetFilters = useCallback(() => {
     const empty: SiteFilter = {};
@@ -416,7 +420,9 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     setProgressRanges(emptyProgress);
     setShareRanges(emptyShare);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    fetchSummary(empty, emptyAmount, emptyProgress, emptyShare);
+    setSelectedStartYear(null);
+    setSelectedEndYear(null);
+    fetchSummary(empty, emptyAmount, emptyProgress, emptyShare, null, null);
   }, [fetchSummary]);
 
   /* ── Cross-filter handlers (Power BI style) ──
@@ -443,28 +449,40 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     if (rangeKey == null) {
       const empty = new Set<string>();
       setAmountRanges(empty);
-      fetchSummary(filters, empty, progressRanges, shareRanges);
+      fetchSummary(filters, empty, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
       return;
     }
     // Toggle: if already the only selected one, clear; otherwise select just it.
     const isOnlySelected = amountRanges.size === 1 && amountRanges.has(rangeKey);
     const next = new Set<string>(isOnlySelected ? [] : [rangeKey]);
     setAmountRanges(next);
-    fetchSummary(filters, next, progressRanges, shareRanges);
-  }, [filters, amountRanges, progressRanges, shareRanges, fetchSummary]);
+    fetchSummary(filters, next, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
+  }, [filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
 
   // 자사 도급액 별 — 백엔드 필터(`groupShareRanges`)에는 적용되지만 FilterBar에는 안 보임
   const handleShareRangeCrossFilter = useCallback((rangeKey: string | null) => {
     if (rangeKey == null) {
       const empty = new Set<string>();
       setShareRanges(empty);
-      fetchSummary(filters, amountRanges, progressRanges, empty);
+      fetchSummary(filters, amountRanges, progressRanges, empty, selectedStartYear, selectedEndYear);
       return;
     }
     const isOnlySelected = shareRanges.size === 1 && shareRanges.has(rangeKey);
     const next = new Set<string>(isOnlySelected ? [] : [rangeKey]);
     setShareRanges(next);
-    fetchSummary(filters, amountRanges, progressRanges, next);
+    fetchSummary(filters, amountRanges, progressRanges, next, selectedStartYear, selectedEndYear);
+  }, [filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
+
+  const handleStartYearClick = useCallback((year: string | null) => {
+    setSelectedStartYear(year);
+    setSelectedEndYear(null);
+    fetchSummary(filters, amountRanges, progressRanges, shareRanges, year, null);
+  }, [filters, amountRanges, progressRanges, shareRanges, fetchSummary]);
+
+  const handleEndYearClick = useCallback((year: string | null) => {
+    setSelectedEndYear(year);
+    setSelectedStartYear(null);
+    fetchSummary(filters, amountRanges, progressRanges, shareRanges, null, year);
   }, [filters, amountRanges, progressRanges, shareRanges, fetchSummary]);
 
   // Single-value selection state derived from current filter strings.
@@ -546,6 +564,10 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
               onStatusClick={handleStatusCrossFilter}
               onAmountRangeClick={handleAmountRangeCrossFilter}
               onShareRangeClick={handleShareRangeCrossFilter}
+              selectedStartYear={selectedStartYear}
+              selectedEndYear={selectedEndYear}
+              onStartYearClick={handleStartYearClick}
+              onEndYearClick={handleEndYearClick}
             />
           </div>
 
