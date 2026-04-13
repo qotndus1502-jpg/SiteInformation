@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, UploadFile, File, Form
+from fastapi import FastAPI, Query, UploadFile, File, Form, Body, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client
@@ -1079,4 +1079,134 @@ def _amount_heatmap(sites: list[dict]) -> dict:
         "no_share_count": no_share,
     }
 
+
+# ─────────────────────────────────────────────────────────────
+#  Site CRUD + Lookup endpoints (관리자 편집/추가 기능)
+# ─────────────────────────────────────────────────────────────
+
+EDITABLE_SITE_COLUMNS = {
+    "name", "corporation_id", "division", "category",
+    "region_code", "facility_type_code", "order_type", "client_org_id",
+    "contract_amount", "start_date", "end_date",
+    "office_address", "latitude", "longitude",
+    "status",
+}
+
+REQUIRED_SITE_COLUMNS = {"name", "corporation_id", "division", "category"}
+
+
+def _sync_geocode(address: str) -> tuple[float, float] | None:
+    """동기 Kakao 지오코딩 (엔드포인트 내부에서 바로 사용)."""
+    if not KAKAO_REST_KEY or not address:
+        return None
+    try:
+        import requests
+        res = requests.get(
+            "https://dapi.kakao.com/v2/local/search/address.json",
+            params={"query": address},
+            headers={"Authorization": f"KakaoAK {KAKAO_REST_KEY}"},
+            timeout=10,
+        )
+        docs = res.json().get("documents", [])
+        if docs:
+            return (float(docs[0]["y"]), float(docs[0]["x"]))
+    except Exception:
+        pass
+    return None
+
+
+@app.get("/api/lookup/corporations")
+def lookup_corporations():
+    r = supabase.schema("pmis").from_("corporation").select("id,name,code").order("id").execute()
+    return r.data or []
+
+
+@app.get("/api/lookup/regions")
+def lookup_regions():
+    r = supabase.schema("pmis").from_("region_code").select("code,name,region_group").order("code").execute()
+    return r.data or []
+
+
+@app.get("/api/lookup/facility-types")
+def lookup_facility_types():
+    r = supabase.schema("pmis").from_("facility_type").select("code,name,division").order("name").execute()
+    return r.data or []
+
+
+@app.get("/api/lookup/clients")
+def lookup_clients():
+    r = supabase.schema("pmis").from_("client_org").select("id,name,org_type").order("name").execute()
+    return r.data or []
+
+
+def _clean_site_payload(payload: dict) -> dict:
+    """클라이언트 payload를 DB 컬럼에 맞게 정리.
+    - 허용 컬럼만 남김
+    - 빈 문자열 → None
+    - 주소 있는데 좌표 없으면 지오코딩"""
+    clean = {}
+    for k, v in payload.items():
+        if k not in EDITABLE_SITE_COLUMNS:
+            continue
+        if v == "":
+            v = None
+        clean[k] = v
+
+    # 주소만 있고 좌표 누락 → Kakao로 채움
+    if clean.get("office_address") and (clean.get("latitude") is None or clean.get("longitude") is None):
+        coords = _sync_geocode(clean["office_address"])
+        if coords:
+            clean["latitude"] = coords[0]
+            clean["longitude"] = coords[1]
+    return clean
+
+
+@app.post("/api/sites")
+def create_site(payload: dict = Body(...)):
+    clean = _clean_site_payload(payload)
+
+    missing = [k for k in REQUIRED_SITE_COLUMNS if clean.get(k) in (None, "")]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"필수 필드 누락: {', '.join(missing)}")
+
+    try:
+        res = supabase.schema("pmis").from_("project_site").insert(clean).execute()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"DB 오류: {e}")
+
+    row = (res.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=500, detail="INSERT 결과가 비어 있음")
+    return {"ok": True, "id": row.get("id"), "site": row}
+
+
+@app.put("/api/sites/{site_id}")
+def update_site(site_id: int, payload: dict = Body(...)):
+    clean = _clean_site_payload(payload)
+    if not clean:
+        raise HTTPException(status_code=400, detail="수정할 필드가 없음")
+
+    # 필수 컬럼이 payload에 포함되어 있으면 빈 값 방지
+    for k in REQUIRED_SITE_COLUMNS:
+        if k in clean and clean[k] in (None, ""):
+            raise HTTPException(status_code=400, detail=f"{k}는 비울 수 없음")
+
+    try:
+        res = supabase.schema("pmis").from_("project_site").update(clean).eq("id", site_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"DB 오류: {e}")
+
+    row = (res.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=404, detail=f"site id {site_id} 없음")
+    return {"ok": True, "id": site_id, "site": row}
+
+
+@app.delete("/api/sites/{site_id}")
+def delete_site(site_id: int):
+    try:
+        res = supabase.schema("pmis").from_("project_site").delete().eq("id", site_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"DB 오류: {e}")
+    return {"ok": True, "id": site_id, "deleted": len(res.data or [])}
 

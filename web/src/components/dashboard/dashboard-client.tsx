@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { List, LayoutGrid, Map } from "lucide-react";
+import { List, LayoutGrid, Map, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FilterBar } from "./filter-bar";
 import { SiteList } from "./site-list";
@@ -10,6 +10,9 @@ import { SiteCardGrid } from "./site-card-grid";
 import { SiteMap, type ColorCategory } from "./site-map";
 import { charts } from "@/lib/chart-colors";
 import { SiteDetail } from "./site-detail";
+import { SiteFormDialog } from "./site-form-dialog";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth-context";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
@@ -97,6 +100,8 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
   }, [searchParams]);
   const [mapColorCategory, setMapColorCategory] = useState<ColorCategory>("corporation");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const { isAdmin } = useAuth();
+  const [addOpen, setAddOpen] = useState(false);
 
   const fetchSites = useCallback(async (f: SiteFilter) => {
     const params = new URLSearchParams();
@@ -188,8 +193,19 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
             <div className="w-px h-4 bg-border" />
             <Stat label="총 도급액" value={`${Math.round(stats.totalAmount / 100)}`} unit="백억" />
           </div>
+          {isAdmin && (
+            <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1">
+              <Plus className="h-4 w-4" />
+              현장 추가
+            </Button>
+          )}
         </div>
       )}
+      <SiteFormDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onSaved={() => fetchSites(filters)}
+      />
 
       {/* 2행: 필터 (리스트/카드 뷰일 때만 표시, 지도에서는 숨김) */}
       {viewMode !== "list" && viewMode !== "map" && (

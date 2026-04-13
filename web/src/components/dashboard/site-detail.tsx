@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MapPin, Calendar, Phone, User, Users, X } from "lucide-react";
+import { MapPin, Calendar, Phone, User, Users, X, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { JvChart } from "./jv-chart";
 import { SiteImage } from "./site-image";
 import { OrgChartDialog } from "./org-chart-dialog";
+import { SiteFormDialog } from "./site-form-dialog";
+import { useAuth } from "@/lib/auth-context";
 import type { SiteDashboard } from "@/types/database";
 import { COMPANY_CONFIG, STATUS_CONFIG } from "@/types/database";
 
@@ -49,6 +51,8 @@ const EXECUTION_STATUS_LABEL: Record<string, string> = {
 export function SiteDetail({ site, onClose }: SiteDetailProps) {
   const [orgOpen, setOrgOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const { isAdmin } = useAuth();
 
   if (!site) {
     return (
@@ -152,7 +156,19 @@ export function SiteDetail({ site, onClose }: SiteDetailProps) {
           <Badge variant="gray" size="sm">{site.facility_type_name}</Badge>
           {statusConfig && <Badge variant={statusConfig.variant} size="sm">{statusConfig.label}</Badge>}
         </div>
-        <h2 className="text-[14px] font-semibold text-foreground leading-snug">{site.site_name}</h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-[14px] font-semibold text-foreground leading-snug flex-1 min-w-0">{site.site_name}</h2>
+          {isAdmin && (
+            <button
+              onClick={() => setEditOpen(true)}
+              className="shrink-0 p-1 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded transition-colors"
+              title="현장 편집"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <SiteFormDialog open={editOpen} onOpenChange={setEditOpen} site={site} onSaved={() => window.location.reload()} />
         {site.office_address && (
           <button
             onClick={() => site.latitude != null && site.longitude != null && setMapOpen((v) => !v)}
