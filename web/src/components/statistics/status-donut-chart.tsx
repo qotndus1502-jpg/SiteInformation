@@ -73,9 +73,8 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
                   border: isSelected ? "3px solid #94A3B8" : undefined,
                 }}
               >
-                <span className="font-bold text-[11px]" style={{ color: isSelected ? "#94A3B8" : "white" }}>{completed}</span>
+                <span className="font-bold text-[12px]" style={{ color: isSelected ? "#94A3B8" : "white" }}>{completed}</span>
               </div>
-              <span className="block text-center text-[9px] text-muted-foreground mt-0.5">준공</span>
             </div>
           );
         })()}
@@ -99,7 +98,7 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
             const isDimmed = selectedStatus != null && !isSelected;
             return (<>
               <path d={d} fill={STATUS_CONFIG[0].color} stroke="#EEF2F7" strokeWidth={isSelected ? 6 : 4} className="transition-all duration-200 ease-out cursor-pointer" style={{ transform: isHov || isSelected ? `scale(1.06)` : "scale(1)", transformOrigin: `${cx}px ${cy}px`, opacity: isDimmed ? 0.35 : (isHov || isSelected ? 1 : 0.8) }} onMouseEnter={() => setHovSlice("ACTIVE")} onClick={(e) => { e.stopPropagation(); onStatusClick?.(isSelected ? null : "ACTIVE"); }} />
-              <text x={textPos.x} y={textPos.y} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight={700} fill="white" className="pointer-events-none">{active}</text>
+              <text x={textPos.x} y={textPos.y} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700} fill="white" className="pointer-events-none">{active}</text>
             </>);
           })()}
           {/* PreStart slice — only when value > 0 */}
@@ -121,7 +120,7 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
             const isDimmed = selectedStatus != null && !isSelected;
             return (<>
               <path d={d} fill={STATUS_CONFIG[1].color} stroke="#EEF2F7" strokeWidth={isSelected ? 6 : 4} className="transition-all duration-200 ease-out cursor-pointer" style={{ transform: isHov || isSelected ? `scale(1.06)` : "scale(1)", transformOrigin: `${cx}px ${cy}px`, opacity: isDimmed ? 0.35 : (isHov || isSelected ? 1 : 0.8) }} onMouseEnter={() => setHovSlice("PRE_START")} onClick={(e) => { e.stopPropagation(); onStatusClick?.(isSelected ? null : "PRE_START"); }} />
-              <text x={textPos.x} y={textPos.y} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight={700} fill="white">{preStart}</text>
+              <text x={textPos.x} y={textPos.y} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700} fill="white">{preStart}</text>
             </>);
           })()}
         </svg>
