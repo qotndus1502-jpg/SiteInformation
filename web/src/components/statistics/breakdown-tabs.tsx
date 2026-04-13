@@ -141,6 +141,12 @@ export function BreakdownTabs({
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#F59E0B" }} />
                 <span className="text-[11px] text-muted-foreground">착공전</span>
               </div>
+              {(() => {
+                const completedCount = by_status.find((d) => d.status === "COMPLETED")?.count ?? 0;
+                return completedCount > 0 ? (
+                  <span className="text-[11px] text-muted-foreground">준공 {completedCount}개</span>
+                ) : null;
+              })()}
             </div>
             <div className="flex justify-end">
               <div style={{ width: 956 }} className="flex items-start">
@@ -169,9 +175,9 @@ export function BreakdownTabs({
                 <span className="text-[11px] text-muted-foreground">토목</span>
               </div>
               {((amount_heatmap.no_contract_count ?? 0) > 0 || (amount_heatmap.no_share_count ?? 0) > 0) && (
-                <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+                <span className="text-[11px] text-muted-foreground">
                   미입력 {amount_heatmap.no_contract_count ?? 0}개
-                </div>
+                </span>
               )}
             </div>
             <div className="flex items-start justify-center gap-0 [&>*]:-mx-2 [&>*]:-my-2">
