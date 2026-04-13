@@ -236,7 +236,7 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
         {/* 카메라 버튼 */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="absolute bottom-2 right-2 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
+          className="absolute bottom-4 right-2 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
           title="사진 등록"
         >
           <Camera className="h-3.5 w-3.5" />
@@ -305,7 +305,7 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
             드래그: 이동 · 스크롤: 확대/축소
           </div>
           {/* 편집 툴바 */}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-black/60 backdrop-blur-sm rounded-lg px-1.5 py-1">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-black/60 backdrop-blur-sm rounded-lg px-1.5 py-1">
             <button onClick={() => fileInputRef.current?.click()} className="p-1.5 text-white/80 hover:text-white rounded hover:bg-white/10 transition-colors" title="사진 교체">
               <Camera className="h-3.5 w-3.5" />
             </button>
@@ -329,7 +329,7 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
         /* 카메라 버튼 — hover 시 표시 */
         <button
           onClick={() => { setDraft(settings); setEditing(true); }}
-          className="absolute bottom-2 right-2 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
+          className="absolute bottom-4 right-2 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
           title="사진 편집"
         >
           <Camera className="h-3.5 w-3.5" />
