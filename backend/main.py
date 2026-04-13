@@ -838,6 +838,7 @@ def _group_by_corporation(sites: list[dict]) -> list[dict]:
             "total_headcount": v["headcount"],
         }
         for k, v in groups.items()
+        if v["count"] > 0
     ]
 
 
@@ -866,8 +867,12 @@ def _group_by_corporation_division(sites: list[dict]) -> list[dict]:
             # 단독: 100% 소유 법인에 귀속
             groups[owner_corp][div]["contract"] += contract
 
+    # 현장을 소유하지 않는 법인(JV 지분만 있는 경우)은 제외
+    owner_corps = {corp for corp, divs in groups.items() if any(v["count"] > 0 for v in divs.values())}
     result = []
     for corp, divs in groups.items():
+        if corp not in owner_corps:
+            continue
         for div, vals in divs.items():
             result.append({
                 "corporation": corp,
