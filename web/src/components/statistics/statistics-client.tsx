@@ -280,6 +280,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
   const [panelOpen, setPanelOpen] = useState(false);
   const closingTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const siteListRef = useRef<HTMLDivElement>(null);
   const handleSelectSite = useCallback((site: SiteDashboard) => {
     clearTimeout(closingTimer.current);
     setSelectedSite(site);
@@ -287,6 +288,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setPanelOpen(true);
+        siteListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
   }, []);
@@ -572,14 +574,16 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
           </div>
 
           {/* ── Site List area ── */}
-          <SiteListWithDetail
-            sites={sites}
-            selectedSite={selectedSite}
-            displayedSite={displayedSite}
-            panelOpen={panelOpen}
-            onSelectSite={handleSelectSite}
-            onCloseSite={handleCloseSite}
-          />
+          <div ref={siteListRef}>
+            <SiteListWithDetail
+              sites={sites}
+              selectedSite={selectedSite}
+              displayedSite={displayedSite}
+              panelOpen={panelOpen}
+              onSelectSite={handleSelectSite}
+              onCloseSite={handleCloseSite}
+            />
+          </div>
         </>
       ) : (
         /* ── Detail map fills the whole body under the header (no heading row, no page scroll) ── */
