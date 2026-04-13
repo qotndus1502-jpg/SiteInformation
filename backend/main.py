@@ -113,8 +113,11 @@ def calc_group_share(site: dict) -> dict:
     our_ratio = shares.get(corp, 1.0)  # JV 없으면 100%
     our_amount = round(contract * our_ratio, 1)
 
-    # 그룹 3사 합산 지분
-    group_ratio = sum(r for c, r in shares.items() if c in GROUP_COMPANIES)
+    # 그룹 3사 합산 지분 (JV 없으면 소유 법인이 100%)
+    if shares:
+        group_ratio = sum(r for c, r in shares.items() if c in GROUP_COMPANIES)
+    else:
+        group_ratio = 1.0 if corp in GROUP_COMPANIES else 0.0
     group_amount = round(contract * group_ratio, 1)
 
     site["our_share_amount"] = our_amount
