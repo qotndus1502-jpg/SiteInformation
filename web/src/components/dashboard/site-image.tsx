@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Camera, Check, X, ZoomIn, ZoomOut } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 interface ImageSettings {
   x: number;
@@ -109,6 +110,7 @@ function BuildingIllustration() {
 }
 
 export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
+  const { isAdmin } = useAuth();
   const [hasImage, setHasImage] = useState(true);
   const [editing, setEditing] = useState(false);
   const [lightbox, setLightbox] = useState(false);
@@ -233,14 +235,16 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
       <div className="relative w-full h-[300px] overflow-hidden group">
         {fileInput}
         {division === "토목" ? <BridgeIllustration /> : <BuildingIllustration />}
-        {/* 카메라 버튼 */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="absolute bottom-10 right-2 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
-          title="사진 등록"
-        >
-          <Camera className="h-3.5 w-3.5" />
-        </button>
+        {/* 카메라 버튼 — 관리자만 */}
+        {isAdmin && (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="absolute bottom-10 right-2 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
+            title="사진 등록"
+          >
+            <Camera className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     );
   }
@@ -326,14 +330,16 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
           </div>
         </>
       ) : (
-        /* 카메라 버튼 — hover 시 표시 */
-        <button
-          onClick={() => { setDraft(settings); setEditing(true); }}
-          className="absolute bottom-10 right-2 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
-          title="사진 편집"
-        >
-          <Camera className="h-3.5 w-3.5" />
-        </button>
+        /* 카메라 버튼 — 관리자만 */
+        isAdmin && (
+          <button
+            onClick={() => { setDraft(settings); setEditing(true); }}
+            className="absolute bottom-10 right-2 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
+            title="사진 편집"
+          >
+            <Camera className="h-3.5 w-3.5" />
+          </button>
+        )
       )}
     </div>
   );

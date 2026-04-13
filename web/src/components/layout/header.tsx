@@ -1,9 +1,15 @@
 "use client";
 
-import { Bell } from "lucide-react";
+import { useState } from "react";
+import { Bell, LogIn, LogOut, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth-context";
+import { LoginDialog } from "@/components/auth/login-dialog";
 
 export function Header() {
+  const { isAdmin, logout } = useAuth();
+  const [loginOpen, setLoginOpen] = useState(false);
+
   return (
     <header className="h-14 bg-background backdrop-blur-xl border-b border-border/50 flex items-center justify-between px-4 sticky top-0 z-30 transition-colors shadow-sm">
       <div className="flex items-center gap-4 min-w-0">
@@ -14,13 +20,42 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-2">
+        {isAdmin ? (
+          <>
+            <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-[12px] font-semibold">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              관리자
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={logout}
+              className="text-muted-foreground hover:text-foreground hover:bg-card/60 gap-1"
+            >
+              <LogOut className="h-4 w-4" />
+              로그아웃
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLoginOpen(true)}
+            className="text-muted-foreground hover:text-foreground hover:bg-card/60 gap-1"
+          >
+            <LogIn className="h-4 w-4" />
+            로그인
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-card/60">
           <Bell className="h-5 w-5" />
         </Button>
         <div className="h-8 w-8 rounded-full bg-blue-500 text-white text-sm font-semibold flex items-center justify-center shadow-sm ring-2 ring-border/60">
-          관
+          {isAdmin ? "관" : "게"}
         </div>
       </div>
+
+      <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
     </header>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { User, X, Camera, ZoomIn, ZoomOut, Check } from "lucide-react";
 import type { OrgMember } from "@/types/org-chart";
+import { useAuth } from "@/lib/auth-context";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
@@ -34,6 +35,7 @@ interface OrgMemberCardProps {
 }
 
 export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps) {
+  const { isAdmin } = useAuth();
   const [imgError, setImgError] = useState(false);
   const [editing, setEditing] = useState(false);
   const [imgSrc, setImgSrc] = useState(
@@ -199,8 +201,8 @@ export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps)
             </>
           )}
 
-          {/* 카메라 버튼 — hover 시 표시 (편집 모드 아닐 때) */}
-          {!editing && (
+          {/* 카메라 버튼 — 관리자만 */}
+          {!editing && isAdmin && (
             <button
               onClick={(e) => { e.stopPropagation(); setDraft(settings); setEditing(true); }}
               className="absolute bottom-1 right-1 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-full opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all z-10"
