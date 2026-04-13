@@ -530,7 +530,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
           <div className="grid grid-cols-4 pb-4">
             <HeroKpi label="총 현장" value={`${summary.total_sites}`} unit="개" />
             <HeroKpi label="총 공사비" value={`${Math.round(budget.total_contract ?? 0).toLocaleString()}`} unit="억" />
-            <HeroKpi label="자사 도급액" value={`${Math.round((budget as any).total_group_share ?? 0).toLocaleString()}`} unit="억" />
+            <HeroKpi label="자사 도급액" value={`${Math.round((budget as any).total_our_share ?? 0).toLocaleString()}`} unit="억" />
             <HeroKpi label="총 인원" value={`${(headcount.total ?? 0).toLocaleString()}`} unit="명" isLast />
           </div>
         </div>
