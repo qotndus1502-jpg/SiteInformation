@@ -30,16 +30,16 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
   const active = data.find((d) => d.status === "ACTIVE")?.count ?? 0;
   const preStart = data.find((d) => d.status === "PRE_START")?.count ?? 0;
   const completed = data.find((d) => d.status === "COMPLETED")?.count ?? 0;
-  const donutTotal = active + preStart;
+  const donutTotal = active + preStart + completed;
 
   const cx = 70;
   const cy = 70;
   const r = 55;
 
-  // Build donut slices (진행중 + 착공전 only)
   const slices = [
     { key: "ACTIVE", count: active, color: ACTIVE_COLOR },
     { key: "PRE_START", count: preStart, color: PRE_START_COLOR },
+    { key: "COMPLETED", count: completed, color: COMPLETED_COLOR },
   ].filter((s) => s.count > 0);
 
   let currentAngle = -90;
@@ -53,41 +53,13 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
   });
 
   const showDonut = donutTotal > 0;
-  const showCompleted = completed > 0;
 
-  if (!showDonut && !showCompleted) return <div style={{ width: 140, height: 140 }} />;
+  if (!showDonut) return <div style={{ width: 140, height: 140 }} />;
 
   return (
     <div className="p-2">
       <div className="relative flex items-center gap-3">
-        {/* 준공 — 원형 그래프 좌측 하단 */}
-        {showCompleted && (() => {
-          const isSelected = selectedStatus === "COMPLETED";
-          const isDimmed = selectedStatus != null && !isSelected;
-          return (
-            <div
-              className="absolute cursor-pointer transition-all duration-200"
-              style={{ left: -4, bottom: 0, opacity: isDimmed ? 0.35 : 1 }}
-              onClick={() => onStatusClick?.(isSelected ? null : "COMPLETED")}
-            >
-              <div
-                className="rounded-full flex items-center justify-center transition-all duration-200"
-                style={{
-                  width: 36, height: 36,
-                  backgroundColor: isSelected ? "white" : COMPLETED_COLOR,
-                  border: isSelected ? `3px solid ${COMPLETED_COLOR}` : undefined,
-                  boxShadow: isSelected ? `0 0 0 2px white, 0 0 0 4px ${COMPLETED_COLOR}` : undefined,
-                }}
-              >
-                <span className="font-bold text-[12px]" style={{ color: isSelected ? COMPLETED_COLOR : "white" }}>{completed}</span>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* 도넛 — 진행중 + 착공전 */}
-        {showDonut ? (
-          <svg viewBox={`0 0 ${cx * 2} ${cy * 2}`} className="w-[140px] h-[140px] shrink-0" onMouseLeave={() => setHovSlice(null)}>
+        <svg viewBox={`0 0 ${cx * 2} ${cy * 2}`} className="w-[140px] h-[140px] shrink-0" onMouseLeave={() => setHovSlice(null)}>
             {sliceData.map((s) => {
               const isOnly = slices.length === 1;
               const start = polarToCartesian(cx, cy, r, s.startAngle);
@@ -120,10 +92,7 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
                 </g>
               );
             })}
-          </svg>
-        ) : (
-          <div style={{ width: 140, height: 140 }} />
-        )}
+        </svg>
       </div>
     </div>
   );
