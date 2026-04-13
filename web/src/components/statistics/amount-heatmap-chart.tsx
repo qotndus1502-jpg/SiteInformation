@@ -129,7 +129,7 @@ export function AmountHeatmapChart({ data, series: which = "both", mirror = fals
     labelColBg: "transparent",
   };
 
-  if (labels.length === 0 || (contractRows.length === 0 && shareRows.length === 0)) return null;
+  if (labels.length === 0 || (contractRows.length === 0 && shareRows.length === 0)) return <div className="p-2" style={{ minHeight: 140 }} />;
 
   const allSeries: { title: string; unit: string; rows: DivisionRow[] }[] = [
     { title: "총 공사비 별 현장 수", unit: "개", rows: contractRows },

@@ -30,7 +30,7 @@ function HorizontalTimeline({
 }) {
   const [hovIdx, setHovIdx] = useState<number | null>(null);
 
-  if (data.length === 0) return null;
+  if (data.length === 0) return <div style={{ minHeight: 40 }} />;
 
   const SLOT_W = 60;
   const LABEL_W = 64;
@@ -116,7 +116,7 @@ export function CompletionYearChart({ preStartData, activeData }: CompletionYear
   const maxSlots = Math.max(preStartData.length, activeData.length, 1);
 
   if (preStartData.length === 0 && activeData.length === 0) {
-    return null;
+    return <div className="px-2 pt-0 pb-2 -mt-3" style={{ minHeight: 80 }} />;
   }
 
   return (

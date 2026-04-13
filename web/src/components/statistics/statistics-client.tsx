@@ -214,7 +214,7 @@ const CORP_PIE_COLORS: Record<string, string> = {
 
 function MiniPie({ data, valueKey }: { data: { name: string; value: number }[]; valueKey: string }) {
   const total = data.reduce((s, d) => s + d.value, 0);
-  if (total === 0) return null;
+  if (total === 0) return <div style={{ width: 100, height: 100 }} />;
 
   const cx = 50;
   const cy = 50;

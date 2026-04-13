@@ -32,7 +32,7 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
   const preStart = data.find((d) => d.status === "PRE_START")?.count ?? 0;
   const total = active + preStart;
 
-  if (total === 0) return null;
+  if (total === 0) return <div style={{ width: 140, height: 140 }} />;
 
   const activePct = active / total;
 
