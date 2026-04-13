@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { charts } from "@/lib/chart-colors";
 
 interface StatusData {
   status: string;
@@ -15,9 +16,9 @@ interface StatusDonutChartProps {
   onStatusClick?: (status: string | null) => void;
 }
 
-const ACTIVE_COLOR = "#3B82F6";
-const PRE_START_COLOR = "#14B8A6";
-const COMPLETED_COLOR = "#BFDBFE";
+const ACTIVE_COLOR = charts.statusDonut.active;
+const PRE_START_COLOR = charts.statusDonut.preStart;
+const COMPLETED_COLOR = charts.statusDonut.completed;
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180;
@@ -90,7 +91,7 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
                     onMouseEnter={() => setHovSlice(s.key)}
                     onClick={(e) => { e.stopPropagation(); onStatusClick?.(isSelected ? null : s.key); }}
                   />
-                  <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700} fill={s.key === "COMPLETED" ? "#1E3A8A" : "white"} className="pointer-events-none">
+                  <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700} fill={s.key === "COMPLETED" ? charts.statusDonut.labelOnLight : charts.statusDonut.labelOnDark} className="pointer-events-none">
                     {s.count}
                   </text>
                 </g>

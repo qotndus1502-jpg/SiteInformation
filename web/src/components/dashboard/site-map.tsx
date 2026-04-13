@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { SiteDashboard } from "@/types/database";
+import { charts } from "@/lib/chart-colors";
 
 export type ColorCategory = "corporation" | "division" | "status";
 
@@ -98,24 +99,24 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
 };
 
 const CORP_COLORS: Record<string, string> = {
-  "남광토건": "#22c55e",
-  "극동건설": "#3b82f6",
-  "금광기업": "#f97316",
+  "남광토건": charts.siteMap.corporation.namgwang,
+  "극동건설": charts.siteMap.corporation.geukdong,
+  "금광기업": charts.siteMap.corporation.geumgwang,
 };
 
 const DIV_COLORS: Record<string, string> = {
-  "건축": "#2563EB",
-  "토목": "#F97316",
+  "건축": charts.siteMap.division.arch,
+  "토목": charts.siteMap.division.civil,
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  "ACTIVE": "#3b82f6",
-  "PRE_START": "#f59e0b",
-  "COMPLETED": "#22c55e",
-  "SUSPENDED": "#ef4444",
+  "ACTIVE": charts.siteMap.status.active,
+  "PRE_START": charts.siteMap.status.preStart,
+  "COMPLETED": charts.siteMap.status.completed,
+  "SUSPENDED": charts.siteMap.status.suspended,
 };
 
-const DEFAULT_COLOR = "#6b7280";
+const DEFAULT_COLOR = charts.siteMap.fallback;
 
 function getSiteColor(site: { corporation_name: string; division: string; status: string }, category: ColorCategory): string {
   if (category === "corporation") return CORP_COLORS[site.corporation_name] ?? DEFAULT_COLOR;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { charts } from "@/lib/chart-colors";
 
 interface CorpDivisionData {
   corporation: string;
@@ -22,8 +23,8 @@ interface CorpDivisionChartProps {
 const CORP_ORDER = ["남광토건", "극동건설", "금광기업"];
 
 const DEFAULT_DIV_COLORS: Record<string, string> = {
-  "건축": "#2563EB",
-  "토목": "#BFDBFE",
+  "건축": charts.corpDivision.arch,
+  "토목": charts.corpDivision.civil,
 };
 
 const divisions = ["건축", "토목"];
@@ -120,7 +121,7 @@ function BarCell({
               borderBottomRightRadius: s.radius,
             }}
           >
-            <span className="font-bold whitespace-nowrap" style={{ color: "#1E3A8A", fontSize: s.fontSize }}>
+            <span className="font-bold whitespace-nowrap" style={{ color: charts.corpDivision.onLight, fontSize: s.fontSize }}>
               {fmtVal(civilVal, metric)}
             </span>
           </div>

@@ -5,6 +5,7 @@ import { MapPin, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { geoMercator, geoPath, geoCentroid } from "d3-geo";
 import type { FeatureCollection, Feature, Geometry } from "geojson";
+import { charts } from "@/lib/chart-colors";
 
 /* ── Types ──────────────────────────────────────────────── */
 
@@ -54,14 +55,15 @@ for (const [area, cfg] of Object.entries(AREA_GROUPS)) {
 
 /* ── Province fill colors ─────────────────────────────── */
 
+const F = charts.koreaMap.fill;
 const FILL: Record<string, string> = {
-  "서울": "#CBD5E1", "인천": "#CBD5E1", "경기": "#D6DEE8",
-  "강원": "#E2E8F0", "충북": "#D6DEE8", "충남": "#CBD5E1",
-  "세종": "#D6DEE8", "대전": "#D6DEE8", "전북": "#CBD5E1",
-  "전남": "#B8C4D0", "광주": "#CBD5E1", "경북": "#E2E8F0",
-  "경남": "#D6DEE8", "대구": "#D6DEE8", "울산": "#E2E8F0",
-  "부산": "#CBD5E1",
-  "제주": "#D6DEE8",
+  "서울": F.dark, "인천": F.dark, "경기": F.mid,
+  "강원": F.light, "충북": F.mid, "충남": F.dark,
+  "세종": F.mid, "대전": F.mid, "전북": F.dark,
+  "전남": F.extra, "광주": F.dark, "경북": F.light,
+  "경남": F.mid, "대구": F.mid, "울산": F.light,
+  "부산": F.dark,
+  "제주": F.mid,
 };
 
 /* ── Minimal nudges (only where centroid is very off) ── */
@@ -78,9 +80,9 @@ const NUDGE: Record<string, { dx: number; dy: number }> = {
 type MetricKey = "count" | "total_headcount" | "total_contract";
 
 const METRICS: { key: MetricKey; label: string; color: string; hoverColor: string; unit: string }[] = [
-  { key: "count", label: "현장 수", color: "#BFDBFE", hoverColor: "#93C5FD", unit: "개" },
-  { key: "total_headcount", label: "투입 인원", color: "#BFDBFE", hoverColor: "#93C5FD", unit: "명" },
-  { key: "total_contract", label: "자사도급액", color: "#BFDBFE", hoverColor: "#93C5FD", unit: "억" },
+  { key: "count", label: "현장 수", color: charts.koreaMap.bubble, hoverColor: charts.koreaMap.bubbleHover, unit: "개" },
+  { key: "total_headcount", label: "투입 인원", color: charts.koreaMap.bubble, hoverColor: charts.koreaMap.bubbleHover, unit: "명" },
+  { key: "total_contract", label: "자사도급액", color: charts.koreaMap.bubble, hoverColor: charts.koreaMap.bubbleHover, unit: "억" },
 ];
 
 /* ── Bubble radius ────────────────────────────────────── */

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { charts } from "@/lib/chart-colors";
 
 interface DivisionRow {
   division: string;
@@ -123,8 +124,8 @@ export function AmountHeatmapChart({ data, series: which = "both", mirror = fals
     radius: 6,
     fontSize: 10,
     titleFontSize: 11,
-    archColor: "#2563EB",
-    civilColor: "#BFDBFE",
+    archColor: charts.amountHeatmap.arch,
+    civilColor: charts.amountHeatmap.civil,
     labelColW: 80,
     labelColBg: "transparent",
   };
@@ -236,7 +237,7 @@ export function AmountHeatmapChart({ data, series: which = "both", mirror = fals
                       value={s.bars[i].civil}
                       maxVal={s.maxCivil}
                       color={heatStyle.civilColor}
-                      textColor="#1E3A8A"
+                      textColor={charts.amountHeatmap.onLight}
                       direction="right"
                       isHov={isHov}
                       s={heatStyle}

@@ -1,16 +1,17 @@
 "use client";
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { charts } from "@/lib/chart-colors";
 
 interface StatusChartProps {
   data: { status: string; count: number }[];
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  ACTIVE: { label: "진행중", color: "#3B82F6" },
-  PRE_START: { label: "착공전", color: "#14B8A6" },
-  COMPLETED: { label: "준공", color: "#BFDBFE" },
-  SUSPENDED: { label: "중단", color: "#EF4444" },
+  ACTIVE: { label: "진행중", color: charts.statusPie.active },
+  PRE_START: { label: "착공전", color: charts.statusPie.preStart },
+  COMPLETED: { label: "준공", color: charts.statusPie.completed },
+  SUSPENDED: { label: "중단", color: charts.statusPie.suspended },
 };
 
 function CustomTooltip({ active, payload }: any) {

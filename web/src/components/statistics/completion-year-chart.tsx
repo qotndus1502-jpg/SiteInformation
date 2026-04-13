@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { charts } from "@/lib/chart-colors";
 
 interface YearData {
   year: string;
@@ -16,8 +17,8 @@ interface CompletionYearChartProps {
   onEndYearClick?: (year: string | null) => void;
 }
 
-const PRE_COLOR = "#14B8A6";
-const ACTIVE_COLOR = "#3B82F6";
+const PRE_COLOR = charts.completionYear.preStart;
+const ACTIVE_COLOR = charts.completionYear.active;
 
 function HorizontalTimeline({
   label,

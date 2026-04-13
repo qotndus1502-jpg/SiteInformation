@@ -1,6 +1,7 @@
 "use client";
 
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { charts } from "@/lib/chart-colors";
 
 interface JvChartProps {
   jvSummary: string;
@@ -9,22 +10,13 @@ interface JvChartProps {
 
 // 우리 3사 — 진한 브랜드 컬러
 const OUR_COMPANIES: Record<string, string> = {
-  "남광토건": "#16A34A",  // Green-600
-  "극동건설": "#2563EB",  // Blue-600
-  "금광기업": "#EA580C",  // Orange-600
+  "남광토건": charts.jvChart.corporation.namgwang,
+  "극동건설": charts.jvChart.corporation.geukdong,
+  "금광기업": charts.jvChart.corporation.geumgwang,
 };
 
-// 외부업체 — 연한 뮤트 톤 (디자인시스템 chart 색상 기반)
-const EXTERNAL_COLORS = [
-  "#94A3B8", // Slate-400
-  "#CBD5E1", // Slate-300
-  "#A5B4FC", // Indigo-300
-  "#D4D4D8", // Zinc-300
-  "#BFDBFE", // Blue-200
-  "#C4B5FD", // Violet-300
-  "#FDE68A", // Amber-200
-  "#D1D5DB", // Gray-300
-];
+// 외부업체 — 연한 뮤트 톤
+const EXTERNAL_COLORS = charts.jvChart.extra;
 
 function parseJvSummary(summary: string): { name: string; value: number }[] {
   return summary.split(",").map((part) => {

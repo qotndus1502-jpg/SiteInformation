@@ -7,6 +7,7 @@ import { StatusDonutChart } from "./status-donut-chart";
 import { CorpDivisionChart } from "./corp-division-chart";
 import { AmountHeatmapChart } from "./amount-heatmap-chart";
 import { CompletionYearChart } from "./completion-year-chart";
+import { charts } from "@/lib/chart-colors";
 
 /* ── Types ──────────────────────────────────────────────── */
 
@@ -49,24 +50,25 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const CORP_COLORS: Record<string, string> = {
-  "남광토건": "#3B82F6",
-  "극동건설": "#3B82F6",
-  "금광기업": "#3B82F6",
+  "남광토건": charts.breakdownCorp.namgwang,
+  "극동건설": charts.breakdownCorp.geukdong,
+  "금광기업": charts.breakdownCorp.geumgwang,
 };
+const CORP_FALLBACK = charts.breakdownCorp.fallback;
 
 const DIV_COLORS: Record<string, string> = {
-  "건축": "#2563EB",
-  "토목": "#BFDBFE",
+  "건축": charts.breakdownDivision.arch,
+  "토목": charts.breakdownDivision.civil,
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  ACTIVE: "#3B82F6",
-  PRE_START: "#14B8A6",
-  COMPLETED: "#BFDBFE",
-  SUSPENDED: "#EF4444",
+  ACTIVE: charts.breakdownStatus.active,
+  PRE_START: charts.breakdownStatus.preStart,
+  COMPLETED: charts.breakdownStatus.completed,
+  SUSPENDED: charts.breakdownStatus.suspended,
 };
 
-const AMOUNT_COLORS = ["#BFDBFE", "#93C5FD", "#60A5FA", "#3B82F6", "#1D4ED8"];
+const AMOUNT_COLORS = charts.breakdownAmount;
 
 /* ── Main Component ─────────────────────────────────────── */
 
@@ -100,17 +102,17 @@ export function BreakdownTabs({
 
   // Build data for each category
   const corpSites: RingEntry[] = by_corporation.map((d) => ({
-    name: d.corporation, value: d.count, color: CORP_COLORS[d.corporation] ?? "#3B82F6",
+    name: d.corporation, value: d.count, color: CORP_COLORS[d.corporation] ?? CORP_FALLBACK,
   }));
   const corpContract: RingEntry[] = by_corporation.map((d) => ({
-    name: d.corporation, value: d.total_contract, color: CORP_COLORS[d.corporation] ?? "#3B82F6",
+    name: d.corporation, value: d.total_contract, color: CORP_COLORS[d.corporation] ?? CORP_FALLBACK,
   }));
 
   const divSites: RingEntry[] = by_division_detail.map((d) => ({
-    name: d.division, value: d.count, color: DIV_COLORS[d.division] ?? "#3B82F6",
+    name: d.division, value: d.count, color: DIV_COLORS[d.division] ?? CORP_FALLBACK,
   }));
   const divContract: RingEntry[] = by_division_detail.map((d) => ({
-    name: d.division, value: d.total_contract, color: DIV_COLORS[d.division] ?? "#3B82F6",
+    name: d.division, value: d.total_contract, color: DIV_COLORS[d.division] ?? CORP_FALLBACK,
   }));
 
   const amountSites: RingEntry[] = by_amount_range.map((d, i) => ({
@@ -134,15 +136,15 @@ export function BreakdownTabs({
             {/* Legend — top-left of the row (matches Row 3 legend x position) */}
             <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#3B82F6" }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.ACTIVE }} />
                 <span className="text-[11px] text-muted-foreground">진행중</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#14B8A6" }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.PRE_START }} />
                 <span className="text-[11px] text-muted-foreground">착공전</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#BFDBFE" }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.COMPLETED }} />
                 <span className="text-[11px] text-muted-foreground">준공</span>
               </div>
             </div>
@@ -165,11 +167,11 @@ export function BreakdownTabs({
             {/* Legend — top-left of the row (matches Row 2 legend x position) */}
             <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#2563EB" }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: DIV_COLORS["건축"] }} />
                 <span className="text-[11px] text-muted-foreground">건축</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#BFDBFE" }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: DIV_COLORS["토목"] }} />
                 <span className="text-[11px] text-muted-foreground">토목</span>
               </div>
               {((amount_heatmap.no_contract_count ?? 0) > 0 || (amount_heatmap.no_share_count ?? 0) > 0) && (
