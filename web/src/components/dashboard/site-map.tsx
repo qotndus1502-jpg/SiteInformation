@@ -398,16 +398,22 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
         },
       });
 
-      // 비선택 원형 — 법인 색상
+      // 비선택 원형 — 법인 색상 (개별 흰색 테두리 포함: 겹쳐도 각 마커 윤곽 보임)
       map.addLayer({
         id: CIRCLE_LAYER,
         type: "circle",
         source: SOURCE_ID,
         filter: ["==", ["get", "selected"], 0],
+        layout: {
+          // 공사비(contract_amount) 큰 마커가 위에 — 큰 게 기준점이 되도록
+          "circle-sort-key": ["coalesce", ["get", "contract_amount"], 0],
+        },
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 6, 8, 10, 12, 15, 16, 22],
           "circle-color": ["get", "color"],
           "circle-opacity": 1,
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 2,
         },
       });
 
