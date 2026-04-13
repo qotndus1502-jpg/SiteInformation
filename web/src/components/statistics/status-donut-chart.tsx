@@ -76,7 +76,7 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
                 <g key={s.key}>
                   <path
                     d={d} fill={s.color} stroke="#EEF2F7"
-                    strokeWidth={isSelected ? 6 : 4}
+                    strokeWidth={isSelected ? 3 : 2}
                     className="transition-all duration-200 ease-out cursor-pointer"
                     style={{
                       transform: isHov || isSelected ? "scale(1.06)" : "scale(1)",
