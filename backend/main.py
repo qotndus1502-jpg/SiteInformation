@@ -813,21 +813,12 @@ def _group_by_status(sites: list[dict]) -> list[dict]:
 def _group_by_corporation(sites: list[dict]) -> list[dict]:
     groups = defaultdict(lambda: {"count": 0, "progress_sum": 0.0, "contract": 0.0, "headcount": 0})
     for s in sites:
-        owner_corp = s.get("corporation_name") or "기타"
-        contract = s.get("contract_amount") or 0
-        shares = _parse_jv_shares(s.get("jv_summary"))
-
-        g = groups[owner_corp]
+        corp = s.get("corporation_name") or "기타"
+        g = groups[corp]
         g["count"] += 1
         g["progress_sum"] += s.get("progress_rate") or 0
+        g["contract"] += s.get("our_share_amount") or 0
         g["headcount"] += s.get("headcount") or 0
-
-        if shares:
-            for comp, ratio in shares.items():
-                if comp in GROUP_COMPANIES:
-                    groups[comp]["contract"] += round(contract * ratio, 1)
-        else:
-            g["contract"] += contract
 
     return [
         {
@@ -838,41 +829,24 @@ def _group_by_corporation(sites: list[dict]) -> list[dict]:
             "total_headcount": v["headcount"],
         }
         for k, v in groups.items()
-        if v["count"] > 0
     ]
 
 
 def _group_by_corporation_division(sites: list[dict]) -> list[dict]:
     """Cross-tab: corporation x division -> count, contract, headcount.
-    JV 현장의 경우 그룹사 지분을 각 법인 행에 분배한다.
-    예: 극동건설 현장에 남광토건이 JV 참여 → 남광 지분액은 남광 행에 포함.
+    주도급사(소유 법인)의 our_share_amount만 사용.
     """
     groups: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(lambda: {"count": 0, "contract": 0.0, "headcount": 0}))
     for s in sites:
-        owner_corp = s.get("corporation_name") or "기타"
+        corp = s.get("corporation_name") or "기타"
         div = s.get("division") or "기타"
-        contract = s.get("contract_amount") or 0
-        shares = _parse_jv_shares(s.get("jv_summary"))
+        g = groups[corp][div]
+        g["count"] += 1
+        g["contract"] += s.get("our_share_amount") or 0
+        g["headcount"] += s.get("headcount") or 0
 
-        # 현장 수와 인원은 소유 법인에만 카운트
-        groups[owner_corp][div]["count"] += 1
-        groups[owner_corp][div]["headcount"] += s.get("headcount") or 0
-
-        if shares:
-            # JV: 그룹사별 지분액을 각 법인 행에 분배
-            for comp, ratio in shares.items():
-                if comp in GROUP_COMPANIES:
-                    groups[comp][div]["contract"] += round(contract * ratio, 1)
-        else:
-            # 단독: 100% 소유 법인에 귀속
-            groups[owner_corp][div]["contract"] += contract
-
-    # 현장을 소유하지 않는 법인(JV 지분만 있는 경우)은 제외
-    owner_corps = {corp for corp, divs in groups.items() if any(v["count"] > 0 for v in divs.values())}
     result = []
     for corp, divs in groups.items():
-        if corp not in owner_corps:
-            continue
         for div, vals in divs.items():
             result.append({
                 "corporation": corp,
