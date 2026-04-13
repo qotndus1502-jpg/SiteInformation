@@ -182,7 +182,28 @@ function buildPopupHTML(name: string, corp: string, division: string, status: st
   `;
 }
 
-/* 현재 줌에서 마커 반지름(px). CIRCLE_LAYER의 circle-radius interpolation과 동일하게 맞춰야 함. */
+/* 겹침 해소 기준 줌. 이 줌에서 50% overlap이 되도록 offset 계산.
+   이보다 줌아웃하면 클러스터가 뭉치고, 줌인하면 자연스럽게 벌어짐. */
+const RESOLVE_REF_ZOOM = 11;
+
+/* 웹 메르카토르: 고정 줌 기준 (lat, lon) ↔ (x, y) 픽셀 변환.
+   map 인스턴스와 독립적이어서 줌 변경 시에도 오프셋이 바뀌지 않음. */
+function latLonToMercatorPx(lat: number, lon: number, zoom: number): [number, number] {
+  const scale = 256 * Math.pow(2, zoom);
+  const x = (lon + 180) / 360 * scale;
+  const sinLat = Math.sin(lat * Math.PI / 180);
+  const y = (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale;
+  return [x, y];
+}
+function mercatorPxToLatLon(x: number, y: number, zoom: number): [number, number] {
+  const scale = 256 * Math.pow(2, zoom);
+  const lon = x / scale * 360 - 180;
+  const n = Math.PI - 2 * Math.PI * y / scale;
+  const lat = 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  return [lat, lon];
+}
+
+/* 기준 줌에서 마커 반지름(px). CIRCLE_LAYER의 circle-radius interpolation과 동일. */
 function markerRadiusPx(zoom: number): number {
   const stops: [number, number][] = [[4, 6], [8, 10], [12, 15], [16, 22]];
   if (zoom <= stops[0][0]) return stops[0][1];
@@ -198,25 +219,22 @@ function markerRadiusPx(zoom: number): number {
   return stops[stops.length - 1][1];
 }
 
-/* 픽셀 공간에서 겹침 해소. 50% overlap 허용 → 중심 간 최소 거리 = 반지름 × 1 */
-function resolveMarkerOverlaps(
-  map: maplibregl.Map,
-  valid: SiteDashboard[]
-): Map<number, [number, number]> {
+/* 고정 기준 줌에서 픽셀 공간 겹침 해소. 50% overlap 허용 → 최소 중심 거리 = 반지름 */
+function resolveMarkerOverlaps(valid: SiteDashboard[]): Map<number, [number, number]> {
   const result = new Map<number, [number, number]>();
   if (valid.length === 0) return result;
 
-  const r = markerRadiusPx(map.getZoom());
-  const minDist = r * 1.0; // 50% overlap 허용
+  const r = markerRadiusPx(RESOLVE_REF_ZOOM);
+  const minDist = r * 1.0;
   const padding = 1;
 
-  type Node = { id: number; x: number; y: number };
+  type Node = { id: number; x: number; y: number; origX: number; origY: number };
   const nodes: Node[] = valid.map((s) => {
-    const p = map.project([s.longitude!, s.latitude!]);
-    return { id: s.id, x: p.x, y: p.y };
+    const [x, y] = latLonToMercatorPx(s.latitude!, s.longitude!, RESOLVE_REF_ZOOM);
+    return { id: s.id, x, y, origX: x, origY: y };
   });
 
-  for (let iter = 0; iter < 40; iter++) {
+  for (let iter = 0; iter < 60; iter++) {
     let moved = false;
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
@@ -228,7 +246,6 @@ function resolveMarkerOverlaps(
         const need = minDist + padding;
         if (dist < need) {
           if (dist < 0.001) {
-            // 완전 중첩 시 결정적 방향으로 분리
             dx = ((i + 1) % 2 === 0 ? 1 : -1);
             dy = ((j + 1) % 2 === 0 ? 1 : -1);
             dist = Math.sqrt(dx * dx + dy * dy);
@@ -247,27 +264,24 @@ function resolveMarkerOverlaps(
     if (!moved) break;
   }
 
-  for (let i = 0; i < nodes.length; i++) {
-    const orig = valid[i];
-    const origPx = map.project([orig.longitude!, orig.latitude!]);
-    const dx = nodes[i].x - origPx.x;
-    const dy = nodes[i].y - origPx.y;
-    if (dx !== 0 || dy !== 0) {
-      const newLngLat = map.unproject([nodes[i].x, nodes[i].y]);
-      result.set(orig.id, [newLngLat.lng - orig.longitude!, newLngLat.lat - orig.latitude!]);
+  for (const n of nodes) {
+    if (n.x !== n.origX || n.y !== n.origY) {
+      const orig = valid.find((s) => s.id === n.id)!;
+      const [newLat, newLon] = mercatorPxToLatLon(n.x, n.y, RESOLVE_REF_ZOOM);
+      result.set(n.id, [newLon - orig.longitude!, newLat - orig.latitude!]);
     }
   }
   return result;
 }
 
 function buildGeoJSON(
-  map: maplibregl.Map | null,
+  _map: maplibregl.Map | null,
   sites: SiteDashboard[],
   selectedSiteId: number | null,
   colorCategory: ColorCategory = "corporation"
 ) {
   const valid = sites.filter((s) => s.latitude != null && s.longitude != null);
-  const jitter = map ? resolveMarkerOverlaps(map, valid) : new Map<number, [number, number]>();
+  const jitter = resolveMarkerOverlaps(valid);
 
   const features = valid
     .map((s) => {
