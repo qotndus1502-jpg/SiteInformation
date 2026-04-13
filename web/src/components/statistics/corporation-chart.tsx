@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { charts } from "@/lib/chart-colors";
 
 interface CorpData {
   corporation: string;
@@ -15,9 +16,9 @@ interface CorporationChartProps {
 }
 
 const CORP_COLORS: Record<string, string> = {
-  "남광토건": "#3B82F6",
-  "극동건설": "#3B82F6",
-  "금광기업": "#3B82F6",
+  "남광토건": charts.corporationBars.namgwang,
+  "극동건설": charts.corporationBars.geukdong,
+  "금광기업": charts.corporationBars.geumgwang,
 };
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -60,8 +61,8 @@ export function CorporationChart({ data }: CorporationChartProps) {
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="현장수" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="인원" fill="#06B6D4" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="현장수" fill={charts.corporationBars.sites} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="인원" fill={charts.corporationBars.headcount} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -70,7 +71,7 @@ export function CorporationChart({ data }: CorporationChartProps) {
         {data.map((d) => (
           <div key={d.corporation} className="flex-1 text-center">
             <p className="text-xs text-muted-foreground">{d.corporation}</p>
-            <p className="text-sm font-bold" style={{ color: CORP_COLORS[d.corporation] ?? "#666" }}>
+            <p className="text-sm font-bold" style={{ color: CORP_COLORS[d.corporation] ?? charts.corporationBars.fallback }}>
               {(d.avg_progress * 100).toFixed(1)}%
             </p>
             <p className="text-xs text-muted-foreground">{d.total_contract.toLocaleString()}억</p>

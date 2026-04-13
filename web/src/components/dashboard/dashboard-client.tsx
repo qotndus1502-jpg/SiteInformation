@@ -8,6 +8,7 @@ import { FilterBar } from "./filter-bar";
 import { SiteList } from "./site-list";
 import { SiteCardGrid } from "./site-card-grid";
 import { SiteMap, type ColorCategory } from "./site-map";
+import { charts } from "@/lib/chart-colors";
 import { SiteDetail } from "./site-detail";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
 
@@ -252,10 +253,20 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
                 {/* Legend */}
                 <div className="flex flex-col gap-0.5 bg-card/90 backdrop-blur-sm rounded-lg px-2.5 py-1.5 shadow-sm border border-border/50">
                   {(mapColorCategory === "corporation"
-                    ? [{ label: "남광토건", color: "#22c55e" }, { label: "극동건설", color: "#3b82f6" }, { label: "금광기업", color: "#f97316" }]
+                    ? [
+                        { label: "남광토건", color: charts.siteMap.corporation.namgwang },
+                        { label: "극동건설", color: charts.siteMap.corporation.geukdong },
+                        { label: "금광기업", color: charts.siteMap.corporation.geumgwang },
+                      ]
                     : mapColorCategory === "division"
-                    ? [{ label: "건축", color: "#2563EB" }, { label: "토목", color: "#F97316" }]
-                    : [{ label: "진행중", color: "#3b82f6" }, { label: "착공전", color: "#f59e0b" }]
+                    ? [
+                        { label: "건축", color: charts.siteMap.division.arch },
+                        { label: "토목", color: charts.siteMap.division.civil },
+                      ]
+                    : [
+                        { label: "진행중", color: charts.siteMap.status.active },
+                        { label: "착공전", color: charts.siteMap.status.preStart },
+                      ]
                   ).map((item) => (
                     <div key={item.label} className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />

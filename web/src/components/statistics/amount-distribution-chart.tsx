@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { charts } from "@/lib/chart-colors";
 
 interface AmountDistData {
   label: string;
@@ -11,7 +12,7 @@ interface AmountDistributionChartProps {
   data: AmountDistData[];
 }
 
-const BAR_COLORS = ["#94A3B8", "#3B82F6", "#8B5CF6", "#F59E0B", "#EF4444"];
+const BAR_COLORS = charts.amountDistribution;
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;

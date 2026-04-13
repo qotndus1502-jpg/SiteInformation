@@ -157,6 +157,25 @@ export const charts = {
     fallback: semantic.neutral.fallback,
   },
 
+  /* 통계 페이지 — 법인별 성과 비교 (corporation-chart.tsx) */
+  corporationBars: {
+    sites:    semantic.status.active,    // 현장수 막대
+    headcount: "#06B6D4",                // 인원 막대 (cyan)
+    namgwang:  semantic.status.active,
+    geukdong:  semantic.status.active,
+    geumgwang: semantic.status.active,
+    fallback:  "#666666",
+  },
+
+  /* 통계 페이지 — 도급액 규모별 분포 (amount-distribution-chart.tsx) */
+  amountDistribution: [
+    "#94A3B8",
+    "#3B82F6",
+    "#8B5CF6",
+    "#F59E0B",
+    "#EF4444",
+  ] as readonly string[],
+
   /* 대시보드 — JV 도넛 (법인 + 보조 슬라이스) */
   jvChart: {
     corporation: {
