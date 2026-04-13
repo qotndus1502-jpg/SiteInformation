@@ -21,8 +21,7 @@ function setToStr(s: Set<string>): string {
 }
 
 const AMOUNT_OPTIONS = [
-  { value: "0-100",    label: "≤ 100억" },
-  { value: "100-500",  label: "≤ 500억" },
+  { value: "0-500",    label: "≤ 500억" },
   { value: "500-1000", label: "≤ 1,000억" },
   { value: "1000-2000", label: "≤ 2,000억" },
   { value: "2000-3000", label: "≤ 3,000억" },

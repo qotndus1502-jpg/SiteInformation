@@ -29,8 +29,7 @@ interface AmountHeatmapChartProps {
 
 // Map display labels (from backend) to the range keys used in filter.amountRanges
 const LABEL_TO_RANGE_KEY: Record<string, string> = {
-  "≤ 100억":   "0-100",
-  "≤ 500억":   "100-500",
+  "≤ 500억":   "0-500",
   "≤ 1,000억": "500-1000",
   "≤ 2,000억": "1000-2000",
   "≤ 3,000억": "2000-3000",

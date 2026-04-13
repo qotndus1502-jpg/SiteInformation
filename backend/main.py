@@ -976,8 +976,7 @@ def _group_by_division_detail(sites: list[dict]) -> list[dict]:
 
 def _amount_range_distribution(sites: list[dict]) -> list[dict]:
     bins = [
-        {"label": "≤ 100억",   "min": 0,    "max": 100,         "count": 0, "contract": 0.0, "headcount": 0},
-        {"label": "≤ 500억",   "min": 100,  "max": 500,         "count": 0, "contract": 0.0, "headcount": 0},
+        {"label": "≤ 500억",   "min": 0,    "max": 500,         "count": 0, "contract": 0.0, "headcount": 0},
         {"label": "≤ 1,000억", "min": 500,  "max": 1000,        "count": 0, "contract": 0.0, "headcount": 0},
         {"label": "≤ 2,000억", "min": 1000, "max": 2000,        "count": 0, "contract": 0.0, "headcount": 0},
         {"label": "≤ 3,000억", "min": 2000, "max": 3000,        "count": 0, "contract": 0.0, "headcount": 0},
@@ -997,8 +996,7 @@ def _amount_range_distribution(sites: list[dict]) -> list[dict]:
 
 
 AMOUNT_BINS = [
-    {"label": "≤ 100억",   "min": 0,    "max": 100},
-    {"label": "≤ 500억",   "min": 100,  "max": 500},
+    {"label": "≤ 500억",   "min": 0,    "max": 500},
     {"label": "≤ 1,000억", "min": 500,  "max": 1000},
     {"label": "≤ 2,000억", "min": 1000, "max": 2000},
     {"label": "≤ 3,000억", "min": 2000, "max": 3000},
