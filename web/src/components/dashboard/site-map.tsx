@@ -378,12 +378,8 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
         data: buildGeoJSON(map, sitesRef.current, null, colorCategory),
       });
 
-      // 줌 변경 시 겹침 재계산 (픽셀 기반이므로 줌에 따라 offset 달라짐)
-      const onZoomEnd = () => {
-        const src = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
-        if (src) src.setData(buildGeoJSON(map, sitesRef.current, selectedSiteIdRef.current, colorCategoryRef.current));
-      };
-      map.on("zoomend", onZoomEnd);
+      /* 겹침 해소는 초기 로드/데이터 변경 시에만 1회 수행.
+         줌 변경 때마다 재계산하면 마커가 계속 움직여서 혼란스러움. */
 
       // 비선택 원형 — 흰색 테두리
       map.addLayer({
