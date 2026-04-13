@@ -50,9 +50,35 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
 
   const [hovSlice, setHovSlice] = useState<string | null>(null);
 
+  const completed = data.find((d) => d.status === "COMPLETED")?.count ?? 0;
+
   return (
     <div className="p-2">
-      <div className="flex items-center gap-3">
+      <div className="relative flex items-center gap-3">
+        {/* 준공 — 원형 그래프 좌측 하단 빈 공간 */}
+        {completed > 0 && (() => {
+          const isSelected = selectedStatus === "COMPLETED";
+          const isDimmed = selectedStatus != null && !isSelected;
+          return (
+            <div
+              className="absolute cursor-pointer transition-all duration-200"
+              style={{ left: -4, bottom: 0, opacity: isDimmed ? 0.35 : 1 }}
+              onClick={() => onStatusClick?.(isSelected ? null : "COMPLETED")}
+            >
+              <div
+                className="rounded-full flex items-center justify-center transition-all duration-200"
+                style={{
+                  width: 36, height: 36,
+                  backgroundColor: isSelected ? "white" : "#94A3B8",
+                  border: isSelected ? "3px solid #94A3B8" : undefined,
+                }}
+              >
+                <span className="font-bold text-[11px]" style={{ color: isSelected ? "#94A3B8" : "white" }}>{completed}</span>
+              </div>
+              <span className="block text-center text-[9px] text-muted-foreground mt-0.5">준공</span>
+            </div>
+          );
+        })()}
         <svg viewBox={`0 0 ${cx * 2} ${cy * 2}`} className="w-[140px] h-[140px] shrink-0" onMouseLeave={() => setHovSlice(null)}>
           {/* Active slice — only when value > 0 */}
           {active > 0 && (() => {
