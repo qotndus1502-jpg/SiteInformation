@@ -32,7 +32,7 @@ type Metric = "count" | "total_contract" | "total_headcount";
 
 const METRICS: { key: Metric; label: string; unit: string }[] = [
   { key: "count", label: "현장 수", unit: "개" },
-  { key: "total_contract", label: "자사도급액", unit: "억" },
+  { key: "total_contract", label: "총공사비", unit: "억" },
   { key: "total_headcount", label: "인원", unit: "명" },
 ];
 

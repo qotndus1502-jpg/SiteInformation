@@ -834,7 +834,7 @@ def _group_by_corporation(sites: list[dict]) -> list[dict]:
 
 def _group_by_corporation_division(sites: list[dict]) -> list[dict]:
     """Cross-tab: corporation x division -> count, contract, headcount.
-    주도급사(소유 법인)의 our_share_amount만 사용.
+    총공사비(contract_amount) 사용.
     """
     groups: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(lambda: {"count": 0, "contract": 0.0, "headcount": 0}))
     for s in sites:
@@ -842,7 +842,7 @@ def _group_by_corporation_division(sites: list[dict]) -> list[dict]:
         div = s.get("division") or "기타"
         g = groups[corp][div]
         g["count"] += 1
-        g["contract"] += s.get("our_share_amount") or 0
+        g["contract"] += s.get("contract_amount") or 0
         g["headcount"] += s.get("headcount") or 0
 
     result = []
