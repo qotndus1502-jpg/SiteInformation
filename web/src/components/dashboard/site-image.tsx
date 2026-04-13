@@ -236,10 +236,10 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
         {/* 카메라 버튼 */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="absolute bottom-3 right-3 p-2 bg-black/40 backdrop-blur-sm text-white/80 rounded-xl opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
+          className="absolute bottom-2 right-2 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
           title="사진 등록"
         >
-          <Camera className="h-5 w-5" />
+          <Camera className="h-3.5 w-3.5" />
         </button>
       </div>
     );
@@ -301,27 +301,27 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
         <>
           {/* 편집 모드 안내 */}
           <div className="absolute inset-0 border-2 border-primary/40 rounded-sm pointer-events-none" />
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm text-white text-xs px-4 py-1.5 rounded-full pointer-events-none">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm text-white text-[10px] px-3 py-1 rounded-full pointer-events-none">
             드래그: 이동 · 스크롤: 확대/축소
           </div>
           {/* 편집 툴바 */}
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-xl px-2 py-1.5">
-            <button onClick={() => fileInputRef.current?.click()} className="p-2 text-white/80 hover:text-white rounded-lg hover:bg-white/10 transition-colors" title="사진 교체">
-              <Camera className="h-4 w-4" />
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-black/60 backdrop-blur-sm rounded-lg px-1.5 py-1">
+            <button onClick={() => fileInputRef.current?.click()} className="p-1.5 text-white/80 hover:text-white rounded hover:bg-white/10 transition-colors" title="사진 교체">
+              <Camera className="h-3.5 w-3.5" />
             </button>
-            <div className="w-px h-5 bg-white/20" />
-            <button onClick={() => zoom(-0.1)} className="p-2 text-white/80 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
-              <ZoomOut className="h-4 w-4" />
+            <div className="w-px h-4 bg-white/20" />
+            <button onClick={() => zoom(-0.1)} className="p-1.5 text-white/80 hover:text-white rounded hover:bg-white/10 transition-colors">
+              <ZoomOut className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => zoom(0.1)} className="p-2 text-white/80 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
-              <ZoomIn className="h-4 w-4" />
+            <button onClick={() => zoom(0.1)} className="p-1.5 text-white/80 hover:text-white rounded hover:bg-white/10 transition-colors">
+              <ZoomIn className="h-3.5 w-3.5" />
             </button>
-            <div className="w-px h-5 bg-white/20" />
-            <button onClick={handleCancel} className="p-2 text-white/80 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
-              <X className="h-4 w-4" />
+            <div className="w-px h-4 bg-white/20" />
+            <button onClick={handleCancel} className="p-1.5 text-white/80 hover:text-white rounded hover:bg-white/10 transition-colors">
+              <X className="h-3.5 w-3.5" />
             </button>
-            <button onClick={handleSave} className="p-2 text-white hover:bg-primary/80 bg-primary rounded-lg transition-colors">
-              <Check className="h-4 w-4" />
+            <button onClick={handleSave} className="p-1.5 text-white hover:bg-primary/80 bg-primary rounded transition-colors">
+              <Check className="h-3.5 w-3.5" />
             </button>
           </div>
         </>
@@ -329,10 +329,10 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
         /* 카메라 버튼 — hover 시 표시 */
         <button
           onClick={() => { setDraft(settings); setEditing(true); }}
-          className="absolute bottom-3 right-3 p-2 bg-black/40 backdrop-blur-sm text-white/80 rounded-xl opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
+          className="absolute bottom-2 right-2 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all"
           title="사진 편집"
         >
-          <Camera className="h-5 w-5" />
+          <Camera className="h-3.5 w-3.5" />
         </button>
       )}
     </div>
