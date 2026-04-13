@@ -147,11 +147,12 @@ export const charts = {
    *    엔트리 자체를 추가/삭제해도 범례와 마커가 동시에 반영된다.
    */
   siteMap: {
+    /* siteMap 상태 — 공종(건축 블루/토목 연블루)과 팔레트가 겹치지 않게
+       지도 전용으로 emerald / amber / slate 트리어드 사용. */
     status: [
-      { key: "ACTIVE",    label: "진행중", color: semantic.status.active },
-      /* 지도 마커는 크기가 작아 teal이 blue와 구분 안 됨 → amber로 override */
-      { key: "PRE_START", label: "착공전", color: "#F97316" },
-      { key: "COMPLETED", label: "준공",   color: semantic.status.completed },
+      { key: "ACTIVE",    label: "진행중", color: "#10B981" }, // emerald-500
+      { key: "PRE_START", label: "착공전", color: "#F59E0B" }, // amber-500
+      { key: "COMPLETED", label: "준공",   color: "#94A3B8" }, // slate-400
     ] as readonly { key: string; label: string; color: string }[],
     division: [
       { key: "건축", label: "건축", color: semantic.division.arch },
