@@ -34,6 +34,18 @@ interface OrgMemberCardProps {
   onSelect?: () => void;
 }
 
+/* Passport-photo 비율 (3:4) — primary/secondary 동일 크기 */
+const PHOTO_W = 84;
+const PHOTO_H = 112;
+
+/* 직원 유형별 사진 테두리 색상 — 회사명/유형 라벨은 숨기고 테두리 색으로만 구분 */
+function typeRing(member: OrgMember): string {
+  if (member.employee_type === "전문직") return "ring-emerald-400";
+  if (member.employee_type === "현채직") return "ring-sky-400";
+  if (member.company_name) return "ring-amber-400"; // 공동사(타 회사)
+  return "ring-slate-200";
+}
+
 export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps) {
   const { isAdmin } = useAuth();
   const [imgError, setImgError] = useState(false);
@@ -56,7 +68,9 @@ export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps)
   const isLeader = HEADER_ROLES.includes(member.role_name);
 
   const current = editing ? draft : settings;
-  const size = primary ? 200 : 180;
+  const photoW = PHOTO_W;
+  const photoH = PHOTO_H;
+  const ringColor = typeRing(member);
 
   // --- 업로드 ---
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,29 +141,29 @@ export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps)
 
   const fileInput = <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />;
 
+  const roleText = primary ? roleLabel : (isLeader ? roleLabel : member.rank);
+  const showSpecialtyInline = !isLeader && !primary && member.specialty;
+
   return (
     <>
-    {fileInput}
-    <div
-      onClick={() => { if (!editing && onSelect) onSelect(); }}
-      className={cn(
-        "overflow-hidden transition-all cursor-pointer hover:scale-[1.02]",
-        primary ? "w-[260px]" : "w-[230px]"
-      )}
-    >
-      {/* 사진 + 정보 세로 배치 */}
-      <div className="p-2.5 flex flex-col items-center gap-2">
-        {/* 사진 (회사 태그 겹침용 relative) */}
-        <div className="relative group">
+      {fileInput}
+      <div
+        onClick={() => { if (!editing && onSelect) onSelect(); }}
+        className={cn(
+          "group relative cursor-pointer transition-all",
+          primary
+            ? "flex flex-row items-start gap-3.5 py-3 px-4 w-[280px] rounded-lg bg-white"
+            : "flex flex-row items-center w-[140px] h-[112px]"
+        )}
+      >
+        {/* 증명사진 (직사각형 3:4) */}
+        <div className="relative shrink-0">
           <div
             className={cn(
-              "rounded-full overflow-hidden bg-white flex items-center justify-center shrink-0 border-2 relative select-none",
-              member.employee_type === "전문직" ? "border-green-500" :
-              member.employee_type === "현채직" ? "border-sky-400" :
-              member.org_type === "JV" ? "border-orange-400" :
-              member.org_type === "OWN" ? "border-gray-300" : "border-gray-400",
+              "relative overflow-hidden bg-slate-50 rounded-sm ring-2 flex items-center justify-center select-none",
+              primary ? "ring-blue-900" : "ring-slate-300"
             )}
-            style={{ width: size, height: size }}
+            style={{ width: photoW, height: photoH }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -160,92 +174,99 @@ export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps)
               <img
                 src={imgSrc}
                 alt={member.name}
-                className="absolute pointer-events-none"
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                 style={{
-                  left: "50%",
-                  top: "50%",
-                  width: "100%",
-                  transform: `translate(-50%, -50%) translate(${current.x}px, ${current.y}px) scale(${current.scale})`,
+                  transform: `translate(${current.x}px, ${current.y}px) scale(${current.scale})`,
+                  transformOrigin: "center center",
                 }}
                 draggable={false}
                 onError={() => setImgError(true)}
               />
             ) : (
-              <User className="h-7 w-7 text-muted-foreground/30" />
+              <User className="h-7 w-7 text-slate-300" />
             )}
           </div>
 
           {/* 편집 모드 UI */}
           {editing && (
-            <>
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary/40 pointer-events-none" style={{ width: size, height: size }} />
-              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-black/60 backdrop-blur-sm rounded-full px-1.5 py-1 z-20">
-                <button onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }} className="p-1.5 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors" title="사진 교체">
-                  <Camera className="h-3.5 w-3.5" />
-                </button>
-                <div className="w-px h-4 bg-white/20" />
-                <button onClick={(e) => { e.stopPropagation(); zoom(-0.1); }} className="p-1.5 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors">
-                  <ZoomOut className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); zoom(0.1); }} className="p-1.5 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors">
-                  <ZoomIn className="h-3.5 w-3.5" />
-                </button>
-                <div className="w-px h-4 bg-white/20" />
-                <button onClick={handleCancel} className="p-1.5 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={handleSave} className="p-1.5 text-white hover:bg-primary/80 bg-primary rounded-full transition-colors">
-                  <Check className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </>
+            <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-slate-900/80 backdrop-blur-sm rounded-full px-1.5 py-1 z-20">
+              <button onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }} className="p-1 text-white/80 hover:text-white rounded-full hover:bg-white/10" title="사진 교체">
+                <Camera className="h-3 w-3" />
+              </button>
+              <div className="w-px h-3 bg-white/20" />
+              <button onClick={(e) => { e.stopPropagation(); zoom(-0.1); }} className="p-1 text-white/80 hover:text-white rounded-full hover:bg-white/10">
+                <ZoomOut className="h-3 w-3" />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); zoom(0.1); }} className="p-1 text-white/80 hover:text-white rounded-full hover:bg-white/10">
+                <ZoomIn className="h-3 w-3" />
+              </button>
+              <div className="w-px h-3 bg-white/20" />
+              <button onClick={handleCancel} className="p-1 text-white/80 hover:text-white rounded-full hover:bg-white/10">
+                <X className="h-3 w-3" />
+              </button>
+              <button onClick={handleSave} className="p-1 text-white bg-primary hover:bg-primary/80 rounded-full">
+                <Check className="h-3 w-3" />
+              </button>
+            </div>
           )}
 
-          {/* 카메라 버튼 — 관리자만 */}
+          {/* 카메라 버튼 — 관리자 hover 시 */}
           {!editing && isAdmin && (
             <button
               onClick={(e) => { e.stopPropagation(); setDraft(settings); setEditing(true); }}
-              className="absolute bottom-1 right-1 p-1.5 bg-black/40 backdrop-blur-sm text-white/80 rounded-full opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white transition-all z-10"
+              className="absolute top-1 right-1 p-1 bg-slate-900/50 backdrop-blur-sm text-white/90 rounded-md opacity-0 group-hover:opacity-100 hover:bg-slate-900/70 transition-all z-10"
               title="사진 편집"
             >
-              <Camera className="h-4 w-4" />
+              <Camera className="h-3 w-3" />
             </button>
           )}
-
-          {/* 태그 - 사진 상단에 겹침 */}
-          {member.employee_type === "전문직" ? (
-            <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-green-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap shadow z-10">
-              전문직
-            </span>
-          ) : member.employee_type === "현채직" ? (
-            <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-sky-400 text-white text-xs font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap shadow z-10">
-              현채직
-            </span>
-          ) : member.company_name ? (
-            <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap shadow z-10">
-              {member.company_name}
-            </span>
-          ) : null}
         </div>
 
-        {/* 정보 */}
-        <div className="flex flex-col items-center gap-0.5">
-          {/* 직책/직위 */}
-          <p className="text-[22px] text-muted-foreground font-medium leading-none">
-            {primary ? roleLabel : isLeader ? roleLabel : member.rank}
-            {!isLeader && !primary && member.specialty && (
-              <span>{`(${member.specialty})`}</span>
+        {/* Primary: 우측 — 직위, 이름, 전화번호 세로 스택 */}
+        {primary && (
+          <div className="flex flex-col items-start min-w-0 flex-1 pt-0.5">
+            <p className="text-[14px] text-slate-600 font-semibold leading-tight truncate max-w-full">
+              {roleText}
+            </p>
+            <p className="mt-0.5 text-[20px] font-bold text-slate-900 leading-tight truncate max-w-full">
+              {member.name}
+            </p>
+            {member.phone && (
+              <p className="mt-1.5 text-[11px] text-slate-500 font-mono tabular-nums leading-tight truncate max-w-full">
+                {member.phone}
+              </p>
             )}
-          </p>
+          </div>
+        )}
 
-          {/* 이름 */}
-          <p className={cn("font-bold leading-tight", primary ? "text-lg" : "text-base")}>
-            {member.name}
-          </p>
-        </div>
+        {/* Secondary: 직위 → 이름 → 태그 */}
+        {!primary && (
+          <div className="ml-1.5 pt-2 flex flex-col items-start min-w-0 flex-1 self-stretch justify-start gap-0.5">
+            {member.rank && (
+              <p className="text-[12px] text-slate-600 font-medium leading-[1.3] truncate max-w-full">
+                {member.rank}
+              </p>
+            )}
+            <p className="text-[13px] font-bold text-slate-900 leading-[1.3] truncate max-w-full">
+              {member.name}
+            </p>
+            <div className="mt-1 flex flex-col items-start gap-1">
+              {member.company_name && (
+                <span className="inline-flex justify-center w-[50px] px-1.5 py-[1px] rounded-full bg-blue-50 text-blue-700 text-[9px] font-semibold leading-[1.3]">
+                  공동도급
+                </span>
+              )}
+              {member.specialty && (
+                <span className="inline-flex justify-center w-[50px] px-1.5 py-[1px] rounded-full bg-slate-100 text-slate-700 text-[9px] font-semibold leading-[1.3]">
+                  {member.specialty.length <= 2
+                    ? member.specialty.split("").join(" ")
+                    : member.specialty}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-
     </>
   );
 }

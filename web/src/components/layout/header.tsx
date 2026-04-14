@@ -14,7 +14,7 @@ export function Header() {
     <header className="h-14 bg-background backdrop-blur-xl border-b border-border/50 flex items-center justify-between px-4 sticky top-0 z-30 transition-colors shadow-sm">
       <div className="flex items-center gap-4 min-w-0">
         <h1 className="text-lg font-bold text-foreground whitespace-nowrap tracking-tight">전사 현장 통합 대시보드</h1>
-        <span className="text-[16px] text-muted-foreground truncate hidden md:inline">
+        <span className="text-[13px] text-muted-foreground truncate hidden md:inline">
           현재 데모 버전 운영 중입니다. 일부 데이터 누락 및 오류가 있으니 업무 시 참고 부탁드립니다.
         </span>
       </div>
@@ -22,8 +22,8 @@ export function Header() {
       <div className="flex items-center gap-2">
         {isAdmin ? (
           <>
-            <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-[12px] font-semibold">
-              <ShieldCheck className="h-3.5 w-3.5" />
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-[14px] font-semibold">
+              <ShieldCheck className="h-4 w-4" />
               관리자
             </span>
             <Button

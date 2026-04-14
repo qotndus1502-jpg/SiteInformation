@@ -12,7 +12,7 @@ import { SiteDetail } from "@/components/dashboard/site-detail";
 import { SiteMap, type ColorCategory } from "@/components/dashboard/site-map";
 import { SiteFormDialog } from "@/components/dashboard/site-form-dialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Info } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { charts } from "@/lib/chart-colors";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
@@ -656,8 +656,9 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
                 ← 대시보드로 돌아가기
               </button>
               {/* 안내 문구 — 상단 중앙 */}
-              <div className="absolute top-3 right-16 z-20 bg-card/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-sm border border-border/50 text-[11px] text-muted-foreground whitespace-nowrap">
-                ℹ 주소가 입력되지 않은 현장은 지도에 표시되지 않습니다
+              <div className="absolute top-3 right-16 z-20 bg-card/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-sm border border-border/50 text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
+                <Info className="h-3.5 w-3.5" />
+                주소가 입력되지 않은 현장은 지도에 표시되지 않습니다
               </div>
               {/* Color category selector + legend — top-left overlay (shifted down to avoid return button) */}
               <div className="absolute top-12 left-3 z-10 flex flex-col gap-1.5">

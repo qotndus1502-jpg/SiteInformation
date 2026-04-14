@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -257,13 +258,28 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "현장 편집" : "현장 추가"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-[16px] leading-none font-semibold">
+            {isEdit ? "현장 편집" : "현장 추가"}
+          </DialogTitle>
+          <DialogDescription className="text-[12px] text-muted-foreground">
             {isEdit ? "현장 정보를 수정합니다." : "새로운 현장을 등록합니다."} 주소를 입력하면 좌표는 자동으로 설정됩니다.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 pt-2">
+        <form
+          onSubmit={handleSubmit}
+          className={cn(
+            "grid grid-cols-2 gap-3 pt-2",
+            /* 폼 전체 텍스트 크기 축소 — 대시보드 다른 영역(12~13px)과 비율 통일 */
+            "[&_label]:text-[12px] [&_label]:font-medium",
+            /* Input — !로 강제 적용 (shadcn base의 h-11/text-base 덮어쓰기) */
+            "[&_input]:!h-9 [&_input]:!text-[13px] [&_input]:!py-2 [&_input]:!rounded-md",
+            /* SelectTrigger — data-size=default의 h-11 덮어쓰기 */
+            "[&_[data-slot=select-trigger]]:!h-9 [&_[data-slot=select-trigger]]:!text-[13px] [&_[data-slot=select-trigger]]:!py-2 [&_[data-slot=select-trigger]]:!rounded-md",
+            /* Button — 내부 버튼도 같은 높이 */
+            "[&_[data-slot=button]]:!h-9 [&_[data-slot=button]]:!text-[13px] [&_[data-slot=button]]:!font-normal"
+          )}
+        >
           <div className="col-span-2 flex flex-col gap-1.5">
             <Label>현장명 *</Label>
             <Input value={form.name} onChange={(e) => set("name", e.target.value)} required />
@@ -417,39 +433,39 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
           <div className="col-span-2 flex flex-col gap-1.5">
             <Label>공동도급</Label>
             {form.jv_partners.length > 0 && (
-              <div className="flex gap-2 items-center text-[13px] text-muted-foreground px-0.5">
-                <span className="flex-1">업체명</span>
-                <span className="w-24">도급비율 (%)</span>
-                <span className="w-9" />
+              <div className="grid grid-cols-2 gap-3 text-[12px] text-muted-foreground px-0.5">
+                <span>업체명</span>
+                <span>도급비율 (%)</span>
               </div>
             )}
             {form.jv_partners.map((p, idx) => (
-              <div key={idx} className="flex gap-2 items-center">
+              <div key={idx} className="grid grid-cols-2 gap-3">
                 <Input
                   list="partner-company-list"
                   value={p.name}
                   onChange={(e) => updateJvPartner(idx, "name", e.target.value)}
                   placeholder="업체명"
-                  className="flex-1"
                 />
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={p.share_pct}
-                  onChange={(e) => updateJvPartner(idx, "share_pct", e.target.value)}
-                  placeholder="예: 50"
-                  className="w-24"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeJvPartner(idx)}
-                  aria-label="삭제"
-                  className="h-9 w-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex gap-1 items-center">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={p.share_pct}
+                    onChange={(e) => updateJvPartner(idx, "share_pct", e.target.value)}
+                    placeholder="예: 50"
+                    className="flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeJvPartner(idx)}
+                    aria-label="삭제"
+                    className="h-9 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors shrink-0"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
             <Button
