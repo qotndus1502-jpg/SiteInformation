@@ -1095,11 +1095,13 @@ EDITABLE_SITE_COLUMNS = {
 REQUIRED_SITE_COLUMNS = {"name", "corporation_id", "division", "category"}
 
 
-def _sync_geocode(address: str) -> tuple[float, float] | None:
-    """동기 Kakao 지오코딩. 관대한 매칭을 위해 여러 단계로 fallback:
+def _sync_geocode(address: str) -> tuple[float, float, str, str | None] | None:
+    """동기 Kakao 지오코딩. 관대한 매칭을 위해 여러 단계로 fallback.
+    반환: (위도, 경도, 매칭된 정식 주소/장소명, region_1depth_name) — 마지막 값은
+    Kakao가 알려준 시/도(예: '강원', '경기'). 호출자가 region_code 자동 매핑에 사용.
        1) 주소 검색 API — 도로명/지번 정형 주소
        2) 키워드 검색 API — 장소명/랜드마크/일반 키워드
-       3) 주소 단어 수를 줄여가며 재시도 ('새만금지역 2권역 복합개발용지' → '새만금지역 2권역' → '새만금지역')
+       3) 주소 단어 수를 줄여가며 재시도
     """
     if not KAKAO_REST_KEY or not address:
         return None
@@ -1109,7 +1111,7 @@ def _sync_geocode(address: str) -> tuple[float, float] | None:
     import requests
     headers = {"Authorization": f"KakaoAK {KAKAO_REST_KEY}"}
 
-    def _try_address(q: str) -> tuple[float, float] | None:
+    def _try_address(q: str) -> tuple[float, float, str, str | None] | None:
         try:
             res = requests.get(
                 "https://dapi.kakao.com/v2/local/search/address.json",
@@ -1117,12 +1119,17 @@ def _sync_geocode(address: str) -> tuple[float, float] | None:
             )
             docs = res.json().get("documents", [])
             if docs:
-                return (float(docs[0]["y"]), float(docs[0]["x"]))
+                d = docs[0]
+                ra = d.get("road_address") or {}
+                ad = d.get("address") or {}
+                name = ra.get("address_name") or ad.get("address_name") or d.get("address_name") or q
+                region = ra.get("region_1depth_name") or ad.get("region_1depth_name")
+                return (float(d["y"]), float(d["x"]), name, region)
         except Exception:
             pass
         return None
 
-    def _try_keyword(q: str) -> tuple[float, float] | None:
+    def _try_keyword(q: str) -> tuple[float, float, str, str | None] | None:
         try:
             res = requests.get(
                 "https://dapi.kakao.com/v2/local/search/keyword.json",
@@ -1130,30 +1137,54 @@ def _sync_geocode(address: str) -> tuple[float, float] | None:
             )
             docs = res.json().get("documents", [])
             if docs:
-                return (float(docs[0]["y"]), float(docs[0]["x"]))
+                d = docs[0]
+                name = d.get("place_name") or d.get("road_address_name") or d.get("address_name") or q
+                # 키워드 응답에는 region_1depth_name가 없으므로 address_name 첫 단어로 추론
+                addr = d.get("address_name") or d.get("road_address_name") or ""
+                region = addr.split()[0] if addr else None
+                return (float(d["y"]), float(d["x"]), name, region)
         except Exception:
             pass
         return None
 
-    # 1) 정형 주소 검색
-    coords = _try_address(address)
-    if coords:
-        return coords
-
-    # 2) 키워드 검색 (장소명 등)
-    coords = _try_keyword(address)
-    if coords:
-        return coords
-
-    # 3) 단어를 끝에서부터 잘라가며 재시도 (입력이 길수록 매칭 실패 가능성↑)
+    r = _try_address(address)
+    if r:
+        return r
+    r = _try_keyword(address)
+    if r:
+        return r
     parts = address.split()
     while len(parts) > 1:
         parts.pop()
         q = " ".join(parts)
-        coords = _try_address(q) or _try_keyword(q)
-        if coords:
-            return coords
+        r = _try_address(q) or _try_keyword(q)
+        if r:
+            return r
+    return None
 
+
+def _resolve_region_code(region_name: str | None) -> str | None:
+    """Kakao region_1depth_name(예: '강원', '경기') → region_code 테이블의 code.
+    이름 매칭 (앞 2글자 부분 일치 허용 — '강원' vs '강원도', '서울' vs '서울특별시')."""
+    if not region_name:
+        return None
+    n = region_name.strip()
+    if not n:
+        return None
+    try:
+        r = supabase.schema("pmis").from_("region_code").select("code,name").execute()
+    except Exception:
+        return None
+    rows = r.data or []
+    # 정확 일치 우선
+    for row in rows:
+        if (row.get("name") or "").strip() == n:
+            return row.get("code")
+    # 부분 일치 (양방향)
+    for row in rows:
+        rn = (row.get("name") or "").strip()
+        if rn.startswith(n) or n.startswith(rn):
+            return row.get("code")
     return None
 
 
@@ -1298,7 +1329,7 @@ def _clean_site_payload(payload: dict) -> dict:
         clean[k] = v
 
     # 지오코딩: site_address(지도 매칭용) 우선 → 없으면 office_address(표시용) 시도
-    # 매칭 성공 시 site_address도 동기화하여 다음 편집 때 box 2가 자동 채워지게 함
+    # 매칭 성공 시 site_address를 폴백에서 실제 매칭된 쿼리로 갱신해 box 2를 자동 채움
     candidates: list[str] = []
     if clean.get("site_address"):
         candidates.append(clean["site_address"])
@@ -1306,12 +1337,16 @@ def _clean_site_payload(payload: dict) -> dict:
         candidates.append(clean["office_address"])
     if candidates and (clean.get("latitude") is None or clean.get("longitude") is None):
         for addr in candidates:
-            coords = _sync_geocode(addr)
-            if coords:
-                clean["latitude"] = coords[0]
-                clean["longitude"] = coords[1]
-                if not clean.get("site_address"):
-                    clean["site_address"] = addr
+            result = _sync_geocode(addr)
+            if result:
+                clean["latitude"] = result[0]
+                clean["longitude"] = result[1]
+                clean["site_address"] = result[2]
+                # region_code가 비어 있으면 지오코딩 결과로 자동 채움
+                if not clean.get("region_code"):
+                    rc = _resolve_region_code(result[3])
+                    if rc:
+                        clean["region_code"] = rc
                 break
     return clean
 
@@ -1322,14 +1357,17 @@ def geocode_preview(payload: dict = Body(...)):
     address = (payload.get("address") or "").strip()
     if not address:
         return {"ok": False, "reason": "주소가 비어 있습니다"}
-    coords = _sync_geocode(address)
-    if not coords:
+    result = _sync_geocode(address)
+    if not result:
         return {"ok": False, "reason": "Kakao 주소 검색에서 매칭 결과가 없습니다"}
+    region_code = _resolve_region_code(result[3])
     return {
         "ok": True,
-        "latitude": coords[0],
-        "longitude": coords[1],
-        "matched_address": address,
+        "latitude": result[0],
+        "longitude": result[1],
+        "matched_address": result[2],
+        "region_name": result[3],
+        "region_code": region_code,
     }
 
 

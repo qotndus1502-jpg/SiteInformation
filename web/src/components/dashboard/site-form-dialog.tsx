@@ -124,10 +124,13 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
       const j = await res.json().catch(() => ({}));
       if (j?.ok && j.latitude != null && j.longitude != null) {
         setGeocodeResult({ ok: true, lat: j.latitude, lon: j.longitude });
-        // 매칭 성공 → box 2(지도 매칭 주소)에 사용된 주소 자동 채움
-        if (!form.site_address.trim()) {
-          setForm((prev) => ({ ...prev, site_address: address }));
-        }
+        const matched = j.matched_address || address;
+        setForm((prev) => ({
+          ...prev,
+          site_address: matched,
+          // region_code가 비어 있을 때만 지오코딩 결과로 자동 채움 (사용자 선택 보존)
+          region_code: prev.region_code || j.region_code || "",
+        }));
       } else {
         setGeocodeResult({ ok: false, reason: j?.reason });
       }
