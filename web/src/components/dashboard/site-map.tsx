@@ -234,16 +234,20 @@ function resolveMarkerOverlaps(valid: SiteDashboard[]): Map<number, [number, num
     return { id: s.id, x, y, origX: x, origY: y };
   });
 
+  const need = minDist + padding;
   for (let iter = 0; iter < 60; iter++) {
+    // Sort by x so the inner loop can break as soon as b.x - a.x >= need.
+    // With markers spread across Korea, this turns O(N²) into near O(N).
+    nodes.sort((p, q) => p.x - q.x);
     let moved = false;
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const a = nodes[i];
         const b = nodes[j];
+        if (b.x - a.x >= need) break;
         let dx = b.x - a.x;
         let dy = b.y - a.y;
         let dist = Math.sqrt(dx * dx + dy * dy);
-        const need = minDist + padding;
         if (dist < need) {
           if (dist < 0.001) {
             dx = ((i + 1) % 2 === 0 ? 1 : -1);
@@ -264,15 +268,21 @@ function resolveMarkerOverlaps(valid: SiteDashboard[]): Map<number, [number, num
     if (!moved) break;
   }
 
+  const byId = new Map(valid.map((s) => [s.id, s] as const));
   for (const n of nodes) {
     if (n.x !== n.origX || n.y !== n.origY) {
-      const orig = valid.find((s) => s.id === n.id)!;
+      const orig = byId.get(n.id)!;
       const [newLat, newLon] = mercatorPxToLatLon(n.x, n.y, RESOLVE_REF_ZOOM);
       result.set(n.id, [newLon - orig.longitude!, newLat - orig.latitude!]);
     }
   }
   return result;
 }
+
+/* Jitter only depends on which sites have coordinates — not on selection or
+   color category. Cache by the `sites` array reference so cross-filter clicks
+   that only change selection/highlight don't pay the O(N²) overlap solver. */
+const jitterCache = new WeakMap<SiteDashboard[], Map<number, [number, number]>>();
 
 function buildGeoJSON(
   _map: maplibregl.Map | null,
@@ -281,7 +291,11 @@ function buildGeoJSON(
   colorCategory: ColorCategory = "corporation"
 ) {
   const valid = sites.filter((s) => s.latitude != null && s.longitude != null);
-  const jitter = resolveMarkerOverlaps(valid);
+  let jitter = jitterCache.get(sites);
+  if (!jitter) {
+    jitter = resolveMarkerOverlaps(valid);
+    jitterCache.set(sites, jitter);
+  }
 
   const features = valid
     .map((s) => {
@@ -380,7 +394,7 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
     };
     container.addEventListener("wheel", wheelHandler, { passive: false });
 
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     mapRef.current = map;
     // Popup is recreated on each show via showPopup() so its anchor (left/right of pin)
     // can be picked dynamically based on the marker's screen position.

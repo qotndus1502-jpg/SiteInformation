@@ -7,7 +7,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import type { SiteDashboard } from "@/types/database";
 import { COMPANY_CONFIG, STATUS_CONFIG } from "@/types/database";
 
-const TABLE_COLS = "grid-cols-[minmax(36px,0.35fr)_minmax(80px,0.8fr)_minmax(70px,0.7fr)_minmax(70px,0.7fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(140px,2fr)_minmax(75px,0.9fr)_minmax(30px,0.2fr)_minmax(70px,0.9fr)]";
+export const TABLE_COLS = "grid-cols-[minmax(36px,0.35fr)_minmax(80px,0.8fr)_minmax(70px,0.7fr)_minmax(70px,0.7fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(140px,2fr)_minmax(75px,0.9fr)_minmax(30px,0.2fr)_minmax(70px,0.9fr)]";
 
 type SortKey = "corporation_name" | "division" | "region_name" | "facility_type_name" | "order_type" | "status" | "site_name" | "contract_amount" | "progress_rate";
 type SortDir = "asc" | "desc";
@@ -16,6 +16,7 @@ interface SiteListProps {
   sites: SiteDashboard[];
   selectedSiteId: number | null;
   onSelect: (site: SiteDashboard) => void;
+  showAddressWarnings?: boolean;
 }
 
 const COLUMNS: { key: SortKey; label: string; align?: "right" }[] = [
@@ -36,7 +37,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
     : <ArrowDown className="h-3 w-3 text-primary" />;
 }
 
-export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
+export function SiteList({ sites, selectedSiteId, onSelect, showAddressWarnings = false }: SiteListProps) {
   const [sortKeys, setSortKeys] = useState<{ key: SortKey; dir: SortDir }[]>([]);
 
   const handleSort = (key: SortKey) => {
@@ -91,6 +92,12 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
           >
             {col.label}
             {(() => { const s = sortKeys.find((sk) => sk.key === col.key); return <SortIcon active={!!s} dir={s?.dir ?? "asc"} />; })()}
+            {col.key === "site_name" && showAddressWarnings && (
+              <span className="ml-2 flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
+                주소 매칭 불가
+              </span>
+            )}
           </button>
         ))}
         <span />
@@ -147,7 +154,13 @@ export function SiteList({ sites, selectedSiteId, onSelect }: SiteListProps) {
                     <span className="text-xs">{site.status}</span>
                   )}
                 </span>
-                <div className="min-w-0">
+                <div className="min-w-0 flex items-center gap-1.5">
+                  {showAddressWarnings && (site.latitude == null || site.longitude == null) && (
+                    <span
+                      className="shrink-0 inline-block h-1.5 w-1.5 rounded-full bg-red-500"
+                      title="주소 매칭 불가 — 지도에 표시되지 않음"
+                    />
+                  )}
                   <p className="text-[13.5px] font-semibold text-foreground truncate">{site.site_name}</p>
                 </div>
                 <span className="text-[14px] text-foreground font-mono text-right tabular-nums">

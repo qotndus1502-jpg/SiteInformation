@@ -87,6 +87,16 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
       setDisplayedSite(null);
     }, 500);
   }, []);
+
+  // sites가 갱신되면 표시 중인 site도 동일 id의 새 데이터로 교체
+  useEffect(() => {
+    if (!displayedSite) return;
+    const fresh = sites.find((s) => s.id === displayedSite.id);
+    if (fresh && fresh !== displayedSite) {
+      setDisplayedSite(fresh);
+      if (selectedSite && selectedSite.id === fresh.id) setSelectedSite(fresh);
+    }
+  }, [sites]); // eslint-disable-line react-hooks/exhaustive-deps
   const [filters, setFilters] = useState<SiteFilter>({});
   const [amountRanges, setAmountRanges] = useState<Set<string>>(new Set());
   const [progressRanges, setProgressRanges] = useState<Set<string>>(new Set());
@@ -294,7 +304,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
             }}
           >
             <div className="w-[700px]">
-              <SiteDetail site={displayedSite} onClose={handleClose} />
+              <SiteDetail site={displayedSite} onClose={handleClose} onSaved={() => fetchSites(filters)} />
             </div>
           </div>
         )}

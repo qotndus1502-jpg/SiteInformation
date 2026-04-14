@@ -15,6 +15,7 @@ import { COMPANY_CONFIG, STATUS_CONFIG } from "@/types/database";
 interface SiteDetailProps {
   site: SiteDashboard | null;
   onClose?: () => void;
+  onSaved?: () => void;
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -48,7 +49,7 @@ const EXECUTION_STATUS_LABEL: Record<string, string> = {
   FIRST_REVIEW: "1차검토",
 };
 
-export function SiteDetail({ site, onClose }: SiteDetailProps) {
+export function SiteDetail({ site, onClose, onSaved }: SiteDetailProps) {
   const [orgOpen, setOrgOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -168,7 +169,7 @@ export function SiteDetail({ site, onClose }: SiteDetailProps) {
             </button>
           )}
         </div>
-        <SiteFormDialog open={editOpen} onOpenChange={setEditOpen} site={site} onSaved={() => window.location.reload()} />
+        <SiteFormDialog open={editOpen} onOpenChange={setEditOpen} site={site} onSaved={onSaved} />
         {site.office_address && (
           <button
             onClick={() => site.latitude != null && site.longitude != null && setMapOpen((v) => !v)}

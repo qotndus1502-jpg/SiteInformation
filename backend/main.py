@@ -1088,7 +1088,7 @@ EDITABLE_SITE_COLUMNS = {
     "name", "corporation_id", "division", "category",
     "region_code", "facility_type_code", "order_type", "client_org_id",
     "contract_amount", "start_date", "end_date",
-    "office_address", "latitude", "longitude",
+    "office_address", "site_address", "latitude", "longitude",
     "status",
 }
 
@@ -1096,22 +1096,64 @@ REQUIRED_SITE_COLUMNS = {"name", "corporation_id", "division", "category"}
 
 
 def _sync_geocode(address: str) -> tuple[float, float] | None:
-    """동기 Kakao 지오코딩 (엔드포인트 내부에서 바로 사용)."""
+    """동기 Kakao 지오코딩. 관대한 매칭을 위해 여러 단계로 fallback:
+       1) 주소 검색 API — 도로명/지번 정형 주소
+       2) 키워드 검색 API — 장소명/랜드마크/일반 키워드
+       3) 주소 단어 수를 줄여가며 재시도 ('새만금지역 2권역 복합개발용지' → '새만금지역 2권역' → '새만금지역')
+    """
     if not KAKAO_REST_KEY or not address:
         return None
-    try:
-        import requests
-        res = requests.get(
-            "https://dapi.kakao.com/v2/local/search/address.json",
-            params={"query": address},
-            headers={"Authorization": f"KakaoAK {KAKAO_REST_KEY}"},
-            timeout=10,
-        )
-        docs = res.json().get("documents", [])
-        if docs:
-            return (float(docs[0]["y"]), float(docs[0]["x"]))
-    except Exception:
-        pass
+    address = address.strip()
+    if not address:
+        return None
+    import requests
+    headers = {"Authorization": f"KakaoAK {KAKAO_REST_KEY}"}
+
+    def _try_address(q: str) -> tuple[float, float] | None:
+        try:
+            res = requests.get(
+                "https://dapi.kakao.com/v2/local/search/address.json",
+                params={"query": q}, headers=headers, timeout=10,
+            )
+            docs = res.json().get("documents", [])
+            if docs:
+                return (float(docs[0]["y"]), float(docs[0]["x"]))
+        except Exception:
+            pass
+        return None
+
+    def _try_keyword(q: str) -> tuple[float, float] | None:
+        try:
+            res = requests.get(
+                "https://dapi.kakao.com/v2/local/search/keyword.json",
+                params={"query": q, "size": 1}, headers=headers, timeout=10,
+            )
+            docs = res.json().get("documents", [])
+            if docs:
+                return (float(docs[0]["y"]), float(docs[0]["x"]))
+        except Exception:
+            pass
+        return None
+
+    # 1) 정형 주소 검색
+    coords = _try_address(address)
+    if coords:
+        return coords
+
+    # 2) 키워드 검색 (장소명 등)
+    coords = _try_keyword(address)
+    if coords:
+        return coords
+
+    # 3) 단어를 끝에서부터 잘라가며 재시도 (입력이 길수록 매칭 실패 가능성↑)
+    parts = address.split()
+    while len(parts) > 1:
+        parts.pop()
+        q = " ".join(parts)
+        coords = _try_address(q) or _try_keyword(q)
+        if coords:
+            return coords
+
     return None
 
 
@@ -1130,7 +1172,15 @@ def lookup_regions():
 @app.get("/api/lookup/facility-types")
 def lookup_facility_types():
     r = supabase.schema("pmis").from_("facility_type").select("code,name,division").order("name").execute()
-    return r.data or []
+    rows = r.data or []
+    # facility_type 테이블에 발주유형(BTL/CMR/민간 등)이 섞여 들어와 있어 제거
+    return [row for row in rows if (row.get("name") or "") not in ORDER_TYPES]
+
+
+@app.get("/api/lookup/order-types")
+def lookup_order_types():
+    """발주유형은 lookup 테이블이 없고 ORDER_TYPES 상수로 관리되므로 그대로 노출."""
+    return sorted(ORDER_TYPES)
 
 
 @app.get("/api/lookup/clients")
@@ -1139,26 +1189,179 @@ def lookup_clients():
     return r.data or []
 
 
+@app.get("/api/lookup/partners")
+def lookup_partners():
+    """JV 파트너(하부업체) 목록 — 자동완성용."""
+    r = supabase.schema("pmis").from_("partner_company").select("id,name,is_group_member").order("name").execute()
+    return r.data or []
+
+
+def _resolve_partner_name(name: str) -> int | None:
+    name = (name or "").strip()
+    if not name:
+        return None
+    existing = supabase.schema("pmis").from_("partner_company").select("id,name").execute()
+    for row in existing.data or []:
+        if (row.get("name") or "").strip().lower() == name.lower():
+            return row.get("id")
+    ins = supabase.schema("pmis").from_("partner_company").insert({"name": name}).execute()
+    row = (ins.data or [None])[0]
+    return row.get("id") if row else None
+
+
+def _sync_jv_participation(site_id: int, corporation_id: int | None,
+                            our_share_ratio: float | None,
+                            jv_partners: list[dict] | None) -> None:
+    """site_id의 jv_participation 행을 자사 + 하부업체로 재구성한다.
+    - our_share_ratio: 자사 지분 % (0~100)
+    - jv_partners: [{name, share_pct}] — 자사 외 파트너
+    """
+    if our_share_ratio is None and not jv_partners:
+        return  # 변경 없음
+
+    # 기존 행 모두 삭제 후 재삽입
+    supabase.schema("pmis").from_("jv_participation").delete().eq("site_id", site_id).execute()
+
+    rows: list[dict] = []
+    order = 0
+
+    # 자사 행: corporation_id → corporation.name → partner_company 매칭/생성
+    if corporation_id and our_share_ratio is not None:
+        corp = supabase.schema("pmis").from_("corporation").select("name").eq("id", corporation_id).limit(1).execute()
+        corp_name = (corp.data or [{}])[0].get("name") if corp.data else None
+        if corp_name:
+            pid = _resolve_partner_name(corp_name)
+            if pid:
+                rows.append({
+                    "site_id": site_id,
+                    "partner_id": pid,
+                    "share_pct": float(our_share_ratio),
+                    "is_lead": True,
+                    "contract_type": "MAIN",
+                    "display_order": order,
+                })
+                order += 1
+
+    for p in jv_partners or []:
+        name = (p.get("name") or "").strip()
+        share = p.get("share_pct")
+        if not name or share in (None, ""):
+            continue
+        pid = _resolve_partner_name(name)
+        if not pid:
+            continue
+        rows.append({
+            "site_id": site_id,
+            "partner_id": pid,
+            "share_pct": float(share),
+            "is_lead": False,
+            "contract_type": "MAIN",
+            "display_order": order,
+        })
+        order += 1
+
+    if rows:
+        supabase.schema("pmis").from_("jv_participation").insert(rows).execute()
+
+
+def _resolve_client_name(name: str) -> int | None:
+    """발주처 이름 → client_org.id. 없으면 새로 INSERT 후 id 반환."""
+    name = (name or "").strip()
+    if not name:
+        return None
+    existing = supabase.schema("pmis").from_("client_org").select("id,name").execute()
+    for row in existing.data or []:
+        if (row.get("name") or "").strip().lower() == name.lower():
+            return row.get("id")
+    ins = supabase.schema("pmis").from_("client_org").insert({"name": name}).execute()
+    row = (ins.data or [None])[0]
+    return row.get("id") if row else None
+
+
 def _clean_site_payload(payload: dict) -> dict:
     """클라이언트 payload를 DB 컬럼에 맞게 정리.
     - 허용 컬럼만 남김
     - 빈 문자열 → None
-    - 주소 있는데 좌표 없으면 지오코딩"""
+    - 주소 있는데 좌표 없으면 지오코딩
+    - client_name이 오면 client_org를 lookup/insert 후 client_org_id로 변환"""
     clean = {}
+    if "client_name" in payload and "client_org_id" not in payload:
+        cid = _resolve_client_name(payload.get("client_name") or "")
+        clean["client_org_id"] = cid
     for k, v in payload.items():
+        if k == "client_name":
+            continue
         if k not in EDITABLE_SITE_COLUMNS:
             continue
         if v == "":
             v = None
         clean[k] = v
 
-    # 주소만 있고 좌표 누락 → Kakao로 채움
-    if clean.get("office_address") and (clean.get("latitude") is None or clean.get("longitude") is None):
-        coords = _sync_geocode(clean["office_address"])
-        if coords:
-            clean["latitude"] = coords[0]
-            clean["longitude"] = coords[1]
+    # 지오코딩: site_address(지도 매칭용) 우선 → 없으면 office_address(표시용) 시도
+    # 매칭 성공 시 site_address도 동기화하여 다음 편집 때 box 2가 자동 채워지게 함
+    candidates: list[str] = []
+    if clean.get("site_address"):
+        candidates.append(clean["site_address"])
+    if clean.get("office_address") and clean.get("office_address") not in candidates:
+        candidates.append(clean["office_address"])
+    if candidates and (clean.get("latitude") is None or clean.get("longitude") is None):
+        for addr in candidates:
+            coords = _sync_geocode(addr)
+            if coords:
+                clean["latitude"] = coords[0]
+                clean["longitude"] = coords[1]
+                if not clean.get("site_address"):
+                    clean["site_address"] = addr
+                break
     return clean
+
+
+@app.post("/api/geocode/preview")
+def geocode_preview(payload: dict = Body(...)):
+    """저장 없이 주소 → 좌표 미리보기. 폼의 '좌표 매칭하기' 버튼용."""
+    address = (payload.get("address") or "").strip()
+    if not address:
+        return {"ok": False, "reason": "주소가 비어 있습니다"}
+    coords = _sync_geocode(address)
+    if not coords:
+        return {"ok": False, "reason": "Kakao 주소 검색에서 매칭 결과가 없습니다"}
+    return {
+        "ok": True,
+        "latitude": coords[0],
+        "longitude": coords[1],
+        "matched_address": address,
+    }
+
+
+@app.get("/api/sites/{site_id}/raw")
+def get_site_raw(site_id: int):
+    """편집 폼용 — project_site의 raw 컬럼 (특히 site_address) 반환."""
+    r = supabase.schema("pmis").from_("project_site").select(
+        "id,office_address,site_address,latitude,longitude"
+    ).eq("id", site_id).limit(1).execute()
+    row = (r.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=404, detail=f"site id {site_id} 없음")
+    return row
+
+
+def _invalidate_sites_cache() -> None:
+    _SITES_CACHE["data"] = None
+    _SITES_CACHE["ts"] = 0.0
+
+
+def _persist_site_coords(site_id: int, lat: float | None, lon: float | None) -> None:
+    """site_coordinates.json에 좌표 즉시 반영. attach_coords()가 이 파일을 우선
+    사용하므로 DB만 갱신해서는 대시보드에 좌표가 안 보임."""
+    if site_id is None:
+        return
+    coords = load_coords()
+    key = str(site_id)
+    if lat is not None and lon is not None:
+        coords[key] = {"latitude": float(lat), "longitude": float(lon)}
+    else:
+        coords.pop(key, None)
+    save_coords(coords)
 
 
 @app.post("/api/sites")
@@ -1177,13 +1380,23 @@ def create_site(payload: dict = Body(...)):
     row = (res.data or [None])[0]
     if not row:
         raise HTTPException(status_code=500, detail="INSERT 결과가 비어 있음")
+
+    _sync_jv_participation(
+        site_id=row.get("id"),
+        corporation_id=clean.get("corporation_id"),
+        our_share_ratio=payload.get("our_share_ratio"),
+        jv_partners=payload.get("jv_partners"),
+    )
+    _persist_site_coords(row.get("id"), clean.get("latitude"), clean.get("longitude"))
+    _invalidate_sites_cache()
     return {"ok": True, "id": row.get("id"), "site": row}
 
 
 @app.put("/api/sites/{site_id}")
 def update_site(site_id: int, payload: dict = Body(...)):
     clean = _clean_site_payload(payload)
-    if not clean:
+    has_jv_change = "our_share_ratio" in payload or "jv_partners" in payload
+    if not clean and not has_jv_change:
         raise HTTPException(status_code=400, detail="수정할 필드가 없음")
 
     # 필수 컬럼이 payload에 포함되어 있으면 빈 값 방지
@@ -1191,14 +1404,33 @@ def update_site(site_id: int, payload: dict = Body(...)):
         if k in clean and clean[k] in (None, ""):
             raise HTTPException(status_code=400, detail=f"{k}는 비울 수 없음")
 
-    try:
-        res = supabase.schema("pmis").from_("project_site").update(clean).eq("id", site_id).execute()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"DB 오류: {e}")
+    row = None
+    if clean:
+        try:
+            res = supabase.schema("pmis").from_("project_site").update(clean).eq("id", site_id).execute()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"DB 오류: {e}")
+        row = (res.data or [None])[0]
+        if not row:
+            raise HTTPException(status_code=404, detail=f"site id {site_id} 없음")
 
-    row = (res.data or [None])[0]
-    if not row:
-        raise HTTPException(status_code=404, detail=f"site id {site_id} 없음")
+    if has_jv_change:
+        # corporation_id가 payload에 없으면 DB에서 조회
+        corp_id = clean.get("corporation_id")
+        if corp_id is None:
+            r = supabase.schema("pmis").from_("project_site").select("corporation_id").eq("id", site_id).limit(1).execute()
+            corp_id = (r.data or [{}])[0].get("corporation_id") if r.data else None
+        _sync_jv_participation(
+            site_id=site_id,
+            corporation_id=corp_id,
+            our_share_ratio=payload.get("our_share_ratio"),
+            jv_partners=payload.get("jv_partners"),
+        )
+
+    if "latitude" in clean or "longitude" in clean:
+        _persist_site_coords(site_id, clean.get("latitude"), clean.get("longitude"))
+
+    _invalidate_sites_cache()
     return {"ok": True, "id": site_id, "site": row}
 
 

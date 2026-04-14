@@ -10,6 +10,10 @@ import { FilterBar } from "@/components/dashboard/filter-bar";
 import { SiteList } from "@/components/dashboard/site-list";
 import { SiteDetail } from "@/components/dashboard/site-detail";
 import { SiteMap, type ColorCategory } from "@/components/dashboard/site-map";
+import { SiteFormDialog } from "@/components/dashboard/site-form-dialog";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { charts } from "@/lib/chart-colors";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
 import type { SiteDashboard } from "@/types/database";
@@ -89,6 +93,9 @@ function SiteListWithDetail({
   panelOpen,
   onSelectSite,
   onCloseSite,
+  onSavedSite,
+  addButton,
+  isAdmin = false,
   embedded = false,
 }: {
   sites: SiteDashboard[];
@@ -97,6 +104,9 @@ function SiteListWithDetail({
   panelOpen: boolean;
   onSelectSite: (s: SiteDashboard) => void;
   onCloseSite: () => void;
+  onSavedSite?: () => void;
+  addButton?: React.ReactNode;
+  isAdmin?: boolean;
   embedded?: boolean;
 }) {
   const [mounted, setMounted] = useState(false);
@@ -127,11 +137,15 @@ function SiteListWithDetail({
           className="transition-[padding-right] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
           style={{ paddingRight: cardVisible ? 516 : 0 }}
         >
-          <SiteList
-            sites={sites}
-            selectedSiteId={selectedSite?.id ?? null}
-            onSelect={onSelectSite}
-          />
+          <div className="relative">
+            {addButton}
+            <SiteList
+              sites={sites}
+              selectedSiteId={selectedSite?.id ?? null}
+              onSelect={onSelectSite}
+              showAddressWarnings={isAdmin}
+            />
+          </div>
         </div>
       </div>
       {/* Floating detail card: portal to body so it escapes DashboardScaler's zoom,
@@ -167,7 +181,7 @@ function SiteListWithDetail({
                       "calc((100vh - var(--sticky-header-bottom, 200px) - 56px) / var(--dashboard-zoom, 1))",
                   }}
                 >
-                  <SiteDetail site={displayedSite} onClose={onCloseSite} />
+                  <SiteDetail site={displayedSite} onClose={onCloseSite} onSaved={onSavedSite} />
                 </div>
               </div>
             </div>
@@ -301,6 +315,16 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
       setDisplayedSite(null);
     }, 500);
   }, []);
+
+  // sites 배열이 갱신되면 (저장 후 refetch 등) 표시 중인 site도 같은 id의 새 데이터로 교체
+  useEffect(() => {
+    if (!displayedSite) return;
+    const fresh = sites.find((s) => s.id === displayedSite.id);
+    if (fresh && fresh !== displayedSite) {
+      setDisplayedSite(fresh);
+      if (selectedSite && selectedSite.id === fresh.id) setSelectedSite(fresh);
+    }
+  }, [sites]); // eslint-disable-line react-hooks/exhaustive-deps
   const [filters, setFilters] = useState<SiteFilter>({});
   const [amountRanges, setAmountRanges] = useState<Set<string>>(new Set());
   const [progressRanges, setProgressRanges] = useState<Set<string>>(new Set());
@@ -314,6 +338,8 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
   const stickyContentRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [showDetailMap, setShowDetailMap] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const { isAdmin } = useAuth();
   const [mapColorCategory, setMapColorCategory] = useState<ColorCategory>("corporation");
   const detailMapRef = useRef<HTMLDivElement>(null);
 
@@ -412,6 +438,10 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     setProgressRanges(v);
     fetchSummary(filters, amountRanges, v, shareRanges, selectedStartYear, selectedEndYear);
   }, [filters, amountRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
+
+  const handleRefreshAfterSave = useCallback(() => {
+    fetchSummary(filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
+  }, [filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
 
   const handleResetFilters = useCallback(() => {
     const empty: SiteFilter = {};
@@ -538,6 +568,11 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
           </div>
         </div>
       </div>
+      <SiteFormDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onSaved={handleRefreshAfterSave}
+      />
 
     <DashboardScaler>
 
@@ -577,12 +612,25 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
           {/* ── Site List area ── */}
           <div ref={siteListRef}>
             <SiteListWithDetail
+              isAdmin={isAdmin}
+              addButton={isAdmin ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAddOpen(true)}
+                  className="absolute -top-10 right-0 h-7 px-2.5 text-[12px] gap-1 z-10"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  현장 추가
+                </Button>
+              ) : null}
               sites={sites}
               selectedSite={selectedSite}
               displayedSite={displayedSite}
               panelOpen={panelOpen}
               onSelectSite={handleSelectSite}
               onCloseSite={handleCloseSite}
+              onSavedSite={handleRefreshAfterSave}
             />
           </div>
         </>
@@ -598,21 +646,21 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
             }}
           >
             <div className="relative flex-1 min-w-0">
-              {/* Floating return button — top-right of map */}
+              {/* Floating return button — top-left of map (same position as "상세 지도 보기") */}
               <button
                 type="button"
                 onClick={() => setShowDetailMap(false)}
-                className="absolute top-3 right-10 z-20 flex items-center gap-1 px-3 py-1 rounded-full text-[12px] font-medium border transition-all hover:opacity-90"
+                className="absolute top-3 left-3 z-20 flex items-center gap-1 px-3 py-1 rounded-full text-[12px] font-medium border transition-all hover:opacity-90"
                 style={{ borderColor: "#1E3A8A", color: "#fff", backgroundColor: "#1E3A8A" }}
               >
                 ← 대시보드로 돌아가기
               </button>
-              {/* 안내 문구 — 복귀 버튼 아래 */}
-              <div className="absolute top-12 right-10 z-20 bg-card/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-sm border border-border/50 text-[11px] text-muted-foreground">
-                ℹ 착공일·준공일(공기)이 입력되지 않은 현장은 지도에 표시되지 않습니다
+              {/* 안내 문구 — 상단 중앙 */}
+              <div className="absolute top-3 right-16 z-20 bg-card/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-sm border border-border/50 text-[11px] text-muted-foreground whitespace-nowrap">
+                ℹ 주소가 입력되지 않은 현장은 지도에 표시되지 않습니다
               </div>
-              {/* Color category selector + legend — top-left overlay */}
-              <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
+              {/* Color category selector + legend — top-left overlay (shifted down to avoid return button) */}
+              <div className="absolute top-12 left-3 z-10 flex flex-col gap-1.5">
                 <div className="flex bg-card/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50">
                   {([
                     { key: "corporation" as ColorCategory, label: "법인별" },
@@ -668,7 +716,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
                 }}
               >
                 <div className="w-[500px] h-full">
-                  <SiteDetail site={displayedSite} onClose={handleCloseSite} />
+                  <SiteDetail site={displayedSite} onClose={handleCloseSite} onSaved={handleRefreshAfterSave} />
                 </div>
               </div>
             )}
