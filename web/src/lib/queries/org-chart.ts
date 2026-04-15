@@ -55,6 +55,46 @@ export async function deleteDepartment(deptId: number): Promise<void> {
   await handleMutation<{ ok: boolean }>(res)
 }
 
+export type OrgMemberInput = {
+  name: string
+  role_id: number
+  department_id: number | null
+  parent_id: number | null
+  org_type: "OWN" | "JV" | "SUB"
+  company_name: string | null
+  rank: string | null
+  phone: string | null
+  email: string | null
+  sort_order?: number
+  is_active?: boolean
+}
+
+export async function createOrgMember(siteId: number, payload: OrgMemberInput): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/sites/${siteId}/org-members`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  await handleMutation<unknown>(res)
+}
+
+export async function updateOrgMember(
+  memberId: number,
+  patch: Partial<OrgMemberInput>
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/org-members/${memberId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  })
+  await handleMutation<unknown>(res)
+}
+
+export async function deleteOrgMember(memberId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/org-members/${memberId}`, { method: "DELETE" })
+  await handleMutation<{ ok: boolean }>(res)
+}
+
 /** flat list -> tree */
 export function buildOrgTree(members: OrgMember[]): OrgTreeNode[] {
   const map = new Map<number, OrgTreeNode>()

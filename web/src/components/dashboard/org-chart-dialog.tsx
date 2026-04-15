@@ -6,14 +6,16 @@ import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OrgMemberCard } from "./org-member-card";
 import { EmployeeProfile } from "./employee-profile";
+import { OrgMemberFormDialog } from "./org-member-form-dialog";
 import {
   fetchOrgChart,
   fetchDepartments,
+  fetchOrgRoles,
   createDepartment,
   updateDepartment,
   deleteDepartment,
 } from "@/lib/queries/org-chart";
-import type { Department, OrgMember } from "@/types/org-chart";
+import type { Department, OrgMember, OrgRole } from "@/types/org-chart";
 import type { SiteDashboard } from "@/types/database";
 import { useAuth } from "@/lib/auth-context";
 
@@ -29,7 +31,27 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
   const { isAdmin } = useAuth();
   const [members, setMembers] = useState<OrgMember[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [roles, setRoles] = useState<OrgRole[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // 인원 추가/수정 폼 상태
+  const [memberFormOpen, setMemberFormOpen] = useState(false);
+  const [memberFormInitial, setMemberFormInitial] = useState<OrgMember | null>(null);
+  const [memberFormPresetDept, setMemberFormPresetDept] = useState<number | null>(null);
+  const [memberFormPresetRole, setMemberFormPresetRole] = useState<string | null>(null);
+
+  const openAddMember = (opts: { departmentId?: number | null; roleCode?: string | null }) => {
+    setMemberFormInitial(null);
+    setMemberFormPresetDept(opts.departmentId ?? null);
+    setMemberFormPresetRole(opts.roleCode ?? null);
+    setMemberFormOpen(true);
+  };
+  const openEditMember = (m: OrgMember) => {
+    setMemberFormInitial(m);
+    setMemberFormPresetDept(null);
+    setMemberFormPresetRole(null);
+    setMemberFormOpen(true);
+  };
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   // For slide animation: keep profile mounted during exit
   const [showProfile, setShowProfile] = useState(false);
@@ -83,15 +105,18 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     if (!open) return;
     setLoading(true);
     try {
-      const [orgData, deptData] = await Promise.all([
+      const [orgData, deptData, roleData] = await Promise.all([
         fetchOrgChart(site.id),
         fetchDepartments(site.id),
+        fetchOrgRoles(),
       ]);
       setMembers(orgData);
       setDepartments(deptData);
+      setRoles(roleData);
     } catch {
       setMembers([]);
       setDepartments([]);
+      setRoles([]);
     }
     setLoading(false);
   }, [open, site.id]);
@@ -369,8 +394,39 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                 {/* === 최상위: 현장대리인 + 현장소장 === */}
                 <div className="flex items-start gap-5">
                   {topLevel.map((m) => (
-                    <OrgMemberCard key={m.id} member={m} primary onSelect={() => openProfile(m.id)} />
+                    <OrgMemberCard
+                      key={m.id}
+                      member={m}
+                      primary
+                      onSelect={() => (mode === "manage" ? openEditMember(m) : openProfile(m.id))}
+                    />
                   ))}
+                  {mode === "manage" && (
+                    <div className="flex flex-col gap-1.5">
+                      {!topLevel.some(
+                        (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_MANAGER"
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={() => openAddMember({ roleCode: "SITE_MANAGER" })}
+                          className="h-9 px-3 rounded-md border border-dashed border-slate-300 bg-white text-[12px] font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          + 현장소장
+                        </button>
+                      )}
+                      {!topLevel.some(
+                        (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_REP"
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={() => openAddMember({ roleCode: "SITE_REP" })}
+                          className="h-9 px-3 rounded-md border border-dashed border-slate-300 bg-white text-[12px] font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          + 현장대리인
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="h-3" />
@@ -401,21 +457,48 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                                 <div className="flex gap-x-2 justify-start">
                                   <div className="flex flex-col items-start gap-2.5">
                                     {dept.members.filter((_, i) => i % 2 === 0).map((m) => (
-                                      <OrgMemberCard key={m.id} member={m} onSelect={() => openProfile(m.id)} />
+                                      <OrgMemberCard
+                                        key={m.id}
+                                        member={m}
+                                        onSelect={() =>
+                                          mode === "manage" ? openEditMember(m) : openProfile(m.id)
+                                        }
+                                      />
                                     ))}
                                   </div>
                                   <div className="flex flex-col items-start gap-2.5">
                                     {dept.members.filter((_, i) => i % 2 === 1).map((m) => (
-                                      <OrgMemberCard key={m.id} member={m} onSelect={() => openProfile(m.id)} />
+                                      <OrgMemberCard
+                                        key={m.id}
+                                        member={m}
+                                        onSelect={() =>
+                                          mode === "manage" ? openEditMember(m) : openProfile(m.id)
+                                        }
+                                      />
                                     ))}
                                   </div>
                                 </div>
                               ) : (
                                 <div className="flex flex-col items-start gap-2.5">
                                   {dept.members.map((m) => (
-                                    <OrgMemberCard key={m.id} member={m} onSelect={() => openProfile(m.id)} />
+                                    <OrgMemberCard
+                                      key={m.id}
+                                      member={m}
+                                      onSelect={() =>
+                                        mode === "manage" ? openEditMember(m) : openProfile(m.id)
+                                      }
+                                    />
                                   ))}
                                 </div>
+                              )}
+                              {mode === "manage" && dept.id != null && (
+                                <button
+                                  type="button"
+                                  onClick={() => openAddMember({ departmentId: dept.id })}
+                                  className="mt-2 w-full h-8 rounded-md border border-dashed border-slate-300 bg-white text-[12px] font-medium text-slate-600 hover:bg-slate-50"
+                                >
+                                  + 인원 추가
+                                </button>
                               )}
                             </div>
                           </div>
@@ -651,6 +734,19 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
           </div>
         )}
       </DialogContent>
+
+      <OrgMemberFormDialog
+        open={memberFormOpen}
+        onOpenChange={setMemberFormOpen}
+        siteId={site.id}
+        departments={departments}
+        roles={roles}
+        members={members}
+        initialMember={memberFormInitial}
+        presetDepartmentId={memberFormPresetDept}
+        presetRoleCode={memberFormPresetRole}
+        onSaved={load}
+      />
     </Dialog>
   );
 }
