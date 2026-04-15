@@ -65,8 +65,8 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
         setMetrics({ w: boxW, h: boxH, scale: 1 });
         return;
       }
-      // 콘텐츠를 박스에 꽉 차게 스케일업 (한 축이 박스를 채울 때까지). 상한 2.5.
-      const s = Math.min(boxW / naturalW, boxH / naturalH, 2.5);
+      // 스케일업 없이 자연 크기 유지. 박스보다 크면만 축소해서 맞춤.
+      const s = Math.min(boxW / naturalW, boxH / naturalH, 1);
       setMetrics({ w: boxW, h: boxH, scale: s });
     };
     measure();
@@ -287,6 +287,56 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
 
         {/* Scale wrapper — 자연 크기 기준 렌더 후 viewport에 맞춰 uniform scale.
             width/height: max-content 로 부모 제약에서 분리해서 ResizeObserver 루프 차단. */}
+        {/* 나가기 버튼 + 타이틀 — 다이얼로그 좌측 상단 고정 (스케일 영향 없음) */}
+        <div className="absolute left-4 top-3 z-20 flex flex-col items-start gap-1">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-slate-900 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            나가기
+          </button>
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-[16px] font-semibold text-slate-900 tracking-tight">
+              {site.site_name}
+            </h2>
+            <span className="text-[12px] text-slate-400">
+              조직도{members.length > 0 ? ` · ${members.length}명` : ""}
+              {mode === "manage" ? " · 팀 편집 중" : ""}
+            </span>
+          </div>
+        </div>
+
+        {/* 팀 관리 토글 — 관리자만, 우측 상단 고정 */}
+        {isAdmin && (
+          <div className="absolute right-4 top-3 z-20">
+            {mode === "view" ? (
+              <button
+                type="button"
+                onClick={() => setMode("manage")}
+                className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                팀 관리
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("view");
+                  setEditingDeptId(null);
+                  setAddingNew(false);
+                  setDeptError(null);
+                }}
+                className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800"
+              >
+                완료
+              </button>
+            )}
+          </div>
+        )}
+
         <div
           ref={contentRef}
           style={{
@@ -307,56 +357,6 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
             )}
           >
             <div className="relative">
-              {/* 나가기 버튼 + 타이틀 — 좌측 상단 absolute, 로딩/빈 상태에서도 항상 표시 */}
-              <div className="absolute left-3 top-2 z-10 flex flex-col items-start gap-1">
-                <button
-                  type="button"
-                  onClick={() => onOpenChange(false)}
-                  className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-slate-900 transition-colors"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  나가기
-                </button>
-                <div className="flex items-baseline gap-2">
-                  <h2 className="text-[16px] font-semibold text-slate-900 tracking-tight">
-                    {site.site_name}
-                  </h2>
-                  <span className="text-[12px] text-slate-400">
-                    조직도{members.length > 0 ? ` · ${members.length}명` : ""}
-                    {mode === "manage" ? " · 팀 편집 중" : ""}
-                  </span>
-                </div>
-              </div>
-
-              {/* 팀 관리 토글 — 관리자만, 우측 상단 absolute */}
-              {isAdmin && (
-                <div className="absolute right-3 top-2 z-10">
-                  {mode === "view" ? (
-                    <button
-                      type="button"
-                      onClick={() => setMode("manage")}
-                      className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      <Settings2 className="h-3.5 w-3.5" />
-                      팀 관리
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("view");
-                        setEditingDeptId(null);
-                        setAddingNew(false);
-                        setDeptError(null);
-                      }}
-                      className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800"
-                    >
-                      완료
-                    </button>
-                  )}
-                </div>
-              )}
-
             {loading ? (
               <div className="flex items-center justify-center min-h-100 min-w-150 text-muted-foreground">불러오는 중...</div>
             ) : members.length === 0 ? (
