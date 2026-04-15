@@ -62,8 +62,9 @@ function computeHierarchy(
     (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_MANAGER"
   );
 
+  // 현장소장·현장대리인 모두 최상위(parent=null)로 배치 — 차트에서 나란히 렌더.
   if (roleCode === "SITE_MANAGER") return { parent_id: null, department_id: null };
-  if (roleCode === "SITE_REP") return { parent_id: siteManager?.id ?? null, department_id: null };
+  if (roleCode === "SITE_REP") return { parent_id: null, department_id: null };
   if (roleCode === "DEPT_HEAD") {
     return { parent_id: siteManager?.id ?? null, department_id: departmentId };
   }
