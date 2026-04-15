@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { Users, ChevronLeft } from "lucide-react";
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react";
+import { Users, ChevronLeft, Plus, X, Check, ChevronUp, ChevronDown, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OrgMemberCard } from "./org-member-card";
 import { EmployeeProfile } from "./employee-profile";
-import { fetchOrgChart } from "@/lib/queries/org-chart";
-import type { OrgMember } from "@/types/org-chart";
+import {
+  fetchOrgChart,
+  fetchDepartments,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
+} from "@/lib/queries/org-chart";
+import type { Department, OrgMember } from "@/types/org-chart";
 import type { SiteDashboard } from "@/types/database";
+import { useAuth } from "@/lib/auth-context";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
@@ -19,7 +26,9 @@ interface OrgChartDialogProps {
 }
 
 export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps) {
+  const { isAdmin } = useAuth();
   const [members, setMembers] = useState<OrgMember[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   // For slide animation: keep profile mounted during exit
@@ -27,17 +36,71 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
   const [profileMemberId, setProfileMemberId] = useState<number | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // 팀 관리 모드
+  const [mode, setMode] = useState<"view" | "manage">("view");
+  const [editingDeptId, setEditingDeptId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [addingNew, setAddingNew] = useState(false);
+  const [newDeptName, setNewDeptName] = useState("");
+  const [deptError, setDeptError] = useState<string | null>(null);
+
+  // 조직도 콘텐츠를 viewport에 맞춰 scale up — 큰 모니터에서도 맥북처럼 꽉 찬 느낌을 주려고.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [metrics, setMetrics] = useState<{ w: number; h: number; scale: number }>({ w: 0, h: 0, scale: 1 });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const el = contentRef.current;
+      if (!el) return;
+      const naturalW = el.offsetWidth;
+      const naturalH = el.offsetHeight;
+      if (!naturalW || !naturalH) return;
+      // 로딩/빈 상태에서는 scale 고정.
+      if (loading || (members.length === 0)) {
+        setMetrics({ w: naturalW, h: naturalH, scale: 1 });
+        return;
+      }
+      const maxW = window.innerWidth * 0.95;
+      const maxH = window.innerHeight * 0.92;
+      const s = Math.min(maxW / naturalW, maxH / naturalH, 1.8);
+      setMetrics({ w: naturalW * s, h: naturalH * s, scale: s });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (contentRef.current) ro.observe(contentRef.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [open, members.length, loading, showProfile, departments.length, mode]);
+
   const load = useCallback(async () => {
     if (!open) return;
     setLoading(true);
     try {
-      const orgData = await fetchOrgChart(site.id);
+      const [orgData, deptData] = await Promise.all([
+        fetchOrgChart(site.id),
+        fetchDepartments(site.id),
+      ]);
       setMembers(orgData);
+      setDepartments(deptData);
     } catch {
       setMembers([]);
+      setDepartments([]);
     }
     setLoading(false);
   }, [open, site.id]);
+
+  const reloadDepartments = useCallback(async () => {
+    try {
+      const deptData = await fetchDepartments(site.id);
+      setDepartments(deptData);
+    } catch {
+      /* noop */
+    }
+  }, [site.id]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -46,6 +109,10 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       setSelectedMemberId(null);
       setShowProfile(false);
       setProfileMemberId(null);
+      setMode("view");
+      setEditingDeptId(null);
+      setAddingNew(false);
+      setDeptError(null);
     }
   }, [open]);
 
@@ -91,32 +158,110 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
 
   const topLevel = members.filter((m) => m.parent_id == null);
 
-  // 부서별 그룹핑 + 정렬
-  const deptMap = new Map<string, OrgMember[]>();
-  const deptOrder = new Map<string, number>();
-  for (const m of members) {
-    if (m.parent_id == null) continue;
-    const dept = m.department_name ?? "기타";
-    if (!deptMap.has(dept)) deptMap.set(dept, []);
-    deptMap.get(dept)!.push(m);
-    if (!deptOrder.has(dept)) deptOrder.set(dept, m.department_sort_order ?? 999);
-  }
-  const sortedDepts = [...deptMap.entries()].sort(
-    (a, b) => (deptOrder.get(a[0]) ?? 999) - (deptOrder.get(b[0]) ?? 999)
+  // 부서별 그룹핑 — departments 상태를 source of truth로 사용.
+  type DeptEntry = { id: number | null; name: string; sort_order: number; members: OrgMember[] };
+  const deptEntries: DeptEntry[] = departments
+    .map((d) => ({
+      id: d.id,
+      name: d.name,
+      sort_order: d.sort_order,
+      members: members
+        .filter((m) => m.parent_id != null && m.department_id === d.id)
+        .sort((a, b) => a.sort_order - b.sort_order),
+    }))
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  // FK 미일치 조직원(기타 버킷) — 정상 상태에서는 비어있음
+  const orphans = members.filter(
+    (m) => m.parent_id != null && !departments.some((d) => d.id === m.department_id)
   );
-  for (const [, deptMembers] of sortedDepts) {
-    deptMembers.sort((a, b) => a.sort_order - b.sort_order);
+  if (orphans.length > 0) {
+    deptEntries.push({ id: null, name: "기타", sort_order: 9999, members: orphans });
   }
 
-  // 8개씩 행으로 나누기 (초과 시 다음 행으로 줄바꿈)
-  const deptRows: (typeof sortedDepts)[] = [];
-  for (let i = 0; i < sortedDepts.length; i += MAX_DEPTS_PER_ROW) {
-    deptRows.push(sortedDepts.slice(i, i + MAX_DEPTS_PER_ROW));
+  // view 모드: 멤버 있는 팀만, manage 모드: 빈 팀도 모두 노출.
+  const displayedDepts: DeptEntry[] =
+    mode === "manage" ? deptEntries : deptEntries.filter((d) => d.members.length > 0);
+
+  // 8개씩 행으로 나누기
+  const deptRows: DeptEntry[][] = [];
+  for (let i = 0; i < displayedDepts.length; i += MAX_DEPTS_PER_ROW) {
+    deptRows.push(displayedDepts.slice(i, i + MAX_DEPTS_PER_ROW));
   }
 
-  // 주어진 부서 배열의 총 폭 계산 (rail 너비용)
-  const rowWidth = (row: typeof sortedDepts) =>
-    row.reduce((w, [, ms]) => w + (ms.length > 5 ? DEPT_WIDTH_WIDE : DEPT_WIDTH_NARROW) + DEPT_GAP, 0) - DEPT_GAP;
+  const rowWidth = (row: DeptEntry[]) =>
+    row.reduce((w, d) => w + (d.members.length > 5 ? DEPT_WIDTH_WIDE : DEPT_WIDTH_NARROW) + DEPT_GAP, 0) - DEPT_GAP;
+
+  // ── 팀 관리 mutations ──
+  const handleCreateDept = async () => {
+    const name = newDeptName.trim();
+    if (!name) return;
+    setDeptError(null);
+    try {
+      await createDepartment(site.id, name);
+      setNewDeptName("");
+      setAddingNew(false);
+      await reloadDepartments();
+    } catch (e) {
+      setDeptError((e as Error).message);
+    }
+  };
+
+  const handleRenameDept = async (deptId: number) => {
+    const name = editingName.trim();
+    if (!name) {
+      setEditingDeptId(null);
+      return;
+    }
+    setDeptError(null);
+    try {
+      await updateDepartment(deptId, { name });
+      setEditingDeptId(null);
+      await reloadDepartments();
+    } catch (e) {
+      setDeptError((e as Error).message);
+    }
+  };
+
+  const handleDeleteDept = async (deptId: number) => {
+    setDeptError(null);
+    try {
+      await deleteDepartment(deptId);
+      await reloadDepartments();
+    } catch (e) {
+      setDeptError((e as Error).message);
+    }
+  };
+
+  const handleMoveDept = async (deptId: number, direction: -1 | 1) => {
+    // 1) 현재 렌더 순서와 일치하는 정렬된 배열 준비 (sort_order 중복 대응)
+    const sorted = [...departments].sort(
+      (a, b) => a.sort_order - b.sort_order || a.id - b.id
+    );
+    const idx = sorted.findIndex((d) => d.id === deptId);
+    if (idx < 0) return;
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    // 2) 배열 내에서 위치 교체
+    const reordered = [...sorted];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    // 3) sort_order를 순차적으로 재할당 (10, 20, 30, ...) — 중복 제거
+    const renumbered = reordered.map((d, i) => ({ ...d, sort_order: (i + 1) * 10 }));
+    // 4) 변경된 것만 PUT
+    const changes = renumbered.filter((d) => {
+      const original = departments.find((x) => x.id === d.id);
+      return !original || original.sort_order !== d.sort_order;
+    });
+    // 5) Optimistic UI 업데이트
+    setDepartments(renumbered);
+    setDeptError(null);
+    try {
+      await Promise.all(changes.map((d) => updateDepartment(d.id, { sort_order: d.sort_order })));
+    } catch (e) {
+      setDeptError((e as Error).message);
+      await reloadDepartments();
+    }
+  };
 
   const isProfileVisible = selectedMemberId != null;
 
@@ -124,126 +269,159 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        style={{ maxWidth: "98vw", width: "98vw", height: "96vh" }}
-        className="flex flex-col overflow-hidden !p-3"
+        style={{
+          width: metrics.w ? `${metrics.w}px` : "max-content",
+          height: metrics.h ? `${metrics.h}px` : "auto",
+          maxWidth: "98vw",
+          maxHeight: "96vh",
+        }}
+        className="overflow-hidden p-0!"
       >
         {/* DialogTitle은 접근성을 위해 숨겨진 상태로만 유지 */}
         <DialogHeader className="sr-only">
           <DialogTitle>{site.site_name} 조직도</DialogTitle>
         </DialogHeader>
 
-        {/* Sliding container */}
-        <div className="flex-1 relative overflow-hidden">
+        {/* Scale wrapper — 자연 크기 기준 렌더 후 viewport에 맞춰 uniform scale.
+            width/height: max-content 로 부모 제약에서 분리해서 ResizeObserver 루프 차단. */}
+        <div
+          ref={contentRef}
+          style={{
+            width: "max-content",
+            height: "max-content",
+            transform: `scale(${metrics.scale})`,
+            transformOrigin: "top left",
+          }}
+          className="relative"
+        >
           {/* Org Chart — slides left when profile opens */}
           <div
             className={cn(
-              "absolute inset-0 transition-transform duration-300 ease-in-out",
+              "transition-transform duration-300 ease-in-out",
               showProfile ? "-translate-x-full" : "translate-x-0"
             )}
           >
+            <div className="relative">
+              {/* 나가기 버튼 + 타이틀 — 좌측 상단 absolute, 로딩/빈 상태에서도 항상 표시 */}
+              <div className="absolute left-3 top-2 z-10 flex flex-col items-start gap-1">
+                <button
+                  type="button"
+                  onClick={() => onOpenChange(false)}
+                  className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-slate-900 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  나가기
+                </button>
+                <div className="flex items-baseline gap-2">
+                  <h2 className="text-[16px] font-semibold text-slate-900 tracking-tight">
+                    {site.site_name}
+                  </h2>
+                  <span className="text-[12px] text-slate-400">
+                    조직도{members.length > 0 ? ` · ${members.length}명` : ""}
+                    {mode === "manage" ? " · 팀 편집 중" : ""}
+                  </span>
+                </div>
+              </div>
+
+              {/* 팀 관리 토글 — 관리자만, 우측 상단 absolute */}
+              {isAdmin && (
+                <div className="absolute right-3 top-2 z-10">
+                  {mode === "view" ? (
+                    <button
+                      type="button"
+                      onClick={() => setMode("manage")}
+                      className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Settings2 className="h-3.5 w-3.5" />
+                      팀 관리
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("view");
+                        setEditingDeptId(null);
+                        setAddingNew(false);
+                        setDeptError(null);
+                      }}
+                      className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800"
+                    >
+                      완료
+                    </button>
+                  )}
+                </div>
+              )}
+
             {loading ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground">불러오는 중...</div>
+              <div className="flex items-center justify-center min-h-100 min-w-150 text-muted-foreground">불러오는 중...</div>
             ) : members.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <div className="flex flex-col items-center justify-center min-h-100 min-w-150 text-muted-foreground">
                 <Users className="h-12 w-12 opacity-20 mb-3" />
                 <p className="text-sm">등록된 조직원이 없습니다</p>
               </div>
             ) : (
-              <div className="h-full overflow-hidden relative">
-                {/* 나가기 버튼 + 타이틀 + 총 인원 — 좌측 상단 absolute */}
-                <div className="absolute left-3 top-2 z-10 flex flex-col items-start gap-1">
-                  <button
-                    type="button"
-                    onClick={() => onOpenChange(false)}
-                    className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-slate-900 transition-colors"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    나가기
-                  </button>
-                  <div className="flex items-baseline gap-2">
-                    <h2 className="text-[16px] font-semibold text-slate-900 tracking-tight">
-                      {site.site_name}
-                    </h2>
-                    <span className="text-[12px] text-slate-400">
-                      조직도 · {members.length}명
-                    </span>
-                  </div>
+              <div className="flex flex-col items-center px-3 pt-4 pb-3">
+                {/* === 최상위: 현장대리인 + 현장소장 === */}
+                <div className="flex items-start gap-5">
+                  {topLevel.map((m) => (
+                    <OrgMemberCard key={m.id} member={m} primary onSelect={() => openProfile(m.id)} />
+                  ))}
                 </div>
 
-                <div className="flex flex-col items-center px-3 pt-4 pb-3 h-full">
+                <div className="h-3" />
+                <div className="w-px h-4 bg-gradient-to-b from-slate-500 to-slate-400" />
 
-                  {/* === 최상위: 현장대리인 + 현장소장 === */}
-                  <div className="flex items-start gap-5">
-                    {topLevel.map((m) => (
-                      <OrgMemberCard key={m.id} member={m} primary onSelect={() => openProfile(m.id)} />
-                    ))}
-                  </div>
-
-                  {/* === primary와 연결선 사이 약간의 간격 === */}
-                  <div className="h-3" />
-                  {/* === 세로 연결선 (primary → 첫 행 rail) === */}
-                  <div className="w-px h-4 bg-gradient-to-b from-slate-500 to-slate-400" />
-
-                  {/* === 부서 행들 — 최대 8개씩, 초과 시 아래 행으로 === */}
-                  {deptRows.map((row, rowIdx) => (
-                    <div key={rowIdx} className="flex flex-col items-center">
-                      {/* 첫 행만 가로 rail — primary와 시각적으로 연결 */}
-                      {rowIdx === 0 && (
-                        <div className="h-px bg-slate-400" style={{ width: `${rowWidth(row)}px` }} />
-                      )}
-                      {/* 두 번째 행부터는 위쪽 여백만 */}
-                      {rowIdx > 0 && <div className="h-5" />}
-                      <div className="flex items-start" style={{ gap: `${DEPT_GAP}px` }}>
-                        {row.map(([deptName, deptMembers]) => {
-                          const wide = deptMembers.length > 5;
-                          return (
-                            <div
-                              key={deptName}
-                              className="flex flex-col items-center"
-                              style={{ width: wide ? DEPT_WIDTH_WIDE : DEPT_WIDTH_NARROW }}
-                            >
-                              {/* 첫 행만 세로 연결선 (rail → dept 태그) */}
-                              {rowIdx === 0 && <div className="w-px h-3 bg-slate-400" />}
-                              {/* 부서 태그 — blue-50 accent */}
-                              <div className="mt-0.5 mb-1.5 px-2.5 py-0.5 rounded-md bg-blue-900 text-white text-[12px] font-semibold tracking-tight whitespace-nowrap max-w-full truncate">
-                                {deptName}
-                              </div>
-                              {/* 부서 멤버 그룹 박스 — 카드를 싹 감싸도록 너비 = 부서 컬럼 전체 */}
-                              <div className="w-full bg-white ring-1 ring-slate-300 px-2 py-2">
-                                {wide ? (
-                                  /* 2줄 팀: 2개의 sub-column을 나란히 배치 —
-                                     각 sub-column은 1줄 팀과 동일한 flex-col로 렌더해서
-                                     카드 좌측 여백이 1줄 팀과 똑같이 나오게 함. */
-                                  <div className="flex gap-x-2 justify-start">
-                                    <div className="flex flex-col items-start gap-2.5">
-                                      {deptMembers.filter((_, i) => i % 2 === 0).map((m) => (
-                                        <OrgMemberCard key={m.id} member={m} onSelect={() => openProfile(m.id)} />
-                                      ))}
-                                    </div>
-                                    <div className="flex flex-col items-start gap-2.5">
-                                      {deptMembers.filter((_, i) => i % 2 === 1).map((m) => (
-                                        <OrgMemberCard key={m.id} member={m} onSelect={() => openProfile(m.id)} />
-                                      ))}
-                                    </div>
-                                  </div>
-                                ) : (
+                {/* === 부서 행들 — 최대 8개씩, 초과 시 아래 행으로 === */}
+                {deptRows.map((row, rowIdx) => (
+                  <div key={rowIdx} className="flex flex-col items-center">
+                    {rowIdx === 0 && (
+                      <div className="h-px bg-slate-400" style={{ width: `${rowWidth(row)}px` }} />
+                    )}
+                    {rowIdx > 0 && <div className="h-5" />}
+                    <div className="flex items-start" style={{ gap: `${DEPT_GAP}px` }}>
+                      {row.map((dept) => {
+                        const wide = dept.members.length > 5;
+                        return (
+                          <div
+                            key={dept.id ?? `orphan-${dept.name}`}
+                            className="flex flex-col items-center"
+                            style={{ width: wide ? DEPT_WIDTH_WIDE : DEPT_WIDTH_NARROW }}
+                          >
+                            {rowIdx === 0 && <div className="w-px h-3 bg-slate-400" />}
+                            <div className="mt-0.5 mb-1.5 px-2.5 py-0.5 rounded-md bg-blue-900 text-white text-[12px] font-semibold tracking-tight whitespace-nowrap max-w-full truncate">
+                              {dept.name}
+                            </div>
+                            <div className="w-full bg-white ring-1 ring-slate-300 px-2 py-2">
+                              {wide ? (
+                                <div className="flex gap-x-2 justify-start">
                                   <div className="flex flex-col items-start gap-2.5">
-                                    {deptMembers.map((m) => (
+                                    {dept.members.filter((_, i) => i % 2 === 0).map((m) => (
                                       <OrgMemberCard key={m.id} member={m} onSelect={() => openProfile(m.id)} />
                                     ))}
                                   </div>
-                                )}
-                              </div>
+                                  <div className="flex flex-col items-start gap-2.5">
+                                    {dept.members.filter((_, i) => i % 2 === 1).map((m) => (
+                                      <OrgMemberCard key={m.id} member={m} onSelect={() => openProfile(m.id)} />
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-start gap-2.5">
+                                  {dept.members.map((m) => (
+                                    <OrgMemberCard key={m.id} member={m} onSelect={() => openProfile(m.id)} />
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-
-                </div>
+                  </div>
+                ))}
               </div>
             )}
+            </div>
           </div>
 
           {/* Profile — slides in from right */}
@@ -264,6 +442,209 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
             </div>
           )}
         </div>
+
+        {/* ── 팀 관리 오버레이 — scale wrapper 바깥, 조직도 위에 등장 ── */}
+        {mode === "manage" && (
+          <div
+            className="absolute inset-0 z-30 flex items-start justify-center bg-slate-900/25 backdrop-blur-[2px]"
+            style={{ paddingTop: `${64 * metrics.scale}px` }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setMode("view");
+                setEditingDeptId(null);
+                setAddingNew(false);
+                setDeptError(null);
+              }
+            }}
+          >
+            <div
+              className="w-95 bg-white rounded-xl border border-slate-200 shadow-2xl overflow-hidden"
+              style={{ transform: `scale(${metrics.scale})`, transformOrigin: "top center" }}
+            >
+              <div className="flex items-center justify-between px-4 h-11 border-b border-slate-100">
+                <h3 className="text-[14px] font-semibold text-slate-900">팀 관리</h3>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("view");
+                      setEditingDeptId(null);
+                      setAddingNew(false);
+                      setDeptError(null);
+                    }}
+                    className="h-7 px-3 rounded-md text-[12px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("view");
+                      setEditingDeptId(null);
+                      setAddingNew(false);
+                      setDeptError(null);
+                    }}
+                    className="h-7 px-3 rounded-md bg-blue-900 text-white text-[12px] font-semibold hover:bg-blue-800"
+                  >
+                    저장
+                  </button>
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="flex items-center gap-2 px-2.5 h-7 border border-b-0 border-slate-200 rounded-t-md bg-slate-50 text-[11px] font-semibold text-slate-500">
+                  <span className="w-4 tabular-nums">No.</span>
+                  <span className="flex-1">팀명</span>
+                  <span className="w-7 text-right">인원</span>
+                  <span className="w-13 text-center">위치변경</span>
+                  <span className="w-6 text-center">삭제</span>
+                </div>
+                <ul className="flex flex-col border border-slate-200 rounded-b-md bg-white overflow-hidden">
+                  {deptEntries.map((dept, idx) => {
+                    const isEditing = dept.id != null && editingDeptId === dept.id;
+                    const canDelete = dept.members.length === 0 && dept.id != null;
+                    const canMoveUp = idx > 0 && dept.id != null && deptEntries[idx - 1].id != null;
+                    const canMoveDown =
+                      idx < deptEntries.length - 1 && dept.id != null && deptEntries[idx + 1].id != null;
+                    return (
+                      <li
+                        key={dept.id ?? `orphan-${dept.name}`}
+                        className="flex items-center gap-2 px-2.5 h-9 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60 transition-colors"
+                      >
+                        <span className="w-4 text-[11px] font-mono text-slate-400 tabular-nums">{idx + 1}</span>
+                        {isEditing ? (
+                          <>
+                            <input
+                              autoFocus
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleRenameDept(dept.id!);
+                                if (e.key === "Escape") setEditingDeptId(null);
+                              }}
+                              className="flex-1 h-7 px-2 rounded-md border border-blue-500 text-[13px] focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRenameDept(dept.id!)}
+                              className="h-7 w-7 flex items-center justify-center rounded-md bg-blue-900 text-white hover:bg-blue-800"
+                              title="저장"
+                            >
+                              <Check className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingDeptId(null)}
+                              className="h-7 w-7 flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+                              title="취소"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (dept.id == null) return;
+                                setEditingDeptId(dept.id);
+                                setEditingName(dept.name);
+                              }}
+                              disabled={dept.id == null}
+                              className="flex-1 text-left text-[13px] font-medium text-slate-800 hover:text-blue-900 truncate disabled:text-slate-500"
+                            >
+                              {dept.name}
+                            </button>
+                            <span className="text-[11px] text-slate-400 tabular-nums">
+                              {dept.members.length}명
+                            </span>
+                            <button
+                              type="button"
+                              disabled={!canMoveUp}
+                              onClick={() => dept.id != null && handleMoveDept(dept.id, -1)}
+                              className="h-6 w-6 flex items-center justify-center rounded-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              title="위로"
+                            >
+                              <ChevronUp className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!canMoveDown}
+                              onClick={() => dept.id != null && handleMoveDept(dept.id, 1)}
+                              className="h-6 w-6 flex items-center justify-center rounded-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              title="아래로"
+                            >
+                              <ChevronDown className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!canDelete}
+                              onClick={() => dept.id != null && handleDeleteDept(dept.id)}
+                              className="h-6 w-6 flex items-center justify-center rounded-sm text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-500"
+                              title={canDelete ? "팀 삭제" : `소속 조직원 ${dept.members.length}명 — 삭제 불가`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                <div className="mt-2">
+                  {addingNew ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        autoFocus
+                        value={newDeptName}
+                        onChange={(e) => setNewDeptName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleCreateDept();
+                          if (e.key === "Escape") {
+                            setAddingNew(false);
+                            setNewDeptName("");
+                          }
+                        }}
+                        placeholder="새 팀 이름"
+                        className="flex-1 h-8 px-2.5 rounded-md border border-slate-300 text-[13px] focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCreateDept}
+                        className="h-8 px-2.5 rounded-md bg-blue-900 text-white text-[12px] font-semibold hover:bg-blue-800"
+                      >
+                        추가
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddingNew(false);
+                          setNewDeptName("");
+                        }}
+                        className="h-8 px-2.5 rounded-md text-[12px] text-slate-500 hover:bg-slate-100"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAddingNew(true)}
+                      className="w-full h-8 flex items-center justify-center gap-1 rounded-md border border-dashed border-slate-300 text-[12px] font-medium text-slate-500 hover:border-slate-400 hover:text-slate-700 hover:bg-slate-50"
+                    >
+                      <Plus className="h-3 w-3" />
+                      팀 추가
+                    </button>
+                  )}
+                </div>
+
+                {deptError && (
+                  <div className="mt-2 text-[11px] text-rose-600 font-medium">{deptError}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

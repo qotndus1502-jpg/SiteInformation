@@ -47,6 +47,13 @@ export type OrgTreeNode = OrgMember & {
   children: OrgTreeNode[]
 }
 
+export interface Department {
+  id: number
+  site_id: number
+  name: string
+  sort_order: number
+}
+
 // ── Employee (public schema) ──
 
 export interface Employee {

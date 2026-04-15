@@ -1,4 +1,4 @@
-import type { OrgMember, OrgRole, OrgTreeNode } from "@/types/org-chart"
+import type { Department, OrgMember, OrgRole, OrgTreeNode } from "@/types/org-chart"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001"
 
@@ -10,6 +10,49 @@ export async function fetchOrgChart(siteId: number): Promise<OrgMember[]> {
 export async function fetchOrgRoles(): Promise<OrgRole[]> {
   const res = await fetch(`${API_BASE}/api/org-roles`)
   return res.json()
+}
+
+export async function fetchDepartments(siteId: number): Promise<Department[]> {
+  const res = await fetch(`${API_BASE}/api/sites/${siteId}/departments`)
+  return res.json()
+}
+
+async function handleMutation<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    let detail = "요청 실패"
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {}
+    throw new Error(detail)
+  }
+  return res.json() as Promise<T>
+}
+
+export async function createDepartment(siteId: number, name: string): Promise<Department> {
+  const res = await fetch(`${API_BASE}/api/sites/${siteId}/departments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  })
+  return handleMutation<Department>(res)
+}
+
+export async function updateDepartment(
+  deptId: number,
+  patch: { name?: string; sort_order?: number }
+): Promise<Department> {
+  const res = await fetch(`${API_BASE}/api/departments/${deptId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  })
+  return handleMutation<Department>(res)
+}
+
+export async function deleteDepartment(deptId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/departments/${deptId}`, { method: "DELETE" })
+  await handleMutation<{ ok: boolean }>(res)
 }
 
 /** flat list -> tree */

@@ -24,6 +24,14 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 COORDS_FILE = Path(__file__).parent / "site_coordinates.json"
 
+DEFAULT_DEPARTMENTS: list[tuple[str, int]] = [
+    ("공무", 10),
+    ("공사", 20),
+    ("전기/기계/토목", 30),
+    ("품질", 40),
+    ("안전", 50),
+]
+
 app = FastAPI(title="SiteInformation API")
 
 app.add_middleware(
@@ -486,6 +494,66 @@ async def get_site_departments(site_id: int):
         .order("sort_order") \
         .execute()
     return response.data or []
+
+
+@app.post("/api/sites/{site_id}/departments")
+async def create_site_department(site_id: int, payload: dict = Body(...)):
+    """Create a new department for a site."""
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="팀 이름을 입력해주세요")
+    # sort_order: 마지막 순서 + 10
+    existing = supabase.schema("pmis").from_("site_department") \
+        .select("sort_order").eq("site_id", site_id).order("sort_order", desc=True).limit(1).execute()
+    next_order = payload.get("sort_order")
+    if next_order is None:
+        next_order = (existing.data[0]["sort_order"] + 10) if existing.data else 10
+    res = supabase.schema("pmis").from_("site_department").insert({
+        "site_id": site_id, "name": name, "sort_order": next_order,
+    }).execute()
+    return res.data[0] if res.data else None
+
+
+@app.put("/api/departments/{dept_id}")
+async def update_site_department(dept_id: int, payload: dict = Body(...)):
+    """Rename / reorder department."""
+    patch: dict = {}
+    if "name" in payload:
+        n = (payload.get("name") or "").strip()
+        if not n:
+            raise HTTPException(status_code=400, detail="팀 이름을 입력해주세요")
+        patch["name"] = n
+    if "sort_order" in payload:
+        patch["sort_order"] = int(payload["sort_order"])
+    if not patch:
+        raise HTTPException(status_code=400, detail="변경할 내용이 없습니다")
+    res = supabase.schema("pmis").from_("site_department").update(patch).eq("id", dept_id).execute()
+    return res.data[0] if res.data else None
+
+
+@app.delete("/api/departments/{dept_id}")
+async def delete_site_department(dept_id: int):
+    """Delete department. Blocks if active members still reference it."""
+    members = supabase.schema("pmis").from_("site_org_member") \
+        .select("id", count="exact") \
+        .eq("department_id", dept_id) \
+        .eq("is_active", True) \
+        .execute()
+    count = members.count or 0
+    if count > 0:
+        raise HTTPException(status_code=400, detail=f"팀에 소속된 조직원 {count}명이 있습니다")
+    supabase.schema("pmis").from_("site_department").delete().eq("id", dept_id).execute()
+    return {"ok": True}
+
+
+def _seed_default_departments(site_id: int) -> None:
+    """Insert DEFAULT_DEPARTMENTS for a site if it has none yet. Idempotent."""
+    existing = supabase.schema("pmis").from_("site_department") \
+        .select("id").eq("site_id", site_id).limit(1).execute()
+    if existing.data:
+        return
+    rows = [{"site_id": site_id, "name": n, "sort_order": o} for n, o in DEFAULT_DEPARTMENTS]
+    supabase.schema("pmis").from_("site_department").insert(rows).execute()
 
 
 @app.post("/api/sites/{site_id}/org-members")
@@ -1426,6 +1494,10 @@ def create_site(payload: dict = Body(...)):
         jv_partners=payload.get("jv_partners"),
     )
     _persist_site_coords(row.get("id"), clean.get("latitude"), clean.get("longitude"))
+    try:
+        _seed_default_departments(row.get("id"))
+    except Exception as e:
+        print(f"[WARN] default department seed failed for site {row.get('id')}: {e}")
     _invalidate_sites_cache()
     return {"ok": True, "id": row.get("id"), "site": row}
 
