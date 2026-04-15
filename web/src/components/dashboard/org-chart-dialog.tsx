@@ -395,53 +395,57 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
             <div className="relative">
             {loading ? (
               <div className="flex items-center justify-center min-h-100 min-w-150 text-muted-foreground">불러오는 중...</div>
-            ) : members.length === 0 ? (
+            ) : members.length === 0 && displayedDepts.length === 0 && mode !== "members" ? (
               <div className="flex flex-col items-center justify-center min-h-100 min-w-150 text-muted-foreground">
                 <Users className="h-12 w-12 opacity-20 mb-3" />
                 <p className="text-sm">등록된 조직원이 없습니다</p>
               </div>
             ) : (
               <div className="flex flex-col items-center px-3 pt-4 pb-3">
-                {/* === 최상위: 현장대리인 + 현장소장 === */}
-                <div className="flex items-start gap-5">
-                  {topLevel.map((m) => (
-                    <OrgMemberCard
-                      key={m.id}
-                      member={m}
-                      primary
-                      onSelect={() => (mode === "members" ? openEditMember(m) : openProfile(m.id))}
-                    />
-                  ))}
-                  {mode === "members" && (
-                    <div className="flex flex-col gap-1.5">
-                      {!topLevel.some(
-                        (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_MANAGER"
-                      ) && (
-                        <button
-                          type="button"
-                          onClick={() => openAddMember({ roleCode: "SITE_MANAGER" })}
-                          className="h-9 px-3 rounded-md border border-dashed border-slate-300 bg-white text-[12px] font-medium text-slate-600 hover:bg-slate-50"
-                        >
-                          + 현장소장
-                        </button>
-                      )}
-                      {!topLevel.some(
+                {/* === 최상위: 현장대리인 + 현장소장 (없으면 같은 자리에 placeholder 카드) === */}
+                {(topLevel.length > 0 || mode === "members") && (
+                  <div className="flex items-start gap-5">
+                    {topLevel.map((m) => (
+                      <OrgMemberCard
+                        key={m.id}
+                        member={m}
+                        primary
+                        onSelect={() => (mode === "members" ? openEditMember(m) : openProfile(m.id))}
+                      />
+                    ))}
+                    {mode === "members" &&
+                      !topLevel.some(
                         (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_REP"
                       ) && (
                         <button
                           type="button"
                           onClick={() => openAddMember({ roleCode: "SITE_REP" })}
-                          className="h-9 px-3 rounded-md border border-dashed border-slate-300 bg-white text-[12px] font-medium text-slate-600 hover:bg-slate-50"
+                          className="w-[280px] h-34 flex items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-[14px] font-semibold text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition"
                         >
-                          + 현장대리인
+                          + 현장대리인 추가
                         </button>
                       )}
-                    </div>
-                  )}
-                </div>
+                    {mode === "members" &&
+                      !topLevel.some(
+                        (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_MANAGER"
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={() => openAddMember({ roleCode: "SITE_MANAGER" })}
+                          className="w-[280px] h-34 flex items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-[14px] font-semibold text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition"
+                        >
+                          + 현장소장 추가
+                        </button>
+                      )}
+                  </div>
+                )}
 
-                <div className="h-3" />
-                <div className="w-px h-4 bg-gradient-to-b from-slate-500 to-slate-400" />
+                {(topLevel.length > 0 || mode === "members") && displayedDepts.length > 0 && (
+                  <>
+                    <div className="h-3" />
+                    <div className="w-px h-4 bg-gradient-to-b from-slate-500 to-slate-400" />
+                  </>
+                )}
 
                 {/* === 부서 행들 — 최대 8개씩, 초과 시 아래 행으로 === */}
                 {deptRows.map((row, rowIdx) => (
