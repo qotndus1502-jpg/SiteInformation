@@ -46,7 +46,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
 
   // 조직도 콘텐츠를 viewport에 맞춰 scale up — 큰 모니터에서도 맥북처럼 꽉 찬 느낌을 주려고.
   const contentRef = useRef<HTMLDivElement>(null);
-  const [metrics, setMetrics] = useState<{ w: number; h: number; scale: number }>({ w: 0, h: 0, scale: 1 });
+  const [metrics, setMetrics] = useState<{ w: number; h: number; scale: number; offX: number; offY: number }>({ w: 0, h: 0, scale: 1, offX: 0, offY: 0 });
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -58,13 +58,24 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       if (!naturalW || !naturalH) return;
       // 로딩/빈 상태에서는 scale 고정.
       if (loading || (members.length === 0)) {
-        setMetrics({ w: naturalW, h: naturalH, scale: 1 });
+        setMetrics({ w: naturalW, h: naturalH, scale: 1, offX: 0, offY: 0 });
         return;
       }
       const maxW = window.innerWidth * 0.95;
       const maxH = window.innerHeight * 0.92;
       const s = Math.min(maxW / naturalW, maxH / naturalH, 1.8);
-      setMetrics({ w: naturalW * s, h: naturalH * s, scale: s });
+      const scaledW = naturalW * s;
+      const scaledH = naturalH * s;
+      // 인원이 적은 현장도 큰 현장(예: 구리갈매)과 비슷한 박스 크기를 유지하도록 최소 사이즈 보장.
+      const boxW = Math.max(scaledW, Math.min(maxW, 1100));
+      const boxH = Math.max(scaledH, Math.min(maxH, 720));
+      setMetrics({
+        w: boxW,
+        h: boxH,
+        scale: s,
+        offX: (boxW - scaledW) / 2,
+        offY: (boxH - scaledH) / 2,
+      });
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -289,10 +300,12 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
           style={{
             width: "max-content",
             height: "max-content",
+            position: "absolute",
+            left: `${metrics.offX}px`,
+            top: `${metrics.offY}px`,
             transform: `scale(${metrics.scale})`,
             transformOrigin: "top left",
           }}
-          className="relative"
         >
           {/* Org Chart — slides left when profile opens */}
           <div
