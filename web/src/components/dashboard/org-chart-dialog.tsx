@@ -58,8 +58,8 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
   const [profileMemberId, setProfileMemberId] = useState<number | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // 팀 관리 모드
-  const [mode, setMode] = useState<"view" | "manage">("view");
+  // 관리 모드: view / manage(팀 편집 오버레이) / members(인원 편집 - 차트 위에 + / 클릭 편집)
+  const [mode, setMode] = useState<"view" | "manage" | "members">("view");
   const [editingDeptId, setEditingDeptId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
   const [addingNew, setAddingNew] = useState(false);
@@ -207,9 +207,10 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     deptEntries.push({ id: null, name: "기타", sort_order: 9999, members: orphans });
   }
 
-  // view 모드: 멤버 있는 팀만, manage 모드: 빈 팀도 모두 노출.
-  const displayedDepts: DeptEntry[] =
-    mode === "manage" ? deptEntries : deptEntries.filter((d) => d.members.length > 0);
+  // 빈 팀도 항상 노출 (FK 미일치 orphan 버킷만 멤버가 있을 때 표시).
+  const displayedDepts: DeptEntry[] = deptEntries.filter(
+    (d) => d.id != null || d.members.length > 0
+  );
 
   // 8개씩 행으로 나누기
   const deptRows: DeptEntry[][] = [];
@@ -328,23 +329,33 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
             </h2>
             <span className="text-[12px] text-slate-400">
               조직도{members.length > 0 ? ` · ${members.length}명` : ""}
-              {mode === "manage" ? " · 팀 편집 중" : ""}
+              {mode === "manage" ? " · 팀 편집 중" : mode === "members" ? " · 인원 편집 중" : ""}
             </span>
           </div>
         </div>
 
-        {/* 팀 관리 토글 — 관리자만, 우측 상단 고정 */}
+        {/* 관리자 토글 — 우측 상단 고정 */}
         {isAdmin && (
-          <div className="absolute right-4 top-3 z-20">
+          <div className="absolute right-4 top-3 z-20 flex items-center gap-1.5">
             {mode === "view" ? (
-              <button
-                type="button"
-                onClick={() => setMode("manage")}
-                className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <Settings2 className="h-3.5 w-3.5" />
-                팀 관리
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setMode("members")}
+                  className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  인원 편집
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("manage")}
+                  className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                  팀 관리
+                </button>
+              </>
             ) : (
               <button
                 type="button"
@@ -398,10 +409,10 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                       key={m.id}
                       member={m}
                       primary
-                      onSelect={() => (mode === "manage" ? openEditMember(m) : openProfile(m.id))}
+                      onSelect={() => (mode === "members" ? openEditMember(m) : openProfile(m.id))}
                     />
                   ))}
-                  {mode === "manage" && (
+                  {mode === "members" && (
                     <div className="flex flex-col gap-1.5">
                       {!topLevel.some(
                         (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_MANAGER"
@@ -461,7 +472,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                                         key={m.id}
                                         member={m}
                                         onSelect={() =>
-                                          mode === "manage" ? openEditMember(m) : openProfile(m.id)
+                                          mode === "members" ? openEditMember(m) : openProfile(m.id)
                                         }
                                       />
                                     ))}
@@ -472,7 +483,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                                         key={m.id}
                                         member={m}
                                         onSelect={() =>
-                                          mode === "manage" ? openEditMember(m) : openProfile(m.id)
+                                          mode === "members" ? openEditMember(m) : openProfile(m.id)
                                         }
                                       />
                                     ))}
@@ -485,13 +496,13 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                                       key={m.id}
                                       member={m}
                                       onSelect={() =>
-                                        mode === "manage" ? openEditMember(m) : openProfile(m.id)
+                                        mode === "members" ? openEditMember(m) : openProfile(m.id)
                                       }
                                     />
                                   ))}
                                 </div>
                               )}
-                              {mode === "manage" && dept.id != null && (
+                              {mode === "members" && dept.id != null && (
                                 <button
                                   type="button"
                                   onClick={() => openAddMember({ departmentId: dept.id })}

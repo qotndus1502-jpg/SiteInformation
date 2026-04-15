@@ -27,9 +27,7 @@ COORDS_FILE = Path(__file__).parent / "site_coordinates.json"
 DEFAULT_DEPARTMENTS: list[tuple[str, int]] = [
     ("공무", 10),
     ("공사", 20),
-    ("전기/기계/토목", 30),
-    ("품질", 40),
-    ("안전", 50),
+    ("안전", 30),
 ]
 
 app = FastAPI(title="SiteInformation API")
