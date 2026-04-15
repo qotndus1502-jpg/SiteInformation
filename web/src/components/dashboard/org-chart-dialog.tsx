@@ -65,8 +65,8 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
         setMetrics({ w: boxW, h: boxH, scale: 1 });
         return;
       }
-      // 콘텐츠가 박스에 들어가면 1x, 넘치면 축소. 작은 조직도는 확대하지 않고 중앙 정렬.
-      const s = Math.min(boxW / naturalW, boxH / naturalH, 1);
+      // 콘텐츠를 박스에 꽉 차게 스케일업 (한 축이 박스를 채울 때까지). 상한 2.5.
+      const s = Math.min(boxW / naturalW, boxH / naturalH, 2.5);
       setMetrics({ w: boxW, h: boxH, scale: s });
     };
     measure();
