@@ -201,15 +201,16 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       const naturalW = el.offsetWidth;
       const naturalH = el.offsetHeight;
       if (!naturalW || !naturalH) return;
-      // 박스 비율은 16:9로 고정. 스크롤 없이 viewport에 들어갈 수 있는 최대 크기로 키운다.
-      const RATIO = 16 / 9;
+      // 박스는 차트 자연 비율을 따라 viewport 내 최대 크기로 맞춤.
+      // 이렇게 해야 스케일 후 빈 여백 없이 헤더/트리가 동일 비율로 꽉 참.
       const maxW = window.innerWidth * 0.96;
       const maxH = window.innerHeight * 0.94;
+      const natRatio = naturalW / naturalH;
       let boxW = maxW;
-      let boxH = maxW / RATIO;
+      let boxH = maxW / natRatio;
       if (boxH > maxH) {
         boxH = maxH;
-        boxW = maxH * RATIO;
+        boxW = maxH * natRatio;
       }
       // 로딩/빈 상태에서도 박스는 그대로 유지.
       if (loading || members.length === 0) {
@@ -507,100 +508,8 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
         </DialogHeader>
 
         {/* Scale wrapper — 자연 크기 기준 렌더 후 viewport에 맞춰 uniform scale.
-            width/height: max-content 로 부모 제약에서 분리해서 ResizeObserver 루프 차단. */}
-        {/* 나가기 버튼 + 타이틀 — 좌측 상단 고정. 차트와 동일한 스케일로 커지도록 transform. */}
-        <div
-          className="absolute left-4 top-3 z-20 flex flex-col items-start gap-1"
-          style={{ transform: `scale(${metrics.scale})`, transformOrigin: "top left" }}
-        >
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-slate-900 transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            나가기
-          </button>
-          <div className="flex items-baseline gap-2">
-            <h2 className="text-[16px] font-semibold text-slate-900 tracking-tight">
-              {site.site_name}
-            </h2>
-            <span className="text-[12px] text-slate-400">
-              조직도{displayMembers.length > 0 ? ` · ${displayMembers.length}명` : ""}
-              {mode === "manage"
-                ? " · 팀 편집 중"
-                : mode === "members"
-                ? hasPendingChanges
-                  ? " · 인원 편집 중 (미저장)"
-                  : " · 인원 편집 중"
-                : ""}
-            </span>
-          </div>
-        </div>
-
-        {/* 관리자 토글 — 우측 상단 고정. 차트 스케일에 맞춰 동일 배율 확대. */}
-        {isAdmin && (
-          <div
-            className="absolute right-4 top-3 z-20 flex items-center gap-1.5"
-            style={{ transform: `scale(${metrics.scale})`, transformOrigin: "top right" }}
-          >
-            {mode === "view" && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setMode("members")}
-                  className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  인원 편집
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("manage")}
-                  className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  <Settings2 className="h-3.5 w-3.5" />
-                  팀 관리
-                </button>
-              </>
-            )}
-            {mode === "members" && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleCancelBatch}
-                  disabled={savingBatch}
-                  className="h-8 px-3 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCommitBatch}
-                  disabled={savingBatch}
-                  className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800 disabled:opacity-50"
-                >
-                  {savingBatch ? "저장 중..." : "저장"}
-                </button>
-              </>
-            )}
-            {mode === "manage" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("view");
-                  setEditingDeptId(null);
-                  setAddingNew(false);
-                  setDeptError(null);
-                }}
-                className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800"
-              >
-                완료
-              </button>
-            )}
-          </div>
-        )}
-
+            헤더/버튼/차트 모두 이 안에 들어가서 하나의 uniform 스케일 단위로 동작한다.
+            이전에는 헤더를 absolute + 개별 transform 으로 띄워서 차트와 앵커가 달라 겹침이 발생했다. */}
         <div
           ref={contentRef}
           style={{
@@ -613,6 +522,94 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
             transformOrigin: "center center",
           }}
         >
+          <div className="flex flex-col">
+            {/* 헤더 행 — 좌: 나가기/타이틀, 우: 관리자 버튼 */}
+            <div className="flex items-start justify-between gap-6 px-4 pt-3 pb-2">
+              <div className="flex flex-col items-start gap-1">
+                <button
+                  type="button"
+                  onClick={() => onOpenChange(false)}
+                  className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-slate-900 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  나가기
+                </button>
+                <div className="flex items-baseline gap-2">
+                  <h2 className="text-[16px] font-semibold text-slate-900 tracking-tight">
+                    {site.site_name}
+                  </h2>
+                  <span className="text-[12px] text-slate-400 whitespace-nowrap">
+                    조직도{displayMembers.length > 0 ? ` · ${displayMembers.length}명` : ""}
+                    {mode === "manage"
+                      ? " · 팀 편집 중"
+                      : mode === "members"
+                      ? hasPendingChanges
+                        ? " · 인원 편집 중 (미저장)"
+                        : " · 인원 편집 중"
+                      : ""}
+                  </span>
+                </div>
+              </div>
+              {isAdmin && (
+                <div className="flex items-center gap-1.5">
+                  {mode === "view" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setMode("members")}
+                        className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        인원 편집
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMode("manage")}
+                        className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        <Settings2 className="h-3.5 w-3.5" />
+                        팀 관리
+                      </button>
+                    </>
+                  )}
+                  {mode === "members" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleCancelBatch}
+                        disabled={savingBatch}
+                        className="h-8 px-3 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCommitBatch}
+                        disabled={savingBatch}
+                        className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800 disabled:opacity-50"
+                      >
+                        {savingBatch ? "저장 중..." : "저장"}
+                      </button>
+                    </>
+                  )}
+                  {mode === "manage" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("view");
+                        setEditingDeptId(null);
+                        setAddingNew(false);
+                        setDeptError(null);
+                      }}
+                      className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800"
+                    >
+                      완료
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
           {/* Org Chart — slides left when profile opens */}
           <div
             className={cn(
@@ -730,6 +727,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
               </div>
             )}
             </div>
+          </div>
           </div>
         </div>
 
