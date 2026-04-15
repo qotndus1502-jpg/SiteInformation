@@ -485,13 +485,25 @@ async def get_headcount_summary(site_id: int):
 
 @app.get("/api/sites/{site_id}/departments")
 async def get_site_departments(site_id: int):
-    """Get departments for a site."""
+    """Get departments for a site. Auto-seeds defaults on first access if empty."""
     response = supabase.schema("pmis").from_("site_department") \
         .select("*") \
         .eq("site_id", site_id) \
         .order("sort_order") \
         .execute()
-    return response.data or []
+    rows = response.data or []
+    if not rows:
+        try:
+            _seed_default_departments(site_id)
+            response = supabase.schema("pmis").from_("site_department") \
+                .select("*") \
+                .eq("site_id", site_id) \
+                .order("sort_order") \
+                .execute()
+            rows = response.data or []
+        except Exception as e:
+            print(f"[WARN] default department auto-seed failed for site {site_id}: {e}")
+    return rows
 
 
 @app.post("/api/sites/{site_id}/departments")
