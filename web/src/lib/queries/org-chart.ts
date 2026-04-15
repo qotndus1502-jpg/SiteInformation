@@ -69,13 +69,18 @@ export type OrgMemberInput = {
   is_active?: boolean
 }
 
-export async function createOrgMember(siteId: number, payload: OrgMemberInput): Promise<void> {
+export async function createOrgMember(
+  siteId: number,
+  payload: OrgMemberInput
+): Promise<{ id: number }> {
   const res = await fetch(`${API_BASE}/api/sites/${siteId}/org-members`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
-  await handleMutation<unknown>(res)
+  const data = await handleMutation<unknown>(res)
+  const row = Array.isArray(data) ? (data[0] as { id: number }) : (data as { id: number })
+  return { id: row.id }
 }
 
 export async function updateOrgMember(

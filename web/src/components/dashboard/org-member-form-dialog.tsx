@@ -12,12 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import {
-  createOrgMember,
-  updateOrgMember,
-  deleteOrgMember,
-  type OrgMemberInput,
-} from "@/lib/queries/org-chart";
+import { type OrgMemberInput } from "@/lib/queries/org-chart";
 import type { Department, OrgMember, OrgRole } from "@/types/org-chart";
 
 type OrgTypeCode = "OWN" | "JV" | "SUB";
@@ -25,7 +20,6 @@ type OrgTypeCode = "OWN" | "JV" | "SUB";
 interface OrgMemberFormDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  siteId: number;
   departments: Department[];
   roles: OrgRole[];
   members: OrgMember[];
@@ -34,7 +28,8 @@ interface OrgMemberFormDialogProps {
   presetDepartmentId?: number | null;
   /** Preset for create mode when opened from top-level add. */
   presetRoleCode?: string | null;
-  onSaved: () => void;
+  /** 저장 시 부모가 스테이징 또는 API 호출을 처리. memberId<0 이면 스테이징된 생성. */
+  onSubmit: (payload: OrgMemberInput, memberId: number | null) => void;
 }
 
 const ORG_TYPES: { code: OrgTypeCode; label: string }[] = [
@@ -83,14 +78,13 @@ function computeHierarchy(
 export function OrgMemberFormDialog({
   open,
   onOpenChange,
-  siteId,
   departments,
   roles,
   members,
   initialMember,
   presetDepartmentId,
   presetRoleCode,
-  onSaved,
+  onSubmit,
 }: OrgMemberFormDialogProps) {
   const isEdit = initialMember != null;
 
@@ -115,7 +109,6 @@ export function OrgMemberFormDialog({
   const [rank, setRank] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Reset on open.
@@ -146,7 +139,7 @@ export function OrgMemberFormDialog({
   const selectedRoleCode = roles.find((r) => r.id === roleId)?.code ?? "";
   const isTopLevelRole = TOP_LEVEL_ROLE_CODES.has(selectedRoleCode);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     setError(null);
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -182,36 +175,8 @@ export function OrgMemberFormDialog({
       email: email.trim() || null,
     };
 
-    setSaving(true);
-    try {
-      if (isEdit && initialMember) {
-        await updateOrgMember(initialMember.id, payload);
-      } else {
-        await createOrgMember(siteId, payload);
-      }
-      onSaved();
-      onOpenChange(false);
-    } catch (e) {
-      setError((e as Error).message || "저장 실패");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!initialMember) return;
-    if (!confirm(`${initialMember.name} 님을 조직도에서 삭제하시겠습니까?`)) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await deleteOrgMember(initialMember.id);
-      onSaved();
-      onOpenChange(false);
-    } catch (e) {
-      setError((e as Error).message || "삭제 실패");
-    } finally {
-      setSaving(false);
-    }
+    onSubmit(payload, initialMember?.id ?? null);
+    onOpenChange(false);
   };
 
   return (
@@ -343,37 +308,21 @@ export function OrgMemberFormDialog({
           <p className="text-[12px] text-red-600 -mt-1">{error}</p>
         )}
 
-        <div className="flex items-center justify-between pt-1">
-          <div>
-            {isEdit && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={saving}
-                className="h-9 px-3 rounded-md text-[13px] font-normal text-red-600 hover:bg-red-50 disabled:opacity-50"
-              >
-                삭제
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-              className="h-9 px-3 rounded-md text-[13px] font-normal text-slate-600 hover:bg-slate-100"
-            >
-              취소
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="h-9 px-4 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800 disabled:opacity-50"
-            >
-              {saving ? "저장 중..." : "저장"}
-            </button>
-          </div>
+        <div className="flex items-center justify-end gap-1.5 pt-1">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="h-9 px-3 rounded-md text-[13px] font-normal text-slate-600 hover:bg-slate-100"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="h-9 px-4 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800"
+          >
+            적용
+          </button>
         </div>
       </DialogContent>
     </Dialog>

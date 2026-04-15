@@ -14,6 +14,10 @@ import {
   createDepartment,
   updateDepartment,
   deleteDepartment,
+  createOrgMember,
+  updateOrgMember,
+  deleteOrgMember,
+  type OrgMemberInput,
 } from "@/lib/queries/org-chart";
 import type { Department, OrgMember, OrgRole } from "@/types/org-chart";
 import type { SiteDashboard } from "@/types/database";
@@ -40,6 +44,27 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
   const [memberFormPresetDept, setMemberFormPresetDept] = useState<number | null>(null);
   const [memberFormPresetRole, setMemberFormPresetRole] = useState<string | null>(null);
 
+  // ── 인원 편집 모드 스테이징 ──
+  // 모든 변경은 로컬에 쌓였다가 "저장" 클릭 시 일괄 API 적용. "취소"는 snapshot으로 복구.
+  const [pendingCreates, setPendingCreates] = useState<Array<{ tempId: number; payload: OrgMemberInput }>>([]);
+  const [pendingUpdates, setPendingUpdates] = useState<Array<{ id: number; patch: OrgMemberInput }>>([]);
+  const [pendingDeletes, setPendingDeletes] = useState<number[]>([]);
+  const [savingBatch, setSavingBatch] = useState(false);
+  const tempIdRef = useRef<number>(-1);
+  const nextTempId = () => {
+    const id = tempIdRef.current;
+    tempIdRef.current -= 1;
+    return id;
+  };
+  const clearPending = () => {
+    setPendingCreates([]);
+    setPendingUpdates([]);
+    setPendingDeletes([]);
+    tempIdRef.current = -1;
+  };
+  const hasPendingChanges =
+    pendingCreates.length > 0 || pendingUpdates.length > 0 || pendingDeletes.length > 0;
+
   const openAddMember = (opts: { departmentId?: number | null; roleCode?: string | null }) => {
     setMemberFormInitial(null);
     setMemberFormPresetDept(opts.departmentId ?? null);
@@ -52,6 +77,103 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     setMemberFormPresetRole(null);
     setMemberFormOpen(true);
   };
+
+  const handleMemberSubmit = (payload: OrgMemberInput, memberId: number | null) => {
+    if (memberId == null) {
+      // 신규 스테이징
+      const tempId = nextTempId();
+      setPendingCreates((prev) => [...prev, { tempId, payload }]);
+    } else if (memberId < 0) {
+      // 스테이징 중인 생성 수정
+      setPendingCreates((prev) =>
+        prev.map((p) => (p.tempId === memberId ? { ...p, payload } : p))
+      );
+    } else {
+      // 서버 멤버 수정
+      setPendingUpdates((prev) => {
+        const exists = prev.find((u) => u.id === memberId);
+        if (exists) {
+          return prev.map((u) => (u.id === memberId ? { id: memberId, patch: payload } : u));
+        }
+        return [...prev, { id: memberId, patch: payload }];
+      });
+    }
+  };
+
+  const handleQuickDelete = (m: OrgMember, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`${m.name} 님을 조직도에서 삭제하시겠습니까?`)) return;
+    if (m.id < 0) {
+      // 스테이징 된 생성 제거
+      setPendingCreates((prev) => prev.filter((p) => p.tempId !== m.id));
+    } else {
+      setPendingDeletes((prev) => (prev.includes(m.id) ? prev : [...prev, m.id]));
+      setPendingUpdates((prev) => prev.filter((u) => u.id !== m.id));
+    }
+  };
+
+  const handleCommitBatch = async () => {
+    if (savingBatch) return;
+    if (!hasPendingChanges) {
+      setMode("view");
+      return;
+    }
+    setSavingBatch(true);
+    try {
+      // 1) 삭제 먼저 (삭제된 대상에 대한 update가 남아있을 일은 없지만 순서상 안전)
+      for (const id of pendingDeletes) {
+        await deleteOrgMember(id);
+      }
+      // 2) 업데이트
+      for (const u of pendingUpdates) {
+        await updateOrgMember(u.id, u.patch);
+      }
+      // 3) 생성 — tempId 간 parent 참조 매핑
+      const tempToReal = new Map<number, number>();
+      for (const c of pendingCreates) {
+        const payload: OrgMemberInput = { ...c.payload };
+        if (payload.parent_id != null && payload.parent_id < 0) {
+          payload.parent_id = tempToReal.get(payload.parent_id) ?? null;
+        }
+        const res = await createOrgMember(site.id, payload);
+        tempToReal.set(c.tempId, res.id);
+      }
+      clearPending();
+      setMode("view");
+      await load();
+    } catch (err) {
+      alert((err as Error).message || "저장 실패");
+    } finally {
+      setSavingBatch(false);
+    }
+  };
+
+  const handleCancelBatch = () => {
+    if (hasPendingChanges && !confirm("편집 내용을 취소하시겠습니까?")) return;
+    clearPending();
+    setMode("view");
+  };
+
+  /** 인원 편집 모드에서 카드 위에 × 삭제 버튼을 올려주는 래퍼. */
+  const EditableCard = ({ m, primary }: { m: OrgMember; primary?: boolean }) => (
+    <div className="relative group">
+      <OrgMemberCard
+        member={m}
+        primary={primary}
+        onSelect={() => (mode === "members" ? openEditMember(m) : openProfile(m.id))}
+      />
+      {mode === "members" && (
+        <button
+          type="button"
+          onClick={(e) => handleQuickDelete(m, e)}
+          className="absolute -top-1.5 -right-1.5 z-10 h-6 w-6 flex items-center justify-center rounded-full bg-white border border-slate-300 text-slate-500 shadow-sm opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition"
+          aria-label="삭제"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   // For slide animation: keep profile mounted during exit
   const [showProfile, setShowProfile] = useState(false);
@@ -141,6 +263,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       setEditingDeptId(null);
       setAddingNew(false);
       setDeptError(null);
+      clearPending();
     }
   }, [open]);
 
@@ -184,7 +307,72 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
   const DEPT_WIDTH_WIDE = 304;
   const DEPT_GAP = 20;
 
-  const topLevel = members.filter((m) => m.parent_id == null);
+  // ── 스테이징을 반영한 effective 조직원 리스트 ──
+  // 서버 members에 pendingUpdates 적용, pendingDeletes 제외, pendingCreates 를 temp member로 추가.
+  const displayMembers: OrgMember[] = (() => {
+    const roleLookup = (rid: number) => roles.find((r) => r.id === rid);
+    const deptLookup = (did: number | null) =>
+      did != null ? departments.find((d) => d.id === did) : undefined;
+
+    const updated = members
+      .filter((m) => !pendingDeletes.includes(m.id))
+      .map((m) => {
+        const u = pendingUpdates.find((p) => p.id === m.id);
+        if (!u) return m;
+        const role = roleLookup(u.patch.role_id);
+        const dept = deptLookup(u.patch.department_id);
+        return {
+          ...m,
+          name: u.patch.name,
+          role_id: u.patch.role_id,
+          role_code: role?.code ?? m.role_code,
+          role_name: role?.name ?? m.role_name,
+          role_sort_order: role?.sort_order ?? m.role_sort_order,
+          department_id: u.patch.department_id,
+          department_name: dept?.name ?? null,
+          department_sort_order: dept?.sort_order ?? null,
+          parent_id: u.patch.parent_id,
+          org_type: u.patch.org_type,
+          company_name: u.patch.company_name,
+          rank: u.patch.rank,
+          phone: u.patch.phone,
+          email: u.patch.email,
+        };
+      });
+
+    const created: OrgMember[] = pendingCreates.map(({ tempId, payload }) => {
+      const role = roleLookup(payload.role_id);
+      const dept = deptLookup(payload.department_id);
+      return {
+        id: tempId,
+        site_id: site.id,
+        name: payload.name,
+        rank: payload.rank,
+        phone: payload.phone,
+        email: payload.email,
+        org_type: payload.org_type,
+        company_name: payload.company_name,
+        employee_type: null,
+        role_id: payload.role_id,
+        role_code: role?.code ?? "",
+        role_name: role?.name ?? "",
+        role_sort_order: role?.sort_order ?? 0,
+        department_id: payload.department_id,
+        department_name: dept?.name ?? null,
+        department_sort_order: dept?.sort_order ?? null,
+        specialty: null,
+        parent_id: payload.parent_id,
+        sort_order: payload.sort_order ?? 9999,
+        is_active: true,
+        assigned_from: null,
+        assigned_to: null,
+        note: null,
+      };
+    });
+    return [...updated, ...created];
+  })();
+
+  const topLevel = displayMembers.filter((m) => m.parent_id == null);
 
   // 부서별 그룹핑 — departments 상태를 source of truth로 사용.
   type DeptEntry = { id: number | null; name: string; sort_order: number; members: OrgMember[] };
@@ -193,14 +381,14 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       id: d.id,
       name: d.name,
       sort_order: d.sort_order,
-      members: members
+      members: displayMembers
         .filter((m) => m.parent_id != null && m.department_id === d.id)
         .sort((a, b) => a.sort_order - b.sort_order),
     }))
     .sort((a, b) => a.sort_order - b.sort_order);
 
   // FK 미일치 조직원(기타 버킷) — 정상 상태에서는 비어있음
-  const orphans = members.filter(
+  const orphans = displayMembers.filter(
     (m) => m.parent_id != null && !departments.some((d) => d.id === m.department_id)
   );
   if (orphans.length > 0) {
@@ -328,8 +516,14 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
               {site.site_name}
             </h2>
             <span className="text-[12px] text-slate-400">
-              조직도{members.length > 0 ? ` · ${members.length}명` : ""}
-              {mode === "manage" ? " · 팀 편집 중" : mode === "members" ? " · 인원 편집 중" : ""}
+              조직도{displayMembers.length > 0 ? ` · ${displayMembers.length}명` : ""}
+              {mode === "manage"
+                ? " · 팀 편집 중"
+                : mode === "members"
+                ? hasPendingChanges
+                  ? " · 인원 편집 중 (미저장)"
+                  : " · 인원 편집 중"
+                : ""}
             </span>
           </div>
         </div>
@@ -337,7 +531,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
         {/* 관리자 토글 — 우측 상단 고정 */}
         {isAdmin && (
           <div className="absolute right-4 top-3 z-20 flex items-center gap-1.5">
-            {mode === "view" ? (
+            {mode === "view" && (
               <>
                 <button
                   type="button"
@@ -356,7 +550,28 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                   팀 관리
                 </button>
               </>
-            ) : (
+            )}
+            {mode === "members" && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleCancelBatch}
+                  disabled={savingBatch}
+                  className="h-8 px-3 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCommitBatch}
+                  disabled={savingBatch}
+                  className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800 disabled:opacity-50"
+                >
+                  {savingBatch ? "저장 중..." : "저장"}
+                </button>
+              </>
+            )}
+            {mode === "manage" && (
               <button
                 type="button"
                 onClick={() => {
@@ -406,12 +621,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                 {(topLevel.length > 0 || mode === "members") && (
                   <div className="flex items-start gap-5">
                     {topLevel.map((m) => (
-                      <OrgMemberCard
-                        key={m.id}
-                        member={m}
-                        primary
-                        onSelect={() => (mode === "members" ? openEditMember(m) : openProfile(m.id))}
-                      />
+                      <EditableCard key={m.id} m={m} primary />
                     ))}
                     {mode === "members" &&
                       !topLevel.some(
@@ -472,37 +682,19 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                                 <div className="flex gap-x-2 justify-start">
                                   <div className="flex flex-col items-start gap-2.5">
                                     {dept.members.filter((_, i) => i % 2 === 0).map((m) => (
-                                      <OrgMemberCard
-                                        key={m.id}
-                                        member={m}
-                                        onSelect={() =>
-                                          mode === "members" ? openEditMember(m) : openProfile(m.id)
-                                        }
-                                      />
+                                      <EditableCard key={m.id} m={m} />
                                     ))}
                                   </div>
                                   <div className="flex flex-col items-start gap-2.5">
                                     {dept.members.filter((_, i) => i % 2 === 1).map((m) => (
-                                      <OrgMemberCard
-                                        key={m.id}
-                                        member={m}
-                                        onSelect={() =>
-                                          mode === "members" ? openEditMember(m) : openProfile(m.id)
-                                        }
-                                      />
+                                      <EditableCard key={m.id} m={m} />
                                     ))}
                                   </div>
                                 </div>
                               ) : (
                                 <div className="flex flex-col items-start gap-2.5">
                                   {dept.members.map((m) => (
-                                    <OrgMemberCard
-                                      key={m.id}
-                                      member={m}
-                                      onSelect={() =>
-                                        mode === "members" ? openEditMember(m) : openProfile(m.id)
-                                      }
-                                    />
+                                    <EditableCard key={m.id} m={m} />
                                   ))}
                                 </div>
                               )}
@@ -753,14 +945,13 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       <OrgMemberFormDialog
         open={memberFormOpen}
         onOpenChange={setMemberFormOpen}
-        siteId={site.id}
         departments={departments}
         roles={roles}
-        members={members}
+        members={displayMembers}
         initialMember={memberFormInitial}
         presetDepartmentId={memberFormPresetDept}
         presetRoleCode={memberFormPresetRole}
-        onSaved={load}
+        onSubmit={handleMemberSubmit}
       />
     </Dialog>
   );
