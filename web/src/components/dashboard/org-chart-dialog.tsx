@@ -201,16 +201,23 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       const naturalW = el.offsetWidth;
       const naturalH = el.offsetHeight;
       if (!naturalW || !naturalH) return;
-      // 박스 크기는 항상 고정 — viewport 95% × 92% (최대 캡 적용).
-      const boxW = Math.min(window.innerWidth * 0.95, 1600);
-      const boxH = Math.min(window.innerHeight * 0.92, 900);
+      // 박스 비율은 16:9로 고정. 스크롤 없이 viewport에 들어갈 수 있는 최대 크기로 키운다.
+      const RATIO = 16 / 9;
+      const maxW = window.innerWidth * 0.96;
+      const maxH = window.innerHeight * 0.94;
+      let boxW = maxW;
+      let boxH = maxW / RATIO;
+      if (boxH > maxH) {
+        boxH = maxH;
+        boxW = maxH * RATIO;
+      }
       // 로딩/빈 상태에서도 박스는 그대로 유지.
       if (loading || members.length === 0) {
         setMetrics({ w: boxW, h: boxH, scale: 1 });
         return;
       }
-      // 스케일업 없이 자연 크기 유지. 박스보다 크면만 축소해서 맞춤.
-      const s = Math.min(boxW / naturalW, boxH / naturalH, 1);
+      // 비율은 유지하고 박스에 꽉 차게 확대/축소 — 한 축이 박스를 채울 때까지.
+      const s = Math.min(boxW / naturalW, boxH / naturalH);
       setMetrics({ w: boxW, h: boxH, scale: s });
     };
     measure();
@@ -501,8 +508,11 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
 
         {/* Scale wrapper — 자연 크기 기준 렌더 후 viewport에 맞춰 uniform scale.
             width/height: max-content 로 부모 제약에서 분리해서 ResizeObserver 루프 차단. */}
-        {/* 나가기 버튼 + 타이틀 — 다이얼로그 좌측 상단 고정 (스케일 영향 없음) */}
-        <div className="absolute left-4 top-3 z-20 flex flex-col items-start gap-1">
+        {/* 나가기 버튼 + 타이틀 — 좌측 상단 고정. 차트와 동일한 스케일로 커지도록 transform. */}
+        <div
+          className="absolute left-4 top-3 z-20 flex flex-col items-start gap-1"
+          style={{ transform: `scale(${metrics.scale})`, transformOrigin: "top left" }}
+        >
           <button
             type="button"
             onClick={() => onOpenChange(false)}
@@ -528,9 +538,12 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
           </div>
         </div>
 
-        {/* 관리자 토글 — 우측 상단 고정 */}
+        {/* 관리자 토글 — 우측 상단 고정. 차트 스케일에 맞춰 동일 배율 확대. */}
         {isAdmin && (
-          <div className="absolute right-4 top-3 z-20 flex items-center gap-1.5">
+          <div
+            className="absolute right-4 top-3 z-20 flex items-center gap-1.5"
+            style={{ transform: `scale(${metrics.scale})`, transformOrigin: "top right" }}
+          >
             {mode === "view" && (
               <>
                 <button
@@ -720,21 +733,31 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
           </div>
         </div>
 
-        {/* Profile — slides in from right. 스케일 영향 없이 다이얼로그 박스 전체 크기로. */}
+        {/* Profile — slides in from right. 차트와 동일한 스케일로 확대. */}
         {profileMemberId != null && (
           <div
             className={cn(
-              "absolute inset-0 z-25 bg-white transition-transform duration-300 ease-in-out",
+              "absolute inset-0 z-25 overflow-hidden transition-transform duration-300 ease-in-out",
               showProfile ? "translate-x-0" : "translate-x-full"
             )}
           >
-            <EmployeeProfile
-              memberId={profileMemberId}
-              siteName={`${site.corporation_name ?? ""} · ${site.site_name}`}
-              onBack={closeProfile}
-              fallbackMember={members.find((m) => m.id === profileMemberId) ?? null}
-              allMembers={members}
-            />
+            <div
+              className="bg-white"
+              style={{
+                width: `${metrics.w / metrics.scale}px`,
+                height: `${metrics.h / metrics.scale}px`,
+                transform: `scale(${metrics.scale})`,
+                transformOrigin: "top left",
+              }}
+            >
+              <EmployeeProfile
+                memberId={profileMemberId}
+                siteName={`${site.corporation_name ?? ""} · ${site.site_name}`}
+                onBack={closeProfile}
+                fallbackMember={members.find((m) => m.id === profileMemberId) ?? null}
+                allMembers={members}
+              />
+            </div>
           </div>
         )}
 
