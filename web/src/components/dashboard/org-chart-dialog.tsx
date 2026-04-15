@@ -46,6 +46,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
 
   // 조직도 콘텐츠를 viewport에 맞춰 scale up — 큰 모니터에서도 맥북처럼 꽉 찬 느낌을 주려고.
   const contentRef = useRef<HTMLDivElement>(null);
+  // 다이얼로그 박스는 현장에 관계없이 고정. 가장 큰 현장(구리갈매역세권)이 꽉 차는 viewport 비율 기준.
   const [metrics, setMetrics] = useState<{ w: number; h: number; scale: number }>({ w: 0, h: 0, scale: 1 });
 
   useLayoutEffect(() => {
@@ -56,15 +57,17 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       const naturalW = el.offsetWidth;
       const naturalH = el.offsetHeight;
       if (!naturalW || !naturalH) return;
-      // 로딩/빈 상태에서는 scale 고정.
-      if (loading || (members.length === 0)) {
-        setMetrics({ w: naturalW, h: naturalH, scale: 1 });
+      // 박스 크기는 항상 고정 — viewport 95% × 92% (최대 캡 적용).
+      const boxW = Math.min(window.innerWidth * 0.95, 1600);
+      const boxH = Math.min(window.innerHeight * 0.92, 900);
+      // 로딩/빈 상태에서도 박스는 그대로 유지.
+      if (loading || members.length === 0) {
+        setMetrics({ w: boxW, h: boxH, scale: 1 });
         return;
       }
-      const maxW = window.innerWidth * 0.95;
-      const maxH = window.innerHeight * 0.92;
-      const s = Math.min(maxW / naturalW, maxH / naturalH, 1.8);
-      setMetrics({ w: naturalW * s, h: naturalH * s, scale: s });
+      // 콘텐츠가 박스에 들어가면 1x, 넘치면 축소. 작은 조직도는 확대하지 않고 중앙 정렬.
+      const s = Math.min(boxW / naturalW, boxH / naturalH, 1);
+      setMetrics({ w: boxW, h: boxH, scale: s });
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -289,10 +292,12 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
           style={{
             width: "max-content",
             height: "max-content",
-            transform: `scale(${metrics.scale})`,
-            transformOrigin: "top left",
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            transform: `translate(-50%, -50%) scale(${metrics.scale})`,
+            transformOrigin: "center center",
           }}
-          className="relative"
         >
           {/* Org Chart — slides left when profile opens */}
           <div
