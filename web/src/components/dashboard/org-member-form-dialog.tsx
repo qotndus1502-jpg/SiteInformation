@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { type OrgMemberInput } from "@/lib/queries/org-chart";
 import type { Department, OrgMember, OrgRole } from "@/types/org-chart";
 
-type OrgTypeCode = "OWN" | "JV" | "SUB";
+type OrgTypeCode = "OWN" | "JV";
 
 interface OrgMemberFormDialogProps {
   open: boolean;
@@ -35,7 +35,6 @@ interface OrgMemberFormDialogProps {
 const ORG_TYPES: { code: OrgTypeCode; label: string }[] = [
   { code: "OWN", label: "자체" },
   { code: "JV", label: "공동도급" },
-  { code: "SUB", label: "외주" },
 ];
 
 const TOP_LEVEL_ROLE_CODES = new Set(["SITE_MANAGER", "SITE_REP"]);
@@ -249,7 +248,7 @@ export function OrgMemberFormDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>소속사 구분 *</Label>
+            <Label>소속 회사 *</Label>
             <Select value={orgType} onValueChange={(v) => setOrgType(v as OrgTypeCode)}>
               <SelectTrigger className="w-full">
                 <SelectValue />

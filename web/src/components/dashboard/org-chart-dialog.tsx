@@ -718,25 +718,25 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
             )}
             </div>
           </div>
-
-          {/* Profile — slides in from right */}
-          {profileMemberId != null && (
-            <div
-              className={cn(
-                "absolute inset-0 transition-transform duration-300 ease-in-out",
-                showProfile ? "translate-x-0" : "translate-x-full"
-              )}
-            >
-              <EmployeeProfile
-                memberId={profileMemberId}
-                siteName={`${site.corporation_name ?? ""} · ${site.site_name}`}
-                onBack={closeProfile}
-                fallbackMember={members.find((m) => m.id === profileMemberId) ?? null}
-                allMembers={members}
-              />
-            </div>
-          )}
         </div>
+
+        {/* Profile — slides in from right. 스케일 영향 없이 다이얼로그 박스 전체 크기로. */}
+        {profileMemberId != null && (
+          <div
+            className={cn(
+              "absolute inset-0 z-25 bg-white transition-transform duration-300 ease-in-out",
+              showProfile ? "translate-x-0" : "translate-x-full"
+            )}
+          >
+            <EmployeeProfile
+              memberId={profileMemberId}
+              siteName={`${site.corporation_name ?? ""} · ${site.site_name}`}
+              onBack={closeProfile}
+              fallbackMember={members.find((m) => m.id === profileMemberId) ?? null}
+              allMembers={members}
+            />
+          </div>
+        )}
 
         {/* ── 팀 관리 오버레이 — scale wrapper 바깥, 조직도 위에 등장 ── */}
         {mode === "manage" && (

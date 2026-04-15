@@ -197,7 +197,7 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
           <div className="w-[280px] shrink-0 space-y-4">
             {member.job_category && (
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-red-500">{member.job_category}</span>
+                <span className="text-[12px] font-bold text-red-500">{member.job_category}</span>
               </div>
             )}
 
@@ -213,10 +213,10 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
             </div>
 
             <div className="text-center">
-              <p className="text-xl">
+              <p className="text-[18px]">
                 <span className="font-bold">{member.name}</span>{" "}
                 <span className="text-muted-foreground">{member.rank}</span>
-                {age != null && <span className="text-muted-foreground text-base ml-1">({age}세)</span>}
+                {age != null && <span className="text-muted-foreground text-[14px] ml-1">({age}세)</span>}
               </p>
             </div>
 
@@ -224,14 +224,14 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
               <div className="flex rounded-lg border border-border overflow-hidden text-center divide-x divide-border">
                 {tenure && (
                   <div className="flex-1 py-2.5">
-                    <p className="text-base font-bold">{tenure}</p>
-                    <p className="text-xs text-muted-foreground">근속</p>
+                    <p className="text-[14px] font-bold">{tenure}</p>
+                    <p className="text-[11px] text-muted-foreground">근속</p>
                   </div>
                 )}
                 {totalExp && (
                   <div className="flex-1 py-2.5">
-                    <p className="text-base font-bold">{totalExp}</p>
-                    <p className="text-xs text-muted-foreground">경력</p>
+                    <p className="text-[14px] font-bold">{totalExp}</p>
+                    <p className="text-[11px] text-muted-foreground">경력</p>
                   </div>
                 )}
               </div>
@@ -240,7 +240,7 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
             {educations.length > 0 && (
               <div className="border border-border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-medium text-muted-foreground">학력</h4>
+                  <h4 className="text-[12px] font-medium text-muted-foreground">학력</h4>
                   <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
                 <div className="space-y-3">
@@ -250,8 +250,8 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
                         <GraduationCap className="h-4 w-4 text-purple-600" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold">{edu.school_name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[12px] font-bold">{edu.school_name}</p>
+                        <p className="text-[11px] text-muted-foreground">
                           {[edu.major, edu.degree].filter(Boolean).join(" · ")}
                         </p>
                       </div>
@@ -267,24 +267,24 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
 
             {/* CAREER */}
             <section>
-              <h2 className="text-lg font-black tracking-wide mb-4">CAREER</h2>
+              <h2 className="text-[15px] font-black tracking-wide mb-4">CAREER</h2>
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">자사 경력</h3>
+                  <h3 className="text-[12px] font-semibold text-muted-foreground mb-3">자사 경력</h3>
                   <div className="space-y-3">
                     {internalCareers.length === 0 && (
-                      <p className="text-sm text-muted-foreground/50 py-4 text-center">등록된 경력이 없습니다</p>
+                      <p className="text-[12px] text-muted-foreground/50 py-4 text-center">등록된 경력이 없습니다</p>
                     )}
                     {internalCareers.map((c, i) => (
                       <div key={i} className="border border-border rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-2">
-                          {i === 0 && <span className="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded">NOW</span>}
-                          <span className="text-sm font-semibold">
+                          {i === 0 && <span className="text-[11px] font-bold text-white bg-primary px-2 py-0.5 rounded">NOW</span>}
+                          <span className="text-[12px] font-semibold">
                             {[c.department, c.position, c.date].filter(Boolean).join(" | ")}
                           </span>
                         </div>
                         {c.description?.split("\n").filter((l: string) => l.trim()).map((desc: string, j: number) => (
-                          <p key={j} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                          <p key={j} className="text-[12px] text-muted-foreground flex items-start gap-1.5">
                             <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-foreground shrink-0" />
                             {desc.replace(/^★/, "").trim()}
                           </p>
@@ -294,10 +294,10 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">타사 경력</h3>
+                  <h3 className="text-[12px] font-semibold text-muted-foreground mb-3">타사 경력</h3>
                   <div className="space-y-3">
                     {externalCareers.length === 0 && (
-                      <p className="text-sm text-muted-foreground/50 py-4 text-center">등록된 경력이 없습니다</p>
+                      <p className="text-[12px] text-muted-foreground/50 py-4 text-center">등록된 경력이 없습니다</p>
                     )}
                     {externalCareers.map((c, i) => {
                       const period = (() => {
@@ -308,11 +308,11 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
                       })();
                       return (
                         <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                          <p className="text-sm font-semibold mb-2">
+                          <p className="text-[12px] font-semibold mb-2">
                             {c.company}{c.position && ` | ${c.position}`}{period && ` | ${period}`}
                           </p>
                           {c.description?.split("\n").filter((l) => l.trim()).map((desc, j) => (
-                            <p key={j} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                            <p key={j} className="text-[12px] text-muted-foreground flex items-start gap-1.5">
                               <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                               {desc.replace(/^★/, "").trim()}
                             </p>
@@ -327,18 +327,18 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
 
             {/* SKILLS */}
             <section>
-              <h2 className="text-lg font-black tracking-wide mb-4">SKILLS</h2>
+              <h2 className="text-[15px] font-black tracking-wide mb-4">SKILLS</h2>
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">자격증 및 면허</h3>
+                  <h3 className="text-[12px] font-semibold text-muted-foreground mb-3">자격증 및 면허</h3>
                   <div className="space-y-3">
                     {certifications.length === 0 && (
-                      <p className="text-sm text-muted-foreground/50 py-4 text-center">등록된 자격증이 없습니다</p>
+                      <p className="text-[12px] text-muted-foreground/50 py-4 text-center">등록된 자격증이 없습니다</p>
                     )}
                     {certifications.map((cert, i) => (
                       <div key={i} className="border border-border rounded-lg p-4">
-                        <p className="text-sm font-bold">{cert.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[12px] font-bold">{cert.name}</p>
+                        <p className="text-[11px] text-muted-foreground">
                           {[cert.acquisition_date, cert.issuer].filter(Boolean).join(" · ")}
                         </p>
                       </div>
@@ -346,13 +346,13 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">스킬</h3>
+                  <h3 className="text-[12px] font-semibold text-muted-foreground mb-3">스킬</h3>
                   <div className="flex flex-wrap gap-2">
                     {skills.length === 0 && (
-                      <p className="text-sm text-muted-foreground/50 py-4 text-center w-full">등록된 스킬이 없습니다</p>
+                      <p className="text-[12px] text-muted-foreground/50 py-4 text-center w-full">등록된 스킬이 없습니다</p>
                     )}
                     {skills.map((skill) => (
-                      <span key={skill} className="px-4 py-2 bg-muted rounded-lg text-sm font-medium">{skill}</span>
+                      <span key={skill} className="px-4 py-2 bg-muted rounded-lg text-[12px] font-medium">{skill}</span>
                     ))}
                   </div>
                 </div>
@@ -361,51 +361,51 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
 
             {/* INFORMATION */}
             <section>
-              <h2 className="text-lg font-black tracking-wide mb-4">INFORMATION</h2>
+              <h2 className="text-[15px] font-black tracking-wide mb-4">INFORMATION</h2>
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">인사정보</h3>
+                  <h3 className="text-[12px] font-semibold text-muted-foreground mb-3">인사정보</h3>
                   <div className="space-y-3">
                     {member.birth_date && (
-                      <div className="flex items-center gap-3 text-sm">
+                      <div className="flex items-center gap-3 text-[12px]">
                         <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                         <span>{member.birth_date}</span>
                       </div>
                     )}
                     {member.address && (
-                      <div className="flex items-center gap-3 text-sm">
+                      <div className="flex items-center gap-3 text-[12px]">
                         <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
                         <span>{member.address}</span>
                       </div>
                     )}
                     {!member.birth_date && !member.address && (
-                      <p className="text-sm text-muted-foreground/50 py-4 text-center">등록된 정보가 없습니다</p>
+                      <p className="text-[12px] text-muted-foreground/50 py-4 text-center">등록된 정보가 없습니다</p>
                     )}
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">연락처</h3>
+                  <h3 className="text-[12px] font-semibold text-muted-foreground mb-3">연락처</h3>
                   <div className="space-y-3">
                     {member.phone_work && (
-                      <div className="flex items-center gap-3 text-sm">
+                      <div className="flex items-center gap-3 text-[12px]">
                         <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
                         <span>{member.phone_work}</span>
                       </div>
                     )}
                     {member.phone && (
-                      <div className="flex items-center gap-3 text-sm">
+                      <div className="flex items-center gap-3 text-[12px]">
                         <Smartphone className="h-4 w-4 text-muted-foreground shrink-0" />
                         <a href={`tel:${member.phone}`} className="text-primary hover:underline">{member.phone}</a>
                       </div>
                     )}
                     {member.email && (
-                      <div className="flex items-center gap-3 text-sm">
+                      <div className="flex items-center gap-3 text-[12px]">
                         <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
                         <a href={`mailto:${member.email}`} className="text-primary hover:underline">{member.email}</a>
                       </div>
                     )}
                     {!member.phone_work && !member.phone && !member.email && (
-                      <p className="text-sm text-muted-foreground/50 py-4 text-center">등록된 연락처가 없습니다</p>
+                      <p className="text-[12px] text-muted-foreground/50 py-4 text-center">등록된 연락처가 없습니다</p>
                     )}
                   </div>
                 </div>

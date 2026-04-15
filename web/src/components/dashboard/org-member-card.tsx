@@ -251,7 +251,7 @@ export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps)
               {member.name}
             </p>
             <div className="mt-1 flex flex-col items-start gap-1">
-              {member.company_name && (
+              {member.org_type === "JV" && (
                 <span className="inline-flex justify-center w-[50px] px-1.5 py-[1px] rounded-full bg-blue-50 text-blue-700 text-[9px] font-semibold leading-[1.3]">
                   공동도급
                 </span>
