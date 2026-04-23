@@ -11,7 +11,7 @@ import traceback
 import httpx
 from typing import Optional
 from pathlib import Path
-from datetime import datetime
+from datetime import date, datetime
 from collections import defaultdict
 
 load_dotenv()
@@ -976,15 +976,19 @@ def _date_to_ym(d: str) -> str:
 
 
 def _pre_start_by_completion_year(sites: list[dict]) -> list[dict]:
-    """Group PRE_START sites by start_date month (착공 시작월)."""
+    """Group PRE_START sites by start_date month (착공 예정월).
+    Past-dated sites are excluded — admin keeps 착공전 status for not-yet-started
+    projects whose scheduled start already passed, but they don't belong on the
+    '예정' timeline anymore."""
+    today = date.today().isoformat()
     pre = [s for s in sites if s.get("status") == "PRE_START"]
     months: dict[str, int] = defaultdict(int)
     no_date = 0
     for s in pre:
         sd = s.get("start_date")
-        if sd:
+        if sd and sd >= today:
             months[_date_to_ym(sd)] += 1
-        else:
+        elif not sd:
             no_date += 1
     result = [{"year": k, "count": v} for k, v in sorted(months.items())]
     if no_date > 0:
@@ -993,15 +997,19 @@ def _pre_start_by_completion_year(sites: list[dict]) -> list[dict]:
 
 
 def _active_by_completion_year(sites: list[dict]) -> list[dict]:
-    """Group ACTIVE sites by end_date year (준공 예정년도)."""
+    """Group ACTIVE sites by end_date year (준공 예정년도).
+    Past-dated sites are excluded — admin may keep 진행중 status for projects
+    whose scheduled end already passed, but they don't belong on the '예정'
+    timeline anymore."""
+    today = date.today().isoformat()
     active = [s for s in sites if s.get("status") == "ACTIVE"]
     years: dict[str, int] = defaultdict(int)
     no_date = 0
     for s in active:
         ed = s.get("end_date")
-        if ed:
+        if ed and ed >= today:
             years[ed[:4]] += 1
-        else:
+        elif not ed:
             no_date += 1
     result = [{"year": k, "count": v} for k, v in sorted(years.items())]
     if no_date > 0:
