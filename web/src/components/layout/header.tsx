@@ -44,9 +44,9 @@ export function Header() {
             </span>
           </>
         )}
-        {user && profile && (
+        {user && (
           <span className="hidden sm:inline text-[12px] text-muted-foreground">
-            {profile.full_name ?? user.email}
+            {user.email}
           </span>
         )}
         {user && (

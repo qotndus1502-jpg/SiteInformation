@@ -46,7 +46,7 @@ export async function middleware(request: NextRequest) {
   // Logged in — send login/signup visitors back to dashboard.
   if (isPublic) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/statistics";
     url.search = "";
     return NextResponse.redirect(url);
   }
@@ -72,7 +72,7 @@ export async function middleware(request: NextRequest) {
 
   if (!isPending && pathname === "/pending") {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/statistics";
     url.search = "";
     return NextResponse.redirect(url);
   }
@@ -80,7 +80,7 @@ export async function middleware(request: NextRequest) {
   // Admin-only area
   if (pathname.startsWith("/admin") && role !== "admin") {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/statistics";
     url.search = "";
     return NextResponse.redirect(url);
   }

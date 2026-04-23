@@ -4,7 +4,7 @@ import * as React from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function PasswordInput({ className, ...props }: Omit<React.ComponentProps<"input">, "type"> & { size?: "default" | "sm" }) {
+function PasswordInput({ className, size = "default", ...props }: Omit<React.ComponentProps<"input">, "type" | "size"> & { size?: "default" | "sm" }) {
   const [visible, setVisible] = React.useState(false);
 
   return (
@@ -12,7 +12,7 @@ function PasswordInput({ className, ...props }: Omit<React.ComponentProps<"input
       <input
         type={visible ? "text" : "password"}
         data-slot="input"
-        data-size={props.size ?? "default"}
+        data-size={size}
         className={cn(
           "w-full min-w-0 rounded-lg border border-input bg-card px-3.5 py-2.5 pr-10 text-base text-foreground shadow-xs transition-[color,box-shadow] outline-none md:text-sm",
           "data-[size=default]:h-11 data-[size=sm]:h-9",

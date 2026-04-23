@@ -69,13 +69,13 @@ export default function SignupPage() {
   if (done) {
     return (
       <div className="min-h-[calc(100vh-44px)] flex items-center justify-center px-4">
-        <div className="w-full max-w-[420px] bg-card rounded-xl border border-border shadow-sm p-6 flex flex-col gap-4 text-center">
-          <h1 className="text-[18px] font-semibold text-foreground">가입 신청 완료</h1>
-          <p className="text-[13px] text-muted-foreground leading-relaxed">
+        <div className="w-full max-w-[380px] bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col gap-3 text-center">
+          <h1 className="text-[15px] font-semibold text-foreground">가입 신청 완료</h1>
+          <p className="text-[11.5px] text-muted-foreground leading-relaxed">
             관리자 승인 후 이용하실 수 있습니다.<br />
             승인까지 시간이 걸릴 수 있습니다.
           </p>
-          <Button onClick={() => router.replace("/login")}>로그인 페이지로</Button>
+          <Button size="sm" onClick={() => router.replace("/login")} className="text-[12px]">로그인 페이지로</Button>
         </div>
       </div>
     );
@@ -83,38 +83,32 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-[calc(100vh-44px)] flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-[420px] bg-card rounded-xl border border-border shadow-sm p-6 flex flex-col gap-4">
+      <div className="w-full max-w-[380px] bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col gap-3">
         <div>
-          <h1 className="text-[18px] font-semibold text-foreground">가입 신청</h1>
-          <p className="text-[12px] text-muted-foreground mt-1">
+          <h1 className="text-[15px] font-semibold text-foreground">가입 신청</h1>
+          <p className="text-[11.5px] text-muted-foreground mt-0.5">
             관리자 승인 후 이용하실 수 있습니다.
           </p>
         </div>
-        <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">이메일</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">비밀번호 <span className="text-muted-foreground font-normal">(8자 이상)</span></Label>
-            <PasswordInput id="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required minLength={8} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password-confirm">비밀번호 확인</Label>
-            <PasswordInput id="password-confirm" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} autoComplete="new-password" required />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="name">이름</Label>
-            <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" required />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="employee-number">사번</Label>
-            <Input id="employee-number" value={employeeNumber} onChange={(e) => setEmployeeNumber(e.target.value)} required />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="corporation">소속 법인</Label>
+        <form onSubmit={onSubmit} className="flex flex-col gap-2.5">
+          <Field htmlFor="email" label="이메일">
+            <Input size="sm" id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required className="text-[13px]" />
+          </Field>
+          <Field htmlFor="password" label="비밀번호" hint="(8자 이상)">
+            <PasswordInput size="sm" id="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required minLength={8} className="text-[13px]" />
+          </Field>
+          <Field htmlFor="password-confirm" label="비밀번호 확인">
+            <PasswordInput size="sm" id="password-confirm" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} autoComplete="new-password" required className="text-[13px]" />
+          </Field>
+          <Field htmlFor="name" label="이름">
+            <Input size="sm" id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" required className="text-[13px]" />
+          </Field>
+          <Field htmlFor="employee-number" label="사번">
+            <Input size="sm" id="employee-number" value={employeeNumber} onChange={(e) => setEmployeeNumber(e.target.value)} required className="text-[13px]" />
+          </Field>
+          <Field htmlFor="corporation" label="소속 법인">
             <Select value={corporationId} onValueChange={setCorporationId}>
-              <SelectTrigger id="corporation">
+              <SelectTrigger size="sm" id="corporation" className="w-full text-[13px]">
                 <SelectValue placeholder="법인을 선택하세요" />
               </SelectTrigger>
               <SelectContent>
@@ -123,16 +117,15 @@ export default function SignupPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="phone">전화번호</Label>
-            <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-1234-5678" autoComplete="tel" required />
-          </div>
-          {error && <p className="text-[12px] text-destructive">{error}</p>}
-          <Button type="submit" disabled={loading} className="mt-1">
+          </Field>
+          <Field htmlFor="phone" label="전화번호">
+            <Input size="sm" id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-1234-5678" autoComplete="tel" required className="text-[13px]" />
+          </Field>
+          {error && <p className="text-[11.5px] text-destructive">{error}</p>}
+          <Button type="submit" size="sm" disabled={loading} className="mt-1 text-[13px]">
             {loading ? "신청 중..." : "가입 신청"}
           </Button>
-          <div className="text-center text-[12px] text-muted-foreground pt-1">
+          <div className="text-center text-[11.5px] text-muted-foreground pt-0.5">
             이미 계정이 있으신가요?{" "}
             <Link href="/login" className="text-primary font-semibold hover:underline">
               로그인
@@ -140,6 +133,18 @@ export default function SignupPage() {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function Field({ htmlFor, label, hint, children }: { htmlFor: string; label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label htmlFor={htmlFor} className="text-[12px]">
+        {label}
+        {hint && <span className="ml-1 text-muted-foreground font-normal">{hint}</span>}
+      </Label>
+      {children}
     </div>
   );
 }
