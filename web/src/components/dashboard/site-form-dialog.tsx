@@ -488,7 +488,35 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
             <p className="col-span-2 text-[12px] text-destructive">{error}</p>
           )}
 
-          <div className="col-span-2 flex justify-end gap-2 pt-2">
+          <div className="col-span-2 flex items-center gap-2 pt-2">
+            {isEdit && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={async () => {
+                  if (!confirm(`"${site!.site_name}" 현장을 삭제합니다. 이 작업은 되돌릴 수 없습니다.\n정말 삭제할까요?`)) return;
+                  setSaving(true);
+                  try {
+                    const res = await authFetch(`/api/sites/${site!.id}`, { method: "DELETE" });
+                    if (!res.ok) {
+                      const j = await res.json().catch(() => ({}));
+                      throw new Error(j.detail || `삭제 실패 (${res.status})`);
+                    }
+                    onSaved?.();
+                    onOpenChange(false);
+                  } catch (err: unknown) {
+                    setError(err instanceof Error ? err.message : String(err));
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                삭제
+              </Button>
+            )}
+            <div className="flex-1" />
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
               취소
             </Button>

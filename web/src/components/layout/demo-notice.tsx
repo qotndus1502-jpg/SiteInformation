@@ -4,33 +4,16 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Info } from "lucide-react";
 
-const STORAGE_KEY = "demo-notice-dismissed-v1";
-
 export function DemoNoticeDialog() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      const seen = sessionStorage.getItem(STORAGE_KEY);
-      if (!seen) setOpen(true);
-    } catch {
-      /* SSR/private mode */
-    }
+    // Show on every mount (= every navigation into /statistics).
+    setOpen(true);
   }, []);
 
-  function handleOpenChange(next: boolean) {
-    if (!next) {
-      try {
-        sessionStorage.setItem(STORAGE_KEY, "1");
-      } catch {
-        /* ignore */
-      }
-    }
-    setOpen(next);
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle className="self-start inline-flex items-center gap-1.5 text-[17px] bg-red-500 text-white px-3 py-1 rounded-md">

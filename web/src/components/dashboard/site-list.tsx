@@ -77,9 +77,9 @@ export function SiteList({ sites, selectedSiteId, onSelect, showAddressWarnings 
   }, [sites, sortKeys]);
 
   return (
-    <div>
+    <div className="bg-white border border-border rounded-[6px] overflow-hidden">
       {/* 컬럼 헤더 */}
-      <div className={cn("grid gap-2 px-4 py-2 bg-card border border-border rounded-[6px] text-[13px] font-semibold text-slate-600 tracking-wide mb-1", TABLE_COLS)}>
+      <div className={cn("grid gap-2 px-4 py-2 bg-slate-50 border-b border-border/60 text-[13px] font-semibold text-slate-600 tracking-wide", TABLE_COLS)}>
         <span className="text-center">No.</span>
         {COLUMNS.map((col) => (
           <button
@@ -110,13 +110,13 @@ export function SiteList({ sites, selectedSiteId, onSelect, showAddressWarnings 
         </button>
       </div>
 
-      {/* 데이터 행 — 헤더와 분리된 별도 카드 */}
+      {/* 데이터 행 */}
       {sorted.length === 0 ? (
-        <div className="flex items-center justify-center h-48 text-muted-foreground bg-card border border-border rounded-[6px]">
+        <div className="flex items-center justify-center h-48 text-muted-foreground">
           <p className="text-sm">검색 결과가 없습니다</p>
         </div>
       ) : (
-        <div className="divide-y divide-border/40 bg-card border border-border rounded-[6px] overflow-hidden">
+        <div className="divide-y divide-border/40">
           {sorted.map((site, idx) => {
             const companyConfig = COMPANY_CONFIG[site.corporation_name];
             const statusConfig = STATUS_CONFIG[site.status];

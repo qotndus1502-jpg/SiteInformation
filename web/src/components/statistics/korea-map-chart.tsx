@@ -286,7 +286,7 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
       <button
         type="button"
         onClick={() => onShowDetailMap?.()}
-        className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/15 transition-colors duration-150"
+        className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors duration-150"
       >
         상세 지도 보기 →
       </button>
@@ -302,7 +302,7 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
               className={cn(
                 "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors duration-150",
                 isActive
-                  ? "bg-primary/10 text-primary hover:bg-primary/15"
+                  ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
                   : "text-muted-foreground hover:text-slate-900 hover:bg-slate-100/60",
               )}
             >

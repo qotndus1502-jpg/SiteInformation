@@ -121,18 +121,18 @@ export function BreakdownTabs({
 
   return (
     <div className="h-full overflow-hidden">
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] h-full gap-1">
-        <div className="rounded-[6px] bg-card/80 border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] h-full gap-2">
+        <div className="rounded-[6px] bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
           <KoreaMapChart data={by_region} onShowDetailMap={onShowDetailMap} selectedRegion={selectedRegion} onRegionClick={onRegionClick} />
         </div>
-        <div className="flex flex-col min-h-0 gap-1">
+        <div className="flex flex-col min-h-0 gap-2">
           {/* Row 1 — 법인별: 현장수 / 자사도급액 / 인원 (right edge aligned with row 3 below) */}
-          <div className="rounded-[6px] bg-card/80 border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] p-3 flex justify-end">
+          <div className="rounded-[6px] bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] p-3 flex justify-end">
             <CorpDivisionChart data={corpDivisionData} selectedCorp={selectedCorp} onCorpClick={onCorpClick} />
           </div>
 
           {/* Row 2 — 상태별: 도넛 + 착공·준공예정 가로 배치 (Row 1 의 CorpDivisionChart 폭에 맞춰 우측 정렬) */}
-          <div className="relative px-3 py-2 rounded-[6px] bg-card/80 border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="relative px-3 py-2 rounded-[6px] bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
             {/* Legend — top-left of the row (matches Row 3 legend x position) */}
             <div className="absolute top-2 left-5 z-10 flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
@@ -163,7 +163,7 @@ export function BreakdownTabs({
           </div>
 
           {/* Row 3 — 금액별: 자사도급액별(좌, mirror) | 총공사비별(우) — 두 차트가 중앙에서 맞닿도록 */}
-          <div className="relative p-3 rounded-[6px] bg-card/80 border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="relative p-3 rounded-[6px] bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
             {/* Legend — top-left of the row (matches Row 2 legend x position) */}
             <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
               <div className="flex items-center gap-1.5">

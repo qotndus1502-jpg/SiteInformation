@@ -44,7 +44,7 @@ function DashboardScaler({ children }: { children: React.ReactNode }) {
       style={{ minHeight: "calc(100vh - 52px)" }}
     >
       <div
-        className="flex flex-col gap-1 px-6 pt-0 pb-2"
+        className="flex flex-col gap-3 px-6 pt-0 pb-2"
         style={{
           width: BASE_W,
           zoom: scale,
@@ -634,7 +634,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
                 <button
                   type="button"
                   onClick={() => setAddOpen(true)}
-                  className="absolute -top-8 right-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/15 transition-colors duration-150"
+                  className="absolute -top-8 right-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors duration-150"
                 >
                   <Plus className="h-3 w-3" />
                   현장 추가
@@ -666,7 +666,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
               <button
                 type="button"
                 onClick={() => setShowDetailMap(false)}
-                className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/15 transition-colors duration-150"
+                className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors duration-150"
               >
                 ← 대시보드로 돌아가기
               </button>
