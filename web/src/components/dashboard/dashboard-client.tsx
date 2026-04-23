@@ -193,18 +193,18 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
     <DashboardScaler>
       {/* 1행: 통계 + 뷰토글 (지도 뷰에서는 숨김) */}
       {viewMode !== "map" && (
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-4 flex-wrap min-w-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-5">
             <Stat label="전체 현장" value={stats.total} unit="개소" />
-            <div className="w-px h-3 bg-border" />
+            <div className="w-px h-4 bg-border" />
             <Stat label="진행중" value={stats.active} />
-            <div className="w-px h-3 bg-border" />
+            <div className="w-px h-4 bg-border" />
             <Stat label="총 인원" value={stats.totalWorkers.toLocaleString()} unit="명" />
-            <div className="w-px h-3 bg-border" />
+            <div className="w-px h-4 bg-border" />
             <Stat label="총 도급액" value={`${Math.round(stats.totalAmount / 100)}`} unit="백억" />
           </div>
           {isAdmin && (
-            <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1 shrink-0">
+            <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1">
               <Plus className="h-4 w-4" />
               현장 추가
             </Button>
