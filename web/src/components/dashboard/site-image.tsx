@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Camera, Check, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { authFetch } from "@/lib/api";
 
 interface ImageSettings {
   x: number;
@@ -138,7 +139,7 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
     formData.append("file", file);
     formData.append("site_id", String(siteId));
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001"}/api/upload-site-image`, {
+      const res = await authFetch(`/api/upload-site-image`, {
         method: "POST",
         body: formData,
       });

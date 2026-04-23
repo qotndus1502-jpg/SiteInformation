@@ -1,4 +1,5 @@
 import type { Department, OrgMember, OrgRole, OrgTreeNode } from "@/types/org-chart"
+import { authFetch } from "@/lib/api"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001"
 
@@ -30,7 +31,7 @@ async function handleMutation<T>(res: Response): Promise<T> {
 }
 
 export async function createDepartment(siteId: number, name: string): Promise<Department> {
-  const res = await fetch(`${API_BASE}/api/sites/${siteId}/departments`, {
+  const res = await authFetch(`/api/sites/${siteId}/departments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
@@ -42,7 +43,7 @@ export async function updateDepartment(
   deptId: number,
   patch: { name?: string; sort_order?: number; required_count?: number }
 ): Promise<Department> {
-  const res = await fetch(`${API_BASE}/api/departments/${deptId}`, {
+  const res = await authFetch(`/api/departments/${deptId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
@@ -67,7 +68,7 @@ export async function updateRequiredHeadcount(
   siteId: number,
   payload: RequiredHeadcount,
 ): Promise<RequiredHeadcount> {
-  const res = await fetch(`${API_BASE}/api/sites/${siteId}/required-headcount`, {
+  const res = await authFetch(`/api/sites/${siteId}/required-headcount`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -76,7 +77,7 @@ export async function updateRequiredHeadcount(
 }
 
 export async function deleteDepartment(deptId: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/departments/${deptId}`, { method: "DELETE" })
+  const res = await authFetch(`/api/departments/${deptId}`, { method: "DELETE" })
   await handleMutation<{ ok: boolean }>(res)
 }
 
@@ -99,7 +100,7 @@ export async function createOrgMember(
   siteId: number,
   payload: OrgMemberInput
 ): Promise<{ id: number }> {
-  const res = await fetch(`${API_BASE}/api/sites/${siteId}/org-members`, {
+  const res = await authFetch(`/api/sites/${siteId}/org-members`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -113,7 +114,7 @@ export async function updateOrgMember(
   memberId: number,
   patch: Partial<OrgMemberInput>
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/org-members/${memberId}`, {
+  const res = await authFetch(`/api/org-members/${memberId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
@@ -122,7 +123,7 @@ export async function updateOrgMember(
 }
 
 export async function deleteOrgMember(memberId: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/org-members/${memberId}`, { method: "DELETE" })
+  const res = await authFetch(`/api/org-members/${memberId}`, { method: "DELETE" })
   await handleMutation<{ ok: boolean }>(res)
 }
 

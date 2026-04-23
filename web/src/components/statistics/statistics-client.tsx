@@ -43,7 +43,7 @@ function DashboardScaler({ children }: { children: React.ReactNode }) {
       style={{ minHeight: "calc(100vh - 52px)" }}
     >
       <div
-        className="flex flex-col gap-2 px-6 pt-0 pb-2"
+        className="flex flex-col gap-1.5 px-6 pt-0 pb-2"
         style={{
           width: BASE_W,
           zoom: scale,
@@ -560,7 +560,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
             transform: `scale(${pageScale})`,
             transformOrigin: "top left",
           }}
-          className="px-6 flex flex-col gap-2 py-2"
+          className="px-6 flex flex-col gap-1.5 py-1.5"
         >
           <FilterBar
             filterOptions={filterOptions}

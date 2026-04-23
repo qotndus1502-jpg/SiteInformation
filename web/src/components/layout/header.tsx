@@ -1,14 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { Bell, LogIn, LogOut, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { Bell, LogOut, ShieldCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
-import { LoginDialog } from "@/components/auth/login-dialog";
+import { useRouter } from "next/navigation";
 
 export function Header() {
-  const { isAdmin, logout } = useAuth();
-  const [loginOpen, setLoginOpen] = useState(false);
+  const { user, profile, isAdmin, signOut } = useAuth();
+  const router = useRouter();
+
+  const avatarText = (profile?.full_name ?? user?.email ?? "").trim().charAt(0) || "?";
+
+  async function handleSignOut() {
+    await signOut();
+    router.replace("/login");
+    router.refresh();
+  }
 
   return (
     <header className="h-11 bg-background backdrop-blur-xl border-b border-border/50 flex items-center justify-between px-4 sticky top-0 z-30 transition-colors shadow-sm">
@@ -20,42 +28,45 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-1.5">
-        {isAdmin ? (
+        {user && isAdmin && (
           <>
+            <Link
+              href="/admin/users"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-card/60"
+              title="사용자 관리"
+            >
+              <Users className="h-3 w-3" />
+              사용자
+            </Link>
             <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold">
               <ShieldCheck className="h-3 w-3" />
               관리자
             </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={logout}
-              className="text-muted-foreground hover:text-foreground hover:bg-card/60 gap-1 text-[12px] h-7 px-2"
-            >
-              <LogOut className="h-3 w-3" />
-              로그아웃
-            </Button>
           </>
-        ) : (
+        )}
+        {user && profile && (
+          <span className="hidden sm:inline text-[12px] text-muted-foreground">
+            {profile.full_name ?? user.email}
+          </span>
+        )}
+        {user && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLoginOpen(true)}
+            onClick={handleSignOut}
             className="text-muted-foreground hover:text-foreground hover:bg-card/60 gap-1 text-[12px] h-7 px-2"
           >
-            <LogIn className="h-3 w-3" />
-            로그인
+            <LogOut className="h-3 w-3" />
+            로그아웃
           </Button>
         )}
         <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-card/60 h-7 w-7">
           <Bell className="h-4 w-4" />
         </Button>
-        <div className="h-7 w-7 rounded-full bg-blue-500 text-white text-[11px] font-semibold flex items-center justify-center shadow-sm ring-2 ring-border/60">
-          {isAdmin ? "관" : "게"}
+        <div className="h-7 w-7 rounded-full bg-blue-500 text-white text-[11px] font-semibold flex items-center justify-center shadow-sm ring-2 ring-border/60 uppercase">
+          {avatarText}
         </div>
       </div>
-
-      <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
     </header>
   );
 }

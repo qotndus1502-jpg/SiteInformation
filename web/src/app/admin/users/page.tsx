@@ -1,0 +1,226 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { authFetch } from "@/lib/api";
+
+type Status = "pending" | "approved" | "rejected";
+
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  employee_number: string | null;
+  corporation_id: number | null;
+  phone: string | null;
+  role: "user" | "admin";
+  status: Status;
+  requested_at: string;
+  approved_at: string | null;
+  reject_reason: string | null;
+}
+
+const CORP_NAME: Record<number, string> = { 1: "남광토건", 2: "극동건설", 3: "금광기업" };
+
+const STATUS_LABEL: Record<Status, { label: string; variant: "brand" | "success" | "warning" | "gray" | "orange" }> = {
+  pending:  { label: "승인 대기", variant: "orange" },
+  approved: { label: "승인됨",    variant: "brand" },
+  rejected: { label: "거부됨",    variant: "warning" },
+};
+
+export default function AdminUsersPage() {
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<Status | "all">("pending");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const qs = filter === "all" ? "" : `?status=${filter}`;
+      const res = await authFetch(`/api/users${qs}`);
+      if (!res.ok) throw new Error(`목록 조회 실패 (${res.status})`);
+      setUsers(await res.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [filter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const approve = async (id: string, role: "user" | "admin") => {
+    setBusy(id);
+    try {
+      const res = await authFetch(`/api/users/${id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail || `승인 실패 (${res.status})`);
+      }
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const reject = async (id: string) => {
+    const reason = prompt("거부 사유 (선택)");
+    if (reason === null) return;
+    setBusy(id);
+    try {
+      const res = await authFetch(`/api/users/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail || `거부 실패 (${res.status})`);
+      }
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const changeRole = async (id: string, role: "user" | "admin") => {
+    setBusy(id);
+    try {
+      const res = await authFetch(`/api/users/${id}/role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail || `권한 변경 실패 (${res.status})`);
+      }
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = async (id: string, email: string) => {
+    if (!confirm(`${email} 계정을 완전히 삭제할까요? 복구 불가합니다.`)) return;
+    setBusy(id);
+    try {
+      const res = await authFetch(`/api/users/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail || `삭제 실패 (${res.status})`);
+      }
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="max-w-[1100px] mx-auto px-4 py-6 flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-[18px] font-semibold">사용자 관리</h1>
+        <div className="flex items-center gap-2">
+          <Select value={filter} onValueChange={(v) => setFilter(v as Status | "all")}>
+            <SelectTrigger className="w-[150px] h-8 text-[12px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">승인 대기</SelectItem>
+              <SelectItem value="approved">승인됨</SelectItem>
+              <SelectItem value="rejected">거부됨</SelectItem>
+              <SelectItem value="all">전체</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
+            새로고침
+          </Button>
+        </div>
+      </div>
+
+      {error && <p className="text-[13px] text-destructive">{error}</p>}
+
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="grid grid-cols-[1.5fr_1.2fr_0.7fr_0.9fr_0.9fr_1fr_1.4fr] gap-2 px-4 py-2 bg-muted/40 border-b border-border text-[12px] font-semibold text-muted-foreground">
+          <span>이메일 / 이름</span>
+          <span>소속 / 사번</span>
+          <span>전화</span>
+          <span>상태</span>
+          <span>권한</span>
+          <span>신청일</span>
+          <span>작업</span>
+        </div>
+        {loading && users.length === 0 ? (
+          <div className="px-4 py-8 text-center text-[13px] text-muted-foreground">불러오는 중...</div>
+        ) : users.length === 0 ? (
+          <div className="px-4 py-8 text-center text-[13px] text-muted-foreground">해당 조건의 사용자가 없습니다.</div>
+        ) : (
+          users.map((u) => {
+            const sconf = STATUS_LABEL[u.status];
+            const isBusy = busy === u.id;
+            return (
+              <div key={u.id} className="grid grid-cols-[1.5fr_1.2fr_0.7fr_0.9fr_0.9fr_1fr_1.4fr] gap-2 px-4 py-2 items-center border-b border-border/40 text-[12px]">
+                <div className="flex flex-col min-w-0">
+                  <span className="font-semibold text-foreground truncate">{u.full_name || "(이름 없음)"}</span>
+                  <span className="text-muted-foreground truncate">{u.email}</span>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="truncate">{u.corporation_id != null ? CORP_NAME[u.corporation_id] ?? "-" : "-"}</span>
+                  <span className="text-muted-foreground truncate">{u.employee_number ?? "-"}</span>
+                </div>
+                <span className="text-muted-foreground truncate">{u.phone ?? "-"}</span>
+                <span><Badge variant={sconf.variant} size="sm">{sconf.label}</Badge></span>
+                <span>
+                  <Badge variant={u.role === "admin" ? "brand" : "gray"} size="sm">
+                    {u.role === "admin" ? "관리자" : "일반"}
+                  </Badge>
+                </span>
+                <span className="text-muted-foreground">{u.requested_at?.slice(0, 10) ?? "-"}</span>
+                <div className="flex flex-wrap gap-1">
+                  {u.status === "pending" && (
+                    <>
+                      <Button size="sm" className="h-6 px-2 text-[11px]" onClick={() => approve(u.id, "user")} disabled={isBusy}>일반 승인</Button>
+                      <Button size="sm" className="h-6 px-2 text-[11px]" variant="default" onClick={() => approve(u.id, "admin")} disabled={isBusy}>관리자 승인</Button>
+                      <Button size="sm" className="h-6 px-2 text-[11px]" variant="ghost" onClick={() => reject(u.id)} disabled={isBusy}>거부</Button>
+                    </>
+                  )}
+                  {u.status === "approved" && (
+                    <>
+                      <Button size="sm" className="h-6 px-2 text-[11px]" variant="ghost" onClick={() => changeRole(u.id, u.role === "admin" ? "user" : "admin")} disabled={isBusy}>
+                        {u.role === "admin" ? "관리자 해제" : "관리자 지정"}
+                      </Button>
+                      <Button size="sm" className="h-6 px-2 text-[11px]" variant="ghost" onClick={() => remove(u.id, u.email)} disabled={isBusy}>삭제</Button>
+                    </>
+                  )}
+                  {u.status === "rejected" && (
+                    <>
+                      <Button size="sm" className="h-6 px-2 text-[11px]" onClick={() => approve(u.id, "user")} disabled={isBusy}>재승인</Button>
+                      <Button size="sm" className="h-6 px-2 text-[11px]" variant="ghost" onClick={() => remove(u.id, u.email)} disabled={isBusy}>삭제</Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}

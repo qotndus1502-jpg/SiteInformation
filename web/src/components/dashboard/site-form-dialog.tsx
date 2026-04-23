@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { X, Plus } from "lucide-react";
 import type { SiteDashboard, SiteStatus } from "@/types/database";
 import { STATUS_CONFIG } from "@/types/database";
+import { authFetch } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
@@ -117,7 +118,7 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
     }
     setGeocoding(true);
     try {
-      const res = await fetch(`${API_BASE}/api/geocode/preview`, {
+      const res = await authFetch(`/api/geocode/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address }),
@@ -219,11 +220,11 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
         .map((p) => ({ name: p.name.trim(), share_pct: Number(p.share_pct) })),
     };
 
-    const url = isEdit ? `${API_BASE}/api/sites/${site!.id}` : `${API_BASE}/api/sites`;
+    const path = isEdit ? `/api/sites/${site!.id}` : `/api/sites`;
     const method = isEdit ? "PUT" : "POST";
 
     try {
-      const res = await fetch(url, {
+      const res = await authFetch(path, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { User, X, Camera, ZoomIn, ZoomOut, Check } from "lucide-react";
 import type { OrgMember } from "@/types/org-chart";
 import { useAuth } from "@/lib/auth-context";
+import { authFetch } from "@/lib/api";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
@@ -79,7 +80,7 @@ export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps)
     formData.append("file", file);
     formData.append("member_id", String(member.id));
     try {
-      const res = await fetch(`${API_BASE}/api/upload-org-photo`, { method: "POST", body: formData });
+      const res = await authFetch(`/api/upload-org-photo`, { method: "POST", body: formData });
       if (res.ok) {
         const reset = { x: 0, y: 0, scale: 1 };
         setImgSrc(`${SUPABASE_URL}/storage/v1/object/public/org-photos/member_${member.id}.jpg?t=${Date.now()}`);

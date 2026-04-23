@@ -1,58 +1,100 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 /**
- * 간단한 클라이언트 측 인증 컨텍스트.
+ * Client-side auth state fed by Supabase.
  *
- * ⚠️ 현재는 데모용 — 아이디/비번이 클라이언트에 하드코딩되어 있다.
- *    UI 게이팅만 담당하며 실제 보안 경계는 아님.
- *    민감한 mutation 엔드포인트는 추후 백엔드에서 토큰 검증 추가 필요.
+ * Pages rely on this for conditional UI (isAdmin gates, user name, etc.).
+ * The real security boundary is the backend (JWT verification) + Next.js
+ * middleware (route gating). This context is only for rendering.
  */
 
-const STORAGE_KEY = "site-info-admin";
-const ADMIN_USER = "admin";
-const ADMIN_PASS = "admin";
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: "user" | "admin";
+  status: "pending" | "approved" | "rejected";
+  employee_number: string | null;
+  corporation_id: number | null;
+  phone: string | null;
+}
 
 interface AuthContextValue {
+  user: User | null;
+  profile: UserProfile | null;
+  loading: boolean;
   isAdmin: boolean;
-  login: (username: string, password: string) => { ok: true } | { ok: false; error: string };
-  logout: () => void;
+  isApproved: boolean;
+  signOut: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const supabase = useMemo(() => createClient(), []);
 
-  /* 초기 로드 시 localStorage 에서 복원 */
+  const loadProfile = useCallback(async (userId: string) => {
+    const { data } = await supabase
+      .schema("pmis")
+      .from("user_profile")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+    setProfile((data as UserProfile | null) ?? null);
+  }, [supabase]);
+
+  const refresh = useCallback(async () => {
+    const { data: { user: u } } = await supabase.auth.getUser();
+    setUser(u);
+    if (u) await loadProfile(u.id);
+    else setProfile(null);
+  }, [supabase, loadProfile]);
+
   useEffect(() => {
-    try {
-      if (localStorage.getItem(STORAGE_KEY) === "1") setIsAdmin(true);
-    } catch {
-      /* SSR 또는 private mode */
-    }
-  }, []);
+    let cancelled = false;
+    (async () => {
+      await refresh();
+      if (!cancelled) setLoading(false);
+    })();
 
-  const login = useCallback((username: string, password: string) => {
-    if (username === ADMIN_USER && password === ADMIN_PASS) {
-      try { localStorage.setItem(STORAGE_KEY, "1"); } catch { /* ignore */ }
-      setIsAdmin(true);
-      return { ok: true as const };
-    }
-    return { ok: false as const, error: "아이디 또는 비밀번호가 올바르지 않습니다" };
-  }, []);
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) await loadProfile(u.id);
+      else setProfile(null);
+    });
 
-  const logout = useCallback(() => {
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
-    setIsAdmin(false);
-  }, []);
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, [supabase, loadProfile, refresh]);
 
-  return (
-    <AuthContext.Provider value={{ isAdmin, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfile(null);
+  }, [supabase]);
+
+  const value: AuthContextValue = {
+    user,
+    profile,
+    loading,
+    isAdmin: profile?.role === "admin" && profile?.status === "approved",
+    isApproved: profile?.status === "approved",
+    signOut,
+    refresh,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
