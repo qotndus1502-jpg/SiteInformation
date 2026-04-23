@@ -46,7 +46,7 @@ function LoginForm() {
           autoComplete="email"
           autoFocus
           required
-          className="text-[13px]"
+          className="text-[13px]! h-8! py-1! px-3!"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -58,7 +58,7 @@ function LoginForm() {
           onChange={(e) => { setPassword(e.target.value); setError(null); }}
           autoComplete="current-password"
           required
-          className="text-[13px]"
+          className="text-[13px]! h-8! py-1! px-3!"
         />
       </div>
       {error && <p className="text-[11.5px] text-destructive">{error}</p>}
@@ -77,17 +77,25 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-[calc(100vh-44px)] flex items-center justify-center px-4">
-      <div className="w-full max-w-[380px] bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col gap-3">
-        <div>
-          <h1 className="text-[15px] font-semibold text-foreground">로그인</h1>
-          <p className="text-[11.5px] text-muted-foreground mt-0.5">
-            전사 현장 통합 대시보드에 접근하려면 로그인하세요.
-          </p>
+    <div className="min-h-[calc(100vh-44px)] flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-[380px] flex flex-col gap-3">
+        <div className="rounded-[6px] border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-[11.5px] text-slate-700 leading-relaxed flex flex-col gap-1.5">
+          <span className="font-semibold text-blue-700">[안내]</span>
+          <p>데이터 보안 강화를 위해 로그인 기능이 추가되었습니다.</p>
+          <p>현장별 정보 접근 권한을 체계적으로 관리하기 위한 조치이오니, 번거로우시더라도 양해 부탁드립니다.</p>
+          <p>계정은 관리자 승인 후 사용 가능합니다.</p>
         </div>
-        <Suspense fallback={<div className="text-[12px] text-muted-foreground">로딩 중...</div>}>
-          <LoginForm />
-        </Suspense>
+        <div className="bg-card rounded-xl border border-border shadow-sm p-5 flex flex-col gap-3">
+          <div>
+            <h1 className="text-[15px] font-semibold text-foreground">로그인</h1>
+            <p className="text-[11.5px] text-muted-foreground mt-0.5">
+              전사 현장 통합 대시보드에 접근하려면 로그인하세요.
+            </p>
+          </div>
+          <Suspense fallback={<div className="text-[12px] text-muted-foreground">로딩 중...</div>}>
+            <LoginForm />
+          </Suspense>
+        </div>
       </div>
     </div>
   );

@@ -139,17 +139,17 @@ export default function AdminUsersPage() {
         <h1 className="text-[15px] font-semibold">사용자 관리</h1>
         <div className="flex items-center gap-2">
           <Select value={filter} onValueChange={(v) => setFilter(v as Status | "all")}>
-            <SelectTrigger size="sm" className="w-32.5 text-[13px]">
+            <SelectTrigger size="sm" className="h-7! px-2.5! text-[11px]! font-normal! w-30 [&_svg]:size-2.5!">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="pending">승인 대기</SelectItem>
-              <SelectItem value="approved">승인됨</SelectItem>
-              <SelectItem value="rejected">거부됨</SelectItem>
-              <SelectItem value="all">전체</SelectItem>
+              <SelectItem value="pending" className="text-[11px]">승인 대기</SelectItem>
+              <SelectItem value="approved" className="text-[11px]">승인됨</SelectItem>
+              <SelectItem value="rejected" className="text-[11px]">거부됨</SelectItem>
+              <SelectItem value="all" className="text-[11px]">전체</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="sm" onClick={load} disabled={loading} className="text-[13px]">
+          <Button variant="ghost" onClick={load} disabled={loading} className="h-7 px-2.5 text-[11px] font-normal">
             새로고침
           </Button>
         </div>

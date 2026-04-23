@@ -24,7 +24,6 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [employeeNumber, setEmployeeNumber] = useState("");
   const [corporationId, setCorporationId] = useState<string>("");
-  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -40,7 +39,7 @@ export default function SignupPage() {
       setError("비밀번호가 일치하지 않습니다.");
       return;
     }
-    if (!fullName.trim() || !employeeNumber.trim() || !corporationId || !phone.trim()) {
+    if (!fullName.trim() || !employeeNumber.trim() || !corporationId) {
       setError("모든 항목을 입력해주세요.");
       return;
     }
@@ -54,7 +53,6 @@ export default function SignupPage() {
           full_name: fullName.trim(),
           employee_number: employeeNumber.trim(),
           corporation_id: corporationId,
-          phone: phone.trim(),
         },
       },
     });
@@ -92,34 +90,31 @@ export default function SignupPage() {
         </div>
         <form onSubmit={onSubmit} className="flex flex-col gap-2.5">
           <Field htmlFor="email" label="이메일">
-            <Input size="sm" id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required className="text-[13px]" />
+            <Input size="sm" id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required className="text-[13px]! h-8! py-1! px-3!" />
           </Field>
           <Field htmlFor="password" label="비밀번호" hint="(8자 이상)">
-            <PasswordInput size="sm" id="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required minLength={8} className="text-[13px]" />
+            <PasswordInput size="sm" id="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required minLength={8} className="text-[13px]! h-8! py-1! px-3!" />
           </Field>
           <Field htmlFor="password-confirm" label="비밀번호 확인">
-            <PasswordInput size="sm" id="password-confirm" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} autoComplete="new-password" required className="text-[13px]" />
+            <PasswordInput size="sm" id="password-confirm" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} autoComplete="new-password" required className="text-[13px]! h-8! py-1! px-3!" />
           </Field>
           <Field htmlFor="name" label="이름">
-            <Input size="sm" id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" required className="text-[13px]" />
+            <Input size="sm" id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" required className="text-[13px]! h-8! py-1! px-3!" />
           </Field>
           <Field htmlFor="employee-number" label="사번">
-            <Input size="sm" id="employee-number" value={employeeNumber} onChange={(e) => setEmployeeNumber(e.target.value)} required className="text-[13px]" />
+            <Input size="sm" id="employee-number" value={employeeNumber} onChange={(e) => setEmployeeNumber(e.target.value)} required className="text-[13px]! h-8! py-1! px-3!" />
           </Field>
           <Field htmlFor="corporation" label="소속 법인">
             <Select value={corporationId} onValueChange={setCorporationId}>
-              <SelectTrigger size="sm" id="corporation" className="w-full text-[13px]">
+              <SelectTrigger size="sm" id="corporation" className="w-full text-[13px]! h-8! py-1! px-3! [&_svg]:size-3.5!">
                 <SelectValue placeholder="법인을 선택하세요" />
               </SelectTrigger>
               <SelectContent>
                 {CORPORATIONS.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  <SelectItem key={c.id} value={String(c.id)} className="text-[13px]">{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </Field>
-          <Field htmlFor="phone" label="전화번호">
-            <Input size="sm" id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-1234-5678" autoComplete="tel" required className="text-[13px]" />
           </Field>
           {error && <p className="text-[11.5px] text-destructive">{error}</p>}
           <Button type="submit" size="sm" disabled={loading} className="mt-1 text-[13px]">

@@ -11,6 +11,7 @@ import { SiteList } from "@/components/dashboard/site-list";
 import { SiteDetail } from "@/components/dashboard/site-detail";
 import { SiteMap, type ColorCategory } from "@/components/dashboard/site-map";
 import { SiteFormDialog } from "@/components/dashboard/site-form-dialog";
+import { DemoNoticeDialog } from "@/components/layout/demo-notice";
 import { Plus, Info, Building2, Banknote, PieChart, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useCountUp } from "@/hooks/use-count-up";
@@ -554,6 +555,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
 
   return (
     <>
+      <DemoNoticeDialog />
       {/* Sticky Header: Filter + KPIs - 페이지 헤더 바로 아래 고정 */}
       <div className="sticky top-11 z-30 bg-background border-b border-border -mx-4 sm:-mx-6 overflow-hidden" style={{ height: `${stickyContentH * pageScale}px` }}>
         <div
