@@ -21,7 +21,9 @@ export function Header() {
   return (
     <header className="h-11 bg-background backdrop-blur-xl border-b border-border/50 flex items-center justify-between px-4 sticky top-0 z-30 transition-colors shadow-sm">
       <div className="flex items-center gap-3 min-w-0">
-        <h1 className="text-[15px] font-semibold text-foreground whitespace-nowrap tracking-tight">전사 현장 통합 대시보드</h1>
+        <Link href="/statistics" className="text-[15px] font-semibold text-foreground whitespace-nowrap tracking-tight hover:text-primary transition-colors">
+          전사 현장 통합 대시보드
+        </Link>
         <span className="text-[12px] text-muted-foreground truncate hidden md:inline">
           현재 데모 버전 운영 중입니다. 일부 데이터 누락 및 오류가 있으니 업무 시 참고 부탁드립니다.
         </span>
