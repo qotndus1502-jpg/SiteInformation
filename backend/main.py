@@ -337,11 +337,13 @@ def auto_status(sites: list[dict]) -> list[dict]:
     - start_date > 오늘 → PRE_START
     - start_date <= 오늘 && (end_date 없음 || end_date >= 오늘) → ACTIVE
     - end_date < 오늘 → COMPLETED
-    SUSPENDED는 수동 관리이므로 건드리지 않는다.
+    SUSPENDED와 status_manual=true는 관리자 편집이 우선이라 건드리지 않는다.
     """
     today = date.today().isoformat()
     for s in sites:
         if s.get("status") == "SUSPENDED":
+            continue
+        if s.get("status_manual"):
             continue
         sd = s.get("start_date")
         ed = s.get("end_date")
@@ -413,6 +415,17 @@ def get_all_sites_cached() -> list[dict]:
         deduped.append(s)
 
     deduped = clean_facility_type(deduped)
+
+    # status_manual flag lives on project_site, not the dashboard view.
+    # Merge it in so auto_status() can skip admin-pinned rows.
+    try:
+        manual_resp = supabase.schema("pmis").from_("project_site").select("id,status_manual").execute()
+        manual_map = {r["id"]: bool(r.get("status_manual")) for r in (manual_resp.data or [])}
+    except Exception:
+        manual_map = {}
+    for s in deduped:
+        s["status_manual"] = manual_map.get(s.get("id"), False)
+
     deduped = auto_status(deduped)
     deduped = attach_share_amounts(deduped)
     deduped = attach_coords(deduped)
@@ -1712,6 +1725,11 @@ def _persist_site_coords(site_id: int, lat: float | None, lon: float | None) -> 
 def create_site(payload: dict = Body(...), _admin: dict = Depends(require_admin)):
     clean = _clean_site_payload(payload)
 
+    # If admin provides a status on create, pin it — otherwise auto_status
+    # decides based on dates.
+    if clean.get("status"):
+        clean["status_manual"] = True
+
     missing = [k for k in REQUIRED_SITE_COLUMNS if clean.get(k) in (None, "")]
     if missing:
         raise HTTPException(status_code=400, detail=f"필수 필드 누락: {', '.join(missing)}")
@@ -1743,6 +1761,12 @@ def create_site(payload: dict = Body(...), _admin: dict = Depends(require_admin)
 @app.put("/api/sites/{site_id}")
 def update_site(site_id: int, payload: dict = Body(...), _admin: dict = Depends(require_admin)):
     clean = _clean_site_payload(payload)
+
+    # Admin changing status pins it — subsequent date-based auto_status
+    # passes will skip this row.
+    if "status" in clean:
+        clean["status_manual"] = True
+
     has_jv_change = "our_share_ratio" in payload or "jv_partners" in payload
     if not clean and not has_jv_change:
         raise HTTPException(status_code=400, detail="수정할 필드가 없음")
