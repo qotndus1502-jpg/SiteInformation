@@ -125,7 +125,7 @@ export function BreakdownTabs({
         <div className="rounded-[6px] bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
           <KoreaMapChart data={by_region} onShowDetailMap={onShowDetailMap} selectedRegion={selectedRegion} onRegionClick={onRegionClick} />
         </div>
-        <div className="flex flex-col min-h-0 gap-2">
+        <div className="flex flex-col min-h-0 gap-1">
           {/* Row 1 — 법인별: 현장수 / 자사도급액 / 인원 (right edge aligned with row 3 below) */}
           <div className="rounded-[6px] bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] p-3 flex justify-end">
             <CorpDivisionChart data={corpDivisionData} selectedCorp={selectedCorp} onCorpClick={onCorpClick} />

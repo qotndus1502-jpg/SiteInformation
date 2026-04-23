@@ -11,7 +11,7 @@ import { SiteList } from "@/components/dashboard/site-list";
 import { SiteDetail } from "@/components/dashboard/site-detail";
 import { SiteMap, type ColorCategory } from "@/components/dashboard/site-map";
 import { SiteFormDialog } from "@/components/dashboard/site-form-dialog";
-import { Plus, Info } from "lucide-react";
+import { Plus, Info, Building2, Banknote, PieChart, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useCountUp } from "@/hooks/use-count-up";
 import { charts } from "@/lib/chart-colors";
@@ -43,7 +43,7 @@ function DashboardScaler({ children }: { children: React.ReactNode }) {
       style={{ minHeight: "calc(100vh - 52px)" }}
     >
       <div
-        className="flex flex-col gap-2 px-6 pt-0 pb-2"
+        className="flex flex-col gap-1 px-6 pt-0 pb-2"
         style={{
           width: BASE_W,
           zoom: scale,
@@ -200,16 +200,19 @@ function HeroKpi({
   label,
   value,
   unit,
+  icon: Icon,
 }: {
   label: string;
   value: number;
   unit: string;
+  icon: React.ComponentType<{ className?: string }>;
   isFirst?: boolean;
 }) {
   const animated = useCountUp(value);
   return (
     <div className="flex items-baseline justify-between gap-3 px-5 py-2 bg-card rounded-[6px] border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="text-[12px] font-medium text-muted-foreground tracking-[0.02em] shrink-0">
+      <div className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground tracking-[0.02em] shrink-0">
+        <Icon className="h-5 w-5 text-primary/70" />
         {label}
       </div>
       <div className="flex items-baseline gap-1 min-w-0">
@@ -560,7 +563,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
             transform: `scale(${pageScale})`,
             transformOrigin: "top left",
           }}
-          className="px-6 flex flex-col gap-2 py-2"
+          className="px-6 flex flex-col gap-1 py-2"
         >
           <FilterBar
             filterOptions={filterOptions}
@@ -573,10 +576,10 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
             onReset={handleResetFilters}
           />
           <div className="grid grid-cols-4 gap-2">
-            <HeroKpi label="총 현장" value={summary.total_sites ?? 0} unit="개" />
-            <HeroKpi label="총 공사비" value={Math.round(budget.total_contract ?? 0)} unit="억" />
-            <HeroKpi label="자사 도급액" value={Math.round((budget as any).total_our_share ?? 0)} unit="억" />
-            <HeroKpi label="총 인원" value={headcount.total ?? 0} unit="명" />
+            <HeroKpi icon={Building2} label="총 현장"    value={summary.total_sites ?? 0} unit="개" />
+            <HeroKpi icon={Banknote}  label="총 공사비"  value={Math.round(budget.total_contract ?? 0)} unit="억" />
+            <HeroKpi icon={PieChart}  label="자사 도급액" value={Math.round((budget as any).total_our_share ?? 0)} unit="억" />
+            <HeroKpi icon={Users}     label="총 인원"    value={headcount.total ?? 0} unit="명" />
           </div>
         </div>
       </div>
@@ -629,7 +632,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
                 <button
                   type="button"
                   onClick={() => setAddOpen(true)}
-                  className="absolute -top-10 right-0 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/15 transition-colors duration-150"
+                  className="absolute -top-8 right-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/15 transition-colors duration-150"
                 >
                   <Plus className="h-3 w-3" />
                   현장 추가

@@ -36,7 +36,7 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
   const cx = 70;
   const cy = 70;
   const r = 55;
-  const innerR = 22;
+  const innerR = 30;
 
   const slices = [
     { key: "ACTIVE", count: active, color: ACTIVE_COLOR },

@@ -136,10 +136,10 @@ export default function AdminUsersPage() {
   return (
     <div className="max-w-[1100px] mx-auto px-4 py-6 flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-[18px] font-semibold">사용자 관리</h1>
+        <h1 className="text-[15px] font-semibold">사용자 관리</h1>
         <div className="flex items-center gap-2">
           <Select value={filter} onValueChange={(v) => setFilter(v as Status | "all")}>
-            <SelectTrigger className="w-[150px] h-8 text-[12px]">
+            <SelectTrigger size="sm" className="w-32.5 text-[13px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -149,7 +149,7 @@ export default function AdminUsersPage() {
               <SelectItem value="all">전체</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
+          <Button variant="ghost" size="sm" onClick={load} disabled={loading} className="text-[13px]">
             새로고침
           </Button>
         </div>

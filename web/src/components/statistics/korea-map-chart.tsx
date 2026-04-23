@@ -291,8 +291,8 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
         상세 지도 보기 →
       </button>
 
-      {/* Metric selector - right top (shifted 50px to the left) */}
-      <div className="absolute top-3 right-[58px] z-20 flex flex-col gap-1 items-center">
+      {/* Metric selector - right top */}
+      <div className="absolute top-3 right-3 z-20 flex flex-col gap-1 items-end">
         {METRICS.map((m) => {
           const isActive = activeMetric === m.key;
           return (

@@ -79,7 +79,7 @@ export function SiteList({ sites, selectedSiteId, onSelect, showAddressWarnings 
   return (
     <div>
       {/* 컬럼 헤더 */}
-      <div className={cn("grid gap-2 px-4 py-2 bg-card border border-border rounded-[6px] text-[13px] font-semibold text-slate-600 tracking-wide mb-2", TABLE_COLS)}>
+      <div className={cn("grid gap-2 px-4 py-2 bg-card border border-border rounded-[6px] text-[13px] font-semibold text-slate-600 tracking-wide mb-1", TABLE_COLS)}>
         <span className="text-center">No.</span>
         {COLUMNS.map((col) => (
           <button
