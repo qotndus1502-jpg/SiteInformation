@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import {
-  User, Phone, Mail, MapPin, Calendar, Pencil, ChevronLeft,
+  User, Phone, Mail, MapPin, Calendar, Pencil, ChevronLeft, X,
   GraduationCap, Smartphone,
 } from "lucide-react";
 import type { OrgMember, ResumeData } from "@/types/org-chart";
@@ -21,6 +21,7 @@ interface EmployeeProfileProps {
   memberId: number;
   siteName: string;
   onBack: () => void;
+  onClose?: () => void;
   fallbackMember?: OrgMember | null;
   allMembers?: OrgMember[];
 }
@@ -79,7 +80,7 @@ function getMemberPhoto(member: OrgMember): string | null {
   return null;
 }
 
-export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, allMembers = [] }: EmployeeProfileProps) {
+export function EmployeeProfile({ memberId, siteName, onBack, onClose, fallbackMember, allMembers = [] }: EmployeeProfileProps) {
   const [data, setData] = useState<ProfileApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(memberId);
@@ -141,7 +142,17 @@ export function EmployeeProfile({ memberId, siteName, onBack, fallbackMember, al
   const certifications = resume.certifications || [];
 
   return (
-    <div className="flex h-full">
+    <div className="relative flex h-full">
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="닫기"
+          className="absolute top-4 right-4 z-10 h-8 w-8 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      )}
       {/* ── Left sidebar: peers ── */}
       <div className="w-[200px] shrink-0 border-r border-border bg-muted/30 flex flex-col">
         <div className="px-4 pt-4 pb-3">

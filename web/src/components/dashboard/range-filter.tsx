@@ -32,20 +32,22 @@ export function RangeFilter({ label, options, selected, onChange }: RangeFilterP
       <PopoverTrigger asChild>
         {/* SelectTrigger 와 동일한 스타일 */}
         <button
+          data-active={count > 0}
           className={cn(
-            "flex w-fit items-center justify-between gap-1.5 rounded-md border border-input bg-card px-2.5 py-0 !font-normal whitespace-nowrap cursor-pointer shadow-xs transition-[color,box-shadow] outline-none",
+            "flex items-center justify-between gap-1.5 rounded-full border px-2.5 !font-normal whitespace-nowrap cursor-pointer outline-none",
             "!text-[11px]",
-            "h-7 w-full",
-            "focus-visible:border-ring focus-visible:ring-[4px] focus-visible:ring-ring/15",
+            "h-7 shrink-0",
+            "transition-colors duration-150",
+            "focus-visible:ring-[4px] focus-visible:ring-ring/15 focus-visible:border-ring",
             count === 0
-              ? "!text-muted-foreground"
-              : "border-primary/50 bg-primary/5 !text-primary",
+              ? "border-border bg-card !text-foreground hover:bg-muted/60"
+              : "bg-primary/10 !text-primary border-primary/20 hover:bg-primary/15",
           )}
         >
           <span className="truncate">
             {count === 0 ? label : `${label} (${count})`}
           </span>
-          <ChevronDownIcon className="size-3 text-muted-foreground shrink-0" />
+          <ChevronDownIcon className={cn("size-3 shrink-0", count === 0 ? "text-muted-foreground" : "text-white/85")} />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-44 p-1.5" align="start">

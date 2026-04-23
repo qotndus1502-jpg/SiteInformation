@@ -11,7 +11,7 @@ import traceback
 import httpx
 from typing import Optional
 from pathlib import Path
-from datetime import date, datetime
+from datetime import datetime
 from collections import defaultdict
 
 load_dotenv()
@@ -34,7 +34,7 @@ app = FastAPI(title="SiteInformation API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://192.168.0.6:3000", "https://site-info-umber.vercel.app"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://192.168.0.6:3000", "https://site-info-umber.vercel.app"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -140,28 +140,6 @@ def attach_share_amounts(sites: list[dict]) -> list[dict]:
     return sites
 
 
-def auto_status(sites: list[dict]) -> list[dict]:
-    """start_date/end_date 기준으로 status 자동 판정.
-    - start_date > 오늘 → PRE_START
-    - start_date <= 오늘 && (end_date 없음 || end_date >= 오늘) → ACTIVE
-    - end_date < 오늘 → COMPLETED
-    SUSPENDED는 수동 관리이므로 건드리지 않는다.
-    """
-    today = date.today().isoformat()
-    for s in sites:
-        if s.get("status") == "SUSPENDED":
-            continue
-        sd = s.get("start_date")
-        ed = s.get("end_date")
-        if sd and sd > today:
-            s["status"] = "PRE_START"
-        elif ed and ed < today:
-            s["status"] = "COMPLETED"
-        elif sd and sd <= today:
-            s["status"] = "ACTIVE"
-    return sites
-
-
 def clean_facility_type(sites: list[dict]) -> list[dict]:
     """facility_type_name이 발주유형과 동일하면 비워서 중복 표시 방지."""
     for site in sites:
@@ -221,7 +199,6 @@ def get_all_sites_cached() -> list[dict]:
         deduped.append(s)
 
     deduped = clean_facility_type(deduped)
-    deduped = auto_status(deduped)
     deduped = attach_share_amounts(deduped)
     deduped = attach_coords(deduped)
 
@@ -483,6 +460,40 @@ async def get_headcount_summary(site_id: int):
     return response.data or []
 
 
+@app.get("/api/sites/{site_id}/required-headcount")
+async def get_required_headcount(site_id: int):
+    """사원 유형별 소요 인원 조회. 값 없으면 0으로 채워 반환."""
+    response = supabase.schema("pmis").from_("site") \
+        .select("required_headcount") \
+        .eq("id", site_id) \
+        .limit(1) \
+        .execute()
+    row = (response.data or [{}])[0]
+    data = row.get("required_headcount") or {}
+    return {
+        "general": int(data.get("general") or 0),
+        "specialist": int(data.get("specialist") or 0),
+        "contract": int(data.get("contract") or 0),
+        "jv": int(data.get("jv") or 0),
+    }
+
+
+@app.put("/api/sites/{site_id}/required-headcount")
+async def update_required_headcount(site_id: int, payload: dict = Body(...)):
+    """사원 유형별 소요 인원 저장."""
+    data = {
+        "general": max(0, int(payload.get("general") or 0)),
+        "specialist": max(0, int(payload.get("specialist") or 0)),
+        "contract": max(0, int(payload.get("contract") or 0)),
+        "jv": max(0, int(payload.get("jv") or 0)),
+    }
+    supabase.schema("pmis").from_("site") \
+        .update({"required_headcount": data}) \
+        .eq("id", site_id) \
+        .execute()
+    return data
+
+
 @app.get("/api/sites/{site_id}/departments")
 async def get_site_departments(site_id: int):
     """Get departments for a site. Auto-seeds defaults on first access if empty."""
@@ -526,7 +537,7 @@ async def create_site_department(site_id: int, payload: dict = Body(...)):
 
 @app.put("/api/departments/{dept_id}")
 async def update_site_department(dept_id: int, payload: dict = Body(...)):
-    """Rename / reorder department."""
+    """Rename / reorder department / update required_count."""
     patch: dict = {}
     if "name" in payload:
         n = (payload.get("name") or "").strip()
@@ -535,6 +546,8 @@ async def update_site_department(dept_id: int, payload: dict = Body(...)):
         patch["name"] = n
     if "sort_order" in payload:
         patch["sort_order"] = int(payload["sort_order"])
+    if "required_count" in payload:
+        patch["required_count"] = max(0, int(payload["required_count"] or 0))
     if not patch:
         raise HTTPException(status_code=400, detail="변경할 내용이 없습니다")
     res = supabase.schema("pmis").from_("site_department").update(patch).eq("id", dept_id).execute()

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react";
-import { Users, ChevronLeft, Plus, X, Check, ChevronUp, ChevronDown, Settings2 } from "lucide-react";
+import { Users, Plus, X, Check, ChevronUp, ChevronDown, Settings2, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OrgMemberCard } from "./org-member-card";
@@ -17,7 +17,10 @@ import {
   createOrgMember,
   updateOrgMember,
   deleteOrgMember,
+  fetchRequiredHeadcount,
+  updateRequiredHeadcount,
   type OrgMemberInput,
+  type RequiredHeadcount,
 } from "@/lib/queries/org-chart";
 import type { Department, OrgMember, OrgRole } from "@/types/org-chart";
 import type { SiteDashboard } from "@/types/database";
@@ -36,6 +39,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
   const [members, setMembers] = useState<OrgMember[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [roles, setRoles] = useState<OrgRole[]>([]);
+  const [requiredHeadcount, setRequiredHeadcount] = useState<RequiredHeadcount>({ general: 0, specialist: 0, contract: 0, jv: 0 });
   const [loading, setLoading] = useState(false);
 
   // 인원 추가/수정 폼 상태
@@ -190,8 +194,12 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
 
   // 조직도 콘텐츠를 viewport에 맞춰 scale up — 큰 모니터에서도 맥북처럼 꽉 찬 느낌을 주려고.
   const contentRef = useRef<HTMLDivElement>(null);
+  const dialogContentRef = useRef<HTMLDivElement>(null);
+  const primaryRowRef = useRef<HTMLDivElement>(null);
   // 다이얼로그 박스는 현장에 관계없이 고정. 가장 큰 현장(구리갈매역세권)이 꽉 차는 viewport 비율 기준.
   const [metrics, setMetrics] = useState<{ w: number; h: number; scale: number }>({ w: 0, h: 0, scale: 1 });
+  // primary 카드 상단 Y (다이얼로그 기준) — 표 정렬용. DOM에서 실측.
+  const [primaryTop, setPrimaryTop] = useState<number>(92);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -201,25 +209,26 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       const naturalW = el.offsetWidth;
       const naturalH = el.offsetHeight;
       if (!naturalW || !naturalH) return;
-      // 박스는 차트 자연 비율을 따라 viewport 내 최대 크기로 맞춤.
-      // 이렇게 해야 스케일 후 빈 여백 없이 헤더/트리가 동일 비율로 꽉 참.
-      const maxW = window.innerWidth * 0.96;
-      const maxH = window.innerHeight * 0.94;
-      const natRatio = naturalW / naturalH;
-      let boxW = maxW;
-      let boxH = maxW / natRatio;
-      if (boxH > maxH) {
-        boxH = maxH;
-        boxW = maxH * natRatio;
-      }
+      // 박스는 viewport 최대 크기로 고정 — 현장별 비율 조정 없음.
+      // Scale은 구리갈매역세권(최대 현장) 기준 REF 치수로 계산해 모든 현장에서
+      // 카드 크기가 동일하게 유지된다. 세로 꽉 차게(availableH / REF_H)가 우선,
+      // 가로(boxW / REF_W)는 cap으로만 동작. naturalH > REF_H 면 clip 방지로 측정값 사용.
+      const REF_W = 1380;
+      const REF_H = 900; // 구리갈매역세권 기준 natural height
+      const TOP_OFFSET = 80; // scale wrapper top 위치
+      const BOTTOM_PADDING = 16;
+      const boxW = window.innerWidth * 0.96;
+      const boxH = window.innerHeight * 0.94;
       // 로딩/빈 상태에서도 박스는 그대로 유지.
       if (loading || members.length === 0) {
         setMetrics({ w: boxW, h: boxH, scale: 1 });
         return;
       }
-      // 비율은 유지하고 박스에 꽉 차게 확대/축소 — 한 축이 박스를 채울 때까지.
-      const s = Math.min(boxW / naturalW, boxH / naturalH);
+      const availableH = boxH - TOP_OFFSET - BOTTOM_PADDING;
+      const effectiveRefH = Math.max(REF_H, naturalH);
+      const s = Math.min(boxW / REF_W, availableH / effectiveRefH);
       setMetrics({ w: boxW, h: boxH, scale: s });
+      void naturalW;
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -235,18 +244,21 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     if (!open) return;
     setLoading(true);
     try {
-      const [orgData, deptData, roleData] = await Promise.all([
+      const [orgData, deptData, roleData, requiredData] = await Promise.all([
         fetchOrgChart(site.id),
         fetchDepartments(site.id),
         fetchOrgRoles(),
+        fetchRequiredHeadcount(site.id),
       ]);
       setMembers(orgData);
       setDepartments(deptData);
       setRoles(roleData);
+      setRequiredHeadcount(requiredData);
     } catch {
       setMembers([]);
       setDepartments([]);
       setRoles([]);
+      setRequiredHeadcount({ general: 0, specialist: 0, contract: 0, jv: 0 });
     }
     setLoading(false);
   }, [open, site.id]);
@@ -295,6 +307,28 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
   };
 
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
+
+  // primary 카드(현장소장/현장대리인) 상단 Y를 실제 DOM에서 측정해 인원 현황표 위치와 정렬
+  useLayoutEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const primaryEl = primaryRowRef.current;
+      const firstCard = primaryEl?.querySelector("div > div"); // 카드 wrapper
+      const dialogEl = (firstCard || primaryEl)?.closest("[data-org-chart-print]") as HTMLElement | null;
+      if (!primaryEl || !dialogEl) return;
+      const primaryRect = primaryEl.getBoundingClientRect();
+      const dialogRect = dialogEl.getBoundingClientRect();
+      setPrimaryTop(primaryRect.top - dialogRect.top);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (primaryRowRef.current) ro.observe(primaryRowRef.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [open, metrics.scale, members.length, departments.length]);
 
   /* ─────────────────────────────────────────────────────────────────
    * 조직도 인원 배치 로직
@@ -458,6 +492,26 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     }
   };
 
+  const handleUpdateRequired = async (deptId: number, value: number) => {
+    setDeptError(null);
+    try {
+      await updateDepartment(deptId, { required_count: value });
+      await reloadDepartments();
+    } catch (e) {
+      setDeptError((e as Error).message);
+    }
+  };
+
+  const handleUpdateRequiredHeadcount = async (patch: Partial<RequiredHeadcount>) => {
+    const next = { ...requiredHeadcount, ...patch };
+    setRequiredHeadcount(next);
+    try {
+      await updateRequiredHeadcount(site.id, next);
+    } catch (e) {
+      setDeptError((e as Error).message);
+    }
+  };
+
   const handleMoveDept = async (deptId: number, direction: -1 | 1) => {
     // 1) 현재 렌더 순서와 일치하는 정렬된 배열 준비 (sort_order 중복 대응)
     const sorted = [...departments].sort(
@@ -490,126 +544,231 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
 
   const isProfileVisible = selectedMemberId != null;
 
+  /* 프린트 — 숨겨진 iframe에 차트만 복제해 A4 가로 1장에 맞게 프린트.
+     다이얼로그 내부 absolute 레이아웃/zoom 충돌을 피하고 확실히 1장에 들어감.
+     (displayMembers 선언 이후에 위치해야 TDZ 에러 없음) */
+  const handlePrint = useCallback(() => {
+    const wrapper = contentRef.current;
+    if (!wrapper) return;
+
+    // 화면과 동일하게 구리갈매(REF) 기준 고정 scale — 모든 현장이 같은 크기로 인쇄됨
+    const REF_W = 1380;
+    const REF_H = 570;
+    // A4 가로 5mm 여백 인쇄 가능 영역 ≈ 287mm × 200mm = 1085 × 756 px (96dpi)
+    const PRINT_W = 1085;
+    const PRINT_H = 756;
+    const HEADER_H = 40;
+    // 표는 absolute overlay라 가로 flow에 영향 없음. 차트 REF 기준으로 scale 계산.
+    const scale = Math.min(PRINT_W / REF_W, (PRINT_H - HEADER_H) / REF_H, 1) * 0.98;
+
+    const styleHtml = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map((el) => el.outerHTML)
+      .join("\n");
+
+    const chartHtml = wrapper.outerHTML;
+    const statusTable = document.querySelector("[data-org-chart-status-table]");
+    const tableHtml = statusTable ? (statusTable as HTMLElement).innerHTML : "";
+    const siteName = site.site_name;
+    const memberCount = displayMembers.length;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:1400px;height:900px;border:0;";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument;
+    if (!doc) {
+      document.body.removeChild(iframe);
+      return;
+    }
+
+    doc.open();
+    doc.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>조직도 - ${siteName}</title>
+${styleHtml}
+<style>
+  @page { size: A4 landscape; margin: 5mm; }
+  html, body { margin: 0; padding: 0; background: white; overflow: hidden; }
+  body { padding: 6mm; font-family: inherit; page-break-after: avoid; }
+  .chart-header { margin-bottom: 4mm; }
+  /* 화면과 동일한 레이아웃: 차트 중앙, 표는 절대 위치로 좌측 상단에. 전체를 zoom으로 축소. */
+  .print-root { position: relative; zoom: ${scale}; display: flex; flex-direction: column; align-items: center; }
+  .status-table-overlay { position: absolute; top: 16px; left: 0; z-index: 10; zoom: 0.75; transform-origin: top left; }
+  .chart-scale { flex-shrink: 0; }
+  .chart-header { font-size: 13px; font-weight: 600; color: #0f172a; margin-bottom: 8px; }
+  .chart-header .subtitle { font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 6px; }
+  /* 차트 자체의 zoom은 제거 — 상위 .content-row에서 통합 축소 */
+  .chart-scale { width: max-content; height: max-content; page-break-inside: avoid; break-inside: avoid; }
+  .chart-scale > [data-org-chart-scale-wrapper] {
+    position: static !important;
+    transform: none !important;
+    left: auto !important;
+    top: auto !important;
+    width: max-content !important;
+    height: max-content !important;
+  }
+  /* 배경 그래픽 인쇄 — 색/그라디언트/shadow가 그대로 출력되도록 */
+  .chart-scale, .chart-scale * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+</style>
+</head>
+<body>
+<div class="chart-header">${siteName}<span class="subtitle">조직도 · ${memberCount}명</span></div>
+<div class="print-root">
+  ${tableHtml ? `<div class="status-table-overlay">${tableHtml}</div>` : ""}
+  <div class="chart-scale">${chartHtml}</div>
+</div>
+</body>
+</html>`);
+    doc.close();
+
+    const doPrint = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } finally {
+        setTimeout(() => {
+          if (iframe.parentNode) document.body.removeChild(iframe);
+        }, 1000);
+      }
+    };
+
+    if (iframe.contentWindow?.document.readyState === "complete") {
+      setTimeout(doPrint, 300);
+    } else {
+      iframe.onload = () => setTimeout(doPrint, 300);
+    }
+  }, [site.site_name, displayMembers.length]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
+        data-org-chart-print
         style={{
           width: metrics.w ? `${metrics.w}px` : "max-content",
           height: metrics.h ? `${metrics.h}px` : "auto",
           maxWidth: "98vw",
           maxHeight: "96vh",
         }}
-        className="overflow-hidden p-0!"
+        className="overflow-hidden p-0! bg-white"
       >
         {/* DialogTitle은 접근성을 위해 숨겨진 상태로만 유지 */}
         <DialogHeader className="sr-only">
           <DialogTitle>{site.site_name} 조직도</DialogTitle>
         </DialogHeader>
 
-        {/* Scale wrapper — 자연 크기 기준 렌더 후 viewport에 맞춰 uniform scale.
-            헤더/버튼/차트 모두 이 안에 들어가서 하나의 uniform 스케일 단위로 동작한다.
-            이전에는 헤더를 absolute + 개별 transform 으로 띄워서 차트와 앵커가 달라 겹침이 발생했다. */}
+        {/* 헤더 — 다이얼로그 좌측 상단 고정 (스케일 무관). 차트와 분리되어 조직도 크기에 영향받지 않는다. */}
+        <div data-org-chart-header className="absolute top-0 left-0 right-0 z-20 flex items-start justify-between gap-6 px-8 pt-6 pb-2 pointer-events-none">
+          <div className="flex items-baseline gap-2.5 pointer-events-auto">
+            <h2 className="text-[20px] font-semibold text-slate-900 tracking-tight">
+              {site.site_name}
+            </h2>
+            <span className="text-[14px] text-slate-400 whitespace-nowrap">
+              조직도{displayMembers.length > 0 ? ` · ${displayMembers.length}명` : ""}
+              {mode === "manage"
+                ? " · 팀 편집 중"
+                : mode === "members"
+                ? hasPendingChanges
+                  ? " · 인원 편집 중 (미저장)"
+                  : " · 인원 편집 중"
+                : ""}
+            </span>
+          </div>
+          <div data-print-hide className="flex items-center gap-1.5 pointer-events-auto">
+            <button
+              type="button"
+              onClick={handlePrint}
+              aria-label="프린트"
+              title="프린트"
+              className="h-8 w-8 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            >
+              <Printer className="h-4 w-4" />
+            </button>
+            {isAdmin && mode === "view" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setMode("members")}
+                  className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  인원 편집
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("manage")}
+                  className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                  팀 관리
+                </button>
+              </>
+            )}
+            {isAdmin && mode === "members" && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleCancelBatch}
+                  disabled={savingBatch}
+                  className="h-8 px-3 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCommitBatch}
+                  disabled={savingBatch}
+                  className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800 disabled:opacity-50"
+                >
+                  {savingBatch ? "저장 중..." : "저장"}
+                </button>
+              </>
+            )}
+            {isAdmin && mode === "manage" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("view");
+                  setEditingDeptId(null);
+                  setAddingNew(false);
+                  setDeptError(null);
+                }}
+                className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800"
+              >
+                완료
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              aria-label="닫기"
+              className="h-8 w-8 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Scale wrapper — 차트만 포함. 가로 중앙, 세로 상단 고정 (모든 현장이 같은 상단 위치에서 시작). */}
         <div
           ref={contentRef}
+          data-org-chart-scale-wrapper
           style={{
             width: "max-content",
             height: "max-content",
             position: "absolute",
             left: "50%",
-            top: "50%",
-            transform: `translate(-50%, -50%) scale(${metrics.scale})`,
-            transformOrigin: "center center",
+            top: "80px",
+            transform: `translate(-50%, 0) scale(${metrics.scale})`,
+            transformOrigin: "top center",
           }}
         >
           <div className="flex flex-col">
-            {/* 헤더 행 — 좌: 나가기/타이틀, 우: 관리자 버튼 */}
-            <div className="flex items-start justify-between gap-6 px-4 pt-3 pb-2">
-              <div className="flex flex-col items-start gap-1">
-                <button
-                  type="button"
-                  onClick={() => onOpenChange(false)}
-                  className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-slate-900 transition-colors"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  나가기
-                </button>
-                <div className="flex items-baseline gap-2">
-                  <h2 className="text-[16px] font-semibold text-slate-900 tracking-tight">
-                    {site.site_name}
-                  </h2>
-                  <span className="text-[12px] text-slate-400 whitespace-nowrap">
-                    조직도{displayMembers.length > 0 ? ` · ${displayMembers.length}명` : ""}
-                    {mode === "manage"
-                      ? " · 팀 편집 중"
-                      : mode === "members"
-                      ? hasPendingChanges
-                        ? " · 인원 편집 중 (미저장)"
-                        : " · 인원 편집 중"
-                      : ""}
-                  </span>
-                </div>
-              </div>
-              {isAdmin && (
-                <div className="flex items-center gap-1.5">
-                  {mode === "view" && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setMode("members")}
-                        className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        인원 편집
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMode("manage")}
-                        className="h-8 px-3 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
-                      >
-                        <Settings2 className="h-3.5 w-3.5" />
-                        팀 관리
-                      </button>
-                    </>
-                  )}
-                  {mode === "members" && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleCancelBatch}
-                        disabled={savingBatch}
-                        className="h-8 px-3 rounded-md border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                      >
-                        취소
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCommitBatch}
-                        disabled={savingBatch}
-                        className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800 disabled:opacity-50"
-                      >
-                        {savingBatch ? "저장 중..." : "저장"}
-                      </button>
-                    </>
-                  )}
-                  {mode === "manage" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("view");
-                        setEditingDeptId(null);
-                        setAddingNew(false);
-                        setDeptError(null);
-                      }}
-                      className="h-8 px-3 rounded-md bg-blue-900 text-white text-[13px] font-semibold hover:bg-blue-800"
-                    >
-                      완료
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
           {/* Org Chart — slides left when profile opens */}
           <div
             className={cn(
@@ -627,43 +786,45 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
               </div>
             ) : (
               <div className="flex flex-col items-center px-3 pt-4 pb-3">
-                {/* === 최상위: 현장대리인 + 현장소장 (없으면 같은 자리에 placeholder 카드) === */}
+                {/* === 최상위: 현장대리인 + 현장소장 — 각 카드가 독립 === */}
                 {(topLevel.length > 0 || mode === "members") && (
-                  <div className="flex items-start gap-5">
-                    {topLevel.map((m) => (
-                      <EditableCard key={m.id} m={m} primary />
-                    ))}
-                    {mode === "members" &&
-                      !topLevel.some(
-                        (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_REP"
-                      ) && (
-                        <button
-                          type="button"
-                          onClick={() => openAddMember({ roleCode: "SITE_REP" })}
-                          className="w-[280px] h-34 flex items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-[14px] font-semibold text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition"
-                        >
-                          + 현장대리인 추가
-                        </button>
-                      )}
-                    {mode === "members" &&
-                      !topLevel.some(
-                        (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_MANAGER"
-                      ) && (
-                        <button
-                          type="button"
-                          onClick={() => openAddMember({ roleCode: "SITE_MANAGER" })}
-                          className="w-[280px] h-34 flex items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-[14px] font-semibold text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition"
-                        >
-                          + 현장소장 추가
-                        </button>
-                      )}
+                  <div ref={primaryRowRef}>
+                    <div className="flex items-start gap-5 justify-center">
+                      {topLevel.map((m) => (
+                        <EditableCard key={m.id} m={m} primary />
+                      ))}
+                      {mode === "members" &&
+                        !topLevel.some(
+                          (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_REP"
+                        ) && (
+                          <button
+                            type="button"
+                            onClick={() => openAddMember({ roleCode: "SITE_REP" })}
+                            className="w-[280px] h-34 flex items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-[14px] font-semibold text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition"
+                          >
+                            + 현장대리인 추가
+                          </button>
+                        )}
+                      {mode === "members" &&
+                        !topLevel.some(
+                          (m) => roles.find((r) => r.id === m.role_id)?.code === "SITE_MANAGER"
+                        ) && (
+                          <button
+                            type="button"
+                            onClick={() => openAddMember({ roleCode: "SITE_MANAGER" })}
+                            className="w-[280px] h-34 flex items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-[14px] font-semibold text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition"
+                          >
+                            + 현장소장 추가
+                          </button>
+                        )}
+                    </div>
                   </div>
                 )}
 
                 {(topLevel.length > 0 || mode === "members") && displayedDepts.length > 0 && (
                   <>
                     <div className="h-3" />
-                    <div className="w-px h-4 bg-gradient-to-b from-slate-500 to-slate-400" />
+                    <div className="w-px h-4 bg-slate-300" />
                   </>
                 )}
 
@@ -671,52 +832,68 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                 {deptRows.map((row, rowIdx) => (
                   <div key={rowIdx} className="flex flex-col items-center">
                     {rowIdx === 0 && (
-                      <div className="h-px bg-slate-400" style={{ width: `${rowWidth(row)}px` }} />
+                      <div className="h-px bg-slate-300" style={{ width: `${rowWidth(row)}px` }} />
                     )}
                     {rowIdx > 0 && <div className="h-5" />}
                     <div className="flex items-start" style={{ gap: `${DEPT_GAP}px` }}>
                       {row.map((dept) => {
                         const wide = dept.members.length > 5;
+                        const isEmpty = dept.members.length === 0 && mode !== "members";
                         return (
                           <div
                             key={dept.id ?? `orphan-${dept.name}`}
                             className="flex flex-col items-center"
                             style={{ width: wide ? DEPT_WIDTH_WIDE : DEPT_WIDTH_NARROW }}
                           >
-                            {rowIdx === 0 && <div className="w-px h-3 bg-slate-400" />}
-                            <div className="mt-0.5 mb-1.5 px-2.5 py-0.5 rounded-md bg-blue-900 text-white text-[12px] font-semibold tracking-tight whitespace-nowrap max-w-full truncate">
-                              {dept.name}
-                            </div>
-                            <div className="w-full bg-white ring-1 ring-slate-300 px-2 py-2">
-                              {wide ? (
-                                <div className="flex gap-x-2 justify-start">
+                            {rowIdx === 0 && <div className="w-px h-3 bg-slate-300" />}
+                            {/* 부서 카드 — 헤더와 본체를 하나의 카드로 통합 */}
+                            <div
+                              className={cn(
+                                "w-full rounded-md overflow-hidden",
+                                isEmpty
+                                  ? "border border-dashed border-slate-300 bg-slate-50/50"
+                                  : "shadow-sm ring-1 ring-slate-200 bg-slate-50"
+                              )}
+                            >
+                              <div className="px-2.5 py-1.5 bg-slate-700 text-white text-[12px] font-medium tracking-wide whitespace-nowrap text-center truncate">
+                                {dept.name}
+                              </div>
+                              <div className="px-2 py-2">
+                                {isEmpty ? (
+                                  <div className="flex flex-col items-center justify-center gap-1.5 py-4 text-slate-400">
+                                    <Users className="h-5 w-5 opacity-60" />
+                                    <span className="text-[11px] font-medium">인원 없음</span>
+                                  </div>
+                                ) : wide ? (
+                                  <div className="flex gap-x-2 justify-start">
+                                    <div className="flex flex-col items-start gap-2.5">
+                                      {dept.members.filter((_, i) => i % 2 === 0).map((m) => (
+                                        <EditableCard key={m.id} m={m} />
+                                      ))}
+                                    </div>
+                                    <div className="flex flex-col items-start gap-2.5">
+                                      {dept.members.filter((_, i) => i % 2 === 1).map((m) => (
+                                        <EditableCard key={m.id} m={m} />
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : (
                                   <div className="flex flex-col items-start gap-2.5">
-                                    {dept.members.filter((_, i) => i % 2 === 0).map((m) => (
+                                    {dept.members.map((m) => (
                                       <EditableCard key={m.id} m={m} />
                                     ))}
                                   </div>
-                                  <div className="flex flex-col items-start gap-2.5">
-                                    {dept.members.filter((_, i) => i % 2 === 1).map((m) => (
-                                      <EditableCard key={m.id} m={m} />
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex flex-col items-start gap-2.5">
-                                  {dept.members.map((m) => (
-                                    <EditableCard key={m.id} m={m} />
-                                  ))}
-                                </div>
-                              )}
-                              {mode === "members" && dept.id != null && (
-                                <button
-                                  type="button"
-                                  onClick={() => openAddMember({ departmentId: dept.id })}
-                                  className="mt-2 w-full h-8 rounded-md border border-dashed border-slate-300 bg-white text-[12px] font-medium text-slate-600 hover:bg-slate-50"
-                                >
-                                  + 인원 추가
-                                </button>
-                              )}
+                                )}
+                                {mode === "members" && dept.id != null && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openAddMember({ departmentId: dept.id })}
+                                    className="mt-2 w-full h-8 rounded-md border border-dashed border-slate-300 bg-white text-[12px] font-medium text-slate-600 hover:bg-slate-50"
+                                  >
+                                    + 인원 추가
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -730,6 +907,68 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
           </div>
           </div>
         </div>
+
+        {/* 인원 현황표 — 사원 유형별 소요/현재/향후 인원. 프로필 표시 중에는 숨김.
+            조직원 0명인 현장도 소요인원 데이터는 있으므로 항상 노출. */}
+        {!showProfile && !loading && (() => {
+          const counts = {
+            일반직: displayMembers.filter((m) => !m.employee_type && !m.company_name).length,
+            전문직: displayMembers.filter((m) => m.employee_type === "전문직").length,
+            현장계약: displayMembers.filter((m) => m.employee_type === "현채직").length,
+            공동사: displayMembers.filter((m) => !!m.company_name && m.employee_type !== "전문직" && m.employee_type !== "현채직").length,
+          };
+          const rows: Array<{ label: string; dot: string; current: number; required: number }> = [
+            { label: "일반직", dot: "bg-slate-400", current: counts.일반직, required: requiredHeadcount.general },
+            { label: "전문직", dot: "bg-emerald-400", current: counts.전문직, required: requiredHeadcount.specialist },
+            { label: "현장계약", dot: "bg-sky-400", current: counts.현장계약, required: requiredHeadcount.contract },
+            { label: "공동사", dot: "bg-amber-400", current: counts.공동사, required: requiredHeadcount.jv },
+          ];
+          const totalCurrent = rows.reduce((s, r) => s + r.current, 0);
+          const totalRequired = rows.reduce((s, r) => s + r.required, 0);
+          const totalFuture = Math.max(0, totalRequired - totalCurrent);
+          const cell = "px-3 py-1.5 text-center font-mono border-r border-slate-200";
+          const emptyStr = (n: number) => (n > 0 ? n : "-");
+          return (
+            <div data-org-chart-status-table className="absolute left-8 z-10" style={{ top: `${primaryTop}px` }}>
+              <div className="rounded-md overflow-hidden ring-1 ring-slate-200 shadow-sm bg-white">
+                <table className="text-[13px] border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-700">
+                      <th className="px-3 py-2 font-medium tracking-wide border-r border-slate-200 text-center whitespace-nowrap">구 분</th>
+                      <th className="px-3 py-2 font-medium tracking-wide border-r border-slate-200 whitespace-nowrap">소요인원</th>
+                      <th className="px-3 py-2 font-medium tracking-wide border-r border-slate-200 whitespace-nowrap">현재인원</th>
+                      <th className="px-3 py-2 font-medium tracking-wide whitespace-nowrap">향후투입</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => {
+                      const future = Math.max(0, r.required - r.current);
+                      return (
+                        <tr key={r.label} className="border-t border-slate-200">
+                          <td className="px-3 py-1.5 border-r border-slate-200">
+                            <div className="flex items-center gap-2">
+                              <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", r.dot)} />
+                              <span className="text-slate-700">{r.label}</span>
+                            </div>
+                          </td>
+                          <td className={cn(cell, "text-slate-700")}>{emptyStr(r.required)}</td>
+                          <td className={cn(cell, "font-semibold text-slate-900")}>{emptyStr(r.current)}</td>
+                          <td className={cn(cell, "text-slate-700 border-r-0")}>{emptyStr(future)}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="border-t border-slate-300 bg-slate-50">
+                      <td className="px-3 py-1.5 border-r border-slate-200 font-semibold text-slate-700 text-center">합 계</td>
+                      <td className={cn(cell, "font-semibold text-slate-900")}>{emptyStr(totalRequired)}</td>
+                      <td className={cn(cell, "font-bold text-slate-900")}>{emptyStr(totalCurrent)}</td>
+                      <td className={cn(cell, "font-semibold text-slate-900 border-r-0")}>{emptyStr(totalFuture)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Profile — slides in from right. 차트와 동일한 스케일로 확대. */}
         {profileMemberId != null && (
@@ -752,6 +991,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                 memberId={profileMemberId}
                 siteName={`${site.corporation_name ?? ""} · ${site.site_name}`}
                 onBack={closeProfile}
+                onClose={() => onOpenChange(false)}
                 fallbackMember={members.find((m) => m.id === profileMemberId) ?? null}
                 allMembers={members}
               />
@@ -807,6 +1047,41 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
                 </div>
               </div>
               <div className="p-4">
+                {/* 사원 유형별 소요 인원 입력 — 팀 테이블 위 */}
+                <div className="mb-3 p-2.5 rounded-md border border-slate-200 bg-slate-50/50">
+                  <div className="text-[11px] font-semibold text-slate-500 mb-1.5">사원 유형별 소요 인원</div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {([
+                      { key: "general", label: "일반직", dot: "bg-slate-400" },
+                      { key: "specialist", label: "전문직", dot: "bg-emerald-400" },
+                      { key: "contract", label: "현장계약", dot: "bg-sky-400" },
+                      { key: "jv", label: "공동사", dot: "bg-amber-400" },
+                    ] as const).map((t) => (
+                      <div key={t.key} className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className={cn("w-2 h-2 rounded-full shrink-0", t.dot)} />
+                          <span className="text-[11px] text-slate-600">{t.label}</span>
+                        </div>
+                        <input
+                          type="number"
+                          min={0}
+                          defaultValue={requiredHeadcount[t.key] ?? 0}
+                          key={`req-${t.key}-${requiredHeadcount[t.key] ?? 0}`}
+                          onBlur={(e) => {
+                            const v = Math.max(0, parseInt(e.target.value) || 0);
+                            if (v !== (requiredHeadcount[t.key] ?? 0)) {
+                              handleUpdateRequiredHeadcount({ [t.key]: v });
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                          }}
+                          className="h-7 w-full px-2 text-[12px] text-center font-mono tabular-nums border border-slate-200 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 <div className="flex items-center gap-2 px-2.5 h-7 border border-b-0 border-slate-200 rounded-t-md bg-slate-50 text-[11px] font-semibold text-slate-500">
                   <span className="w-4 tabular-nums">No.</span>
                   <span className="flex-1">팀명</span>
@@ -972,6 +1247,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
         initialMember={memberFormInitial}
         presetDepartmentId={memberFormPresetDept}
         presetRoleCode={memberFormPresetRole}
+        defaultCompanyName={site.corporation_name ?? ""}
         onSubmit={handleMemberSubmit}
       />
     </Dialog>

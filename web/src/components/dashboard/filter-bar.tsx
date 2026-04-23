@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, RotateCcw } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RangeFilter } from "./range-filter";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
@@ -58,7 +58,13 @@ export function FilterBar({
   onReset,
 }: FilterBarProps) {
   return (
-    <div className={`grid ${GRID_COLS} gap-1.5 px-4 py-1.5 items-center`}>
+    <div className="flex items-center flex-wrap gap-1.5 px-3 py-2 bg-card rounded-[6px] border border-border">
+      {/* 필터 레이블 pill — primary tint */}
+      <div className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-[11px] font-semibold">
+        <SlidersHorizontal className="h-3 w-3" />
+        <span>필터</span>
+      </div>
+
       <RangeFilter
         label="전체 법인"
         options={filterOptions.corporations.map((c) => ({ value: c, label: c }))}
@@ -96,34 +102,33 @@ export function FilterBar({
         onChange={(s) => onFilterChange("status", setToStr(s))}
       />
 
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+      {/* 검색 — flex-1 로 남은 공간 흡수, pill 형태 */}
+      <div className="relative flex-1 min-w-[140px]">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
         <Input
           placeholder="현장명 검색..."
           value={filters.search ?? ""}
           onChange={(e) => onFilterChange("search", e.target.value)}
-          className="!h-7 pl-7 !text-[11px] !font-normal !text-muted-foreground w-full !py-0 !rounded-md"
+          className="!h-7 pl-8 !text-[11px] !font-normal !text-muted-foreground w-full !py-0 !rounded-full !border !border-border !bg-card"
           size="sm"
         />
       </div>
 
       <RangeFilter label="공사금액" options={AMOUNT_OPTIONS} selected={amountRanges} onChange={onAmountRangesChange} />
-      <div className="flex items-center gap-1 min-w-0">
-        <div className="flex-1 min-w-0">
-          <RangeFilter label="공정률" options={PROGRESS_OPTIONS} selected={progressRanges} onChange={onProgressRangesChange} />
-        </div>
-        {onReset && (
-          <button
-            type="button"
-            onClick={onReset}
-            title="필터 초기화"
-            aria-label="필터 초기화"
-            className="shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+      <RangeFilter label="공정률" options={PROGRESS_OPTIONS} selected={progressRanges} onChange={onProgressRangesChange} />
+
+      {/* 초기화 text pill */}
+      {onReset && (
+        <button
+          type="button"
+          onClick={onReset}
+          title="필터 초기화"
+          aria-label="필터 초기화"
+          className="shrink-0 inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-normal text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors duration-150"
+        >
+          초기화
+        </button>
+      )}
     </div>
   );
 }

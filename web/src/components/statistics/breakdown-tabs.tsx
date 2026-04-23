@@ -121,31 +121,31 @@ export function BreakdownTabs({
 
   return (
     <div className="h-full overflow-hidden">
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] h-full">
-        <div className="pr-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] h-full gap-2">
+        <div className="rounded-xl bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
           <KoreaMapChart data={by_region} onShowDetailMap={onShowDetailMap} selectedRegion={selectedRegion} onRegionClick={onRegionClick} />
         </div>
-        <div className="flex flex-col min-h-0 pl-0 gap-3">
+        <div className="flex flex-col min-h-0 gap-2">
           {/* Row 1 — 법인별: 현장수 / 자사도급액 / 인원 (right edge aligned with row 3 below) */}
-          <div className="pb-3 flex justify-end">
+          <div className="rounded-xl bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] p-3 flex justify-end">
             <CorpDivisionChart data={corpDivisionData} selectedCorp={selectedCorp} onCorpClick={onCorpClick} />
           </div>
 
           {/* Row 2 — 상태별: 도넛 + 착공·준공예정 가로 배치 (Row 1 의 CorpDivisionChart 폭에 맞춰 우측 정렬) */}
-          <div className="relative pt-3 pb-0 border-t-[1.5px] border-slate-300">
+          <div className="relative px-3 py-2 rounded-xl bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
             {/* Legend — top-left of the row (matches Row 3 legend x position) */}
-            <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
+            <div className="absolute top-2 left-5 z-10 flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.ACTIVE }} />
-                <span className="text-[11px] text-muted-foreground">진행중</span>
+                <span className="w-4 h-1.5 rounded-sm shadow-[0_0_0_1px_rgba(255,255,255,0.95),0_1px_2px_rgba(15,23,42,0.08)]" style={{ backgroundColor: STATUS_COLORS.ACTIVE }} />
+                <span className="text-[11px] font-medium text-slate-600 tracking-wide">진행중</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.PRE_START }} />
-                <span className="text-[11px] text-muted-foreground">착공전</span>
+                <span className="w-4 h-1.5 rounded-sm shadow-[0_0_0_1px_rgba(255,255,255,0.95),0_1px_2px_rgba(15,23,42,0.08)]" style={{ backgroundColor: STATUS_COLORS.PRE_START }} />
+                <span className="text-[11px] font-medium text-slate-600 tracking-wide">착공전</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS.COMPLETED }} />
-                <span className="text-[11px] text-muted-foreground">준공</span>
+                <span className="w-4 h-1.5 rounded-sm shadow-[0_0_0_1px_rgba(255,255,255,0.95),0_1px_2px_rgba(15,23,42,0.08)]" style={{ backgroundColor: STATUS_COLORS.COMPLETED }} />
+                <span className="text-[11px] font-medium text-slate-600 tracking-wide">준공</span>
               </div>
             </div>
             <div className="flex justify-end">
@@ -163,19 +163,19 @@ export function BreakdownTabs({
           </div>
 
           {/* Row 3 — 금액별: 자사도급액별(좌, mirror) | 총공사비별(우) — 두 차트가 중앙에서 맞닿도록 */}
-          <div className="relative pt-1 border-t-[1.5px] border-slate-300">
+          <div className="relative p-3 rounded-xl bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
             {/* Legend — top-left of the row (matches Row 2 legend x position) */}
             <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: DIV_COLORS["건축"] }} />
-                <span className="text-[11px] text-muted-foreground">건축</span>
+                <span className="w-4 h-1.5 rounded-sm shadow-[0_0_0_1px_rgba(255,255,255,0.95),0_1px_2px_rgba(15,23,42,0.08)]" style={{ backgroundColor: DIV_COLORS["건축"] }} />
+                <span className="text-[11px] font-medium text-slate-600 tracking-wide">건축</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: DIV_COLORS["토목"] }} />
-                <span className="text-[11px] text-muted-foreground">토목</span>
+                <span className="w-4 h-1.5 rounded-sm shadow-[0_0_0_1px_rgba(255,255,255,0.95),0_1px_2px_rgba(15,23,42,0.08)]" style={{ backgroundColor: DIV_COLORS["토목"] }} />
+                <span className="text-[11px] font-medium text-slate-600 tracking-wide">토목</span>
               </div>
               {((amount_heatmap.no_contract_count ?? 0) > 0 || (amount_heatmap.no_share_count ?? 0) > 0) && (
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-[11px] font-medium text-slate-600 tracking-wide">
                   미입력 {amount_heatmap.no_contract_count ?? 0}개
                 </span>
               )}

@@ -286,8 +286,7 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
       <button
         type="button"
         onClick={() => onShowDetailMap?.()}
-        className="absolute top-3 left-3 z-20 flex items-center gap-1 px-3 py-1 rounded-full text-[12px] font-medium border transition-all hover:opacity-90"
-        style={{ borderColor: "#1E3A8A", color: "#fff", backgroundColor: "#1E3A8A" }}
+        className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/15 transition-colors duration-150"
       >
         상세 지도 보기 →
       </button>
@@ -301,10 +300,10 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
               key={m.key}
               onClick={() => setActiveMetric(m.key)}
               className={cn(
-                "px-2.5 py-0.5 rounded-full text-[12px] font-medium transition-all border",
+                "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors duration-150",
                 isActive
-                  ? "text-primary border-primary/50 bg-primary/5"
-                  : "text-muted-foreground border-transparent hover:text-foreground"
+                  ? "bg-primary/10 text-primary hover:bg-primary/15"
+                  : "text-muted-foreground hover:text-slate-900 hover:bg-slate-100/60",
               )}
             >
               {m.label}
@@ -316,6 +315,27 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
       {/* Map + overlays — fixed aspect ratio so the map keeps its proportions regardless of column width */}
       <div className="relative" style={{ marginTop: 20, width: "100%", aspectRatio: `${W} / ${H}`, maxHeight: 430 }}>
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+
+          <defs>
+            <linearGradient id="map-bubble-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" style={{ stopColor: `color-mix(in srgb, ${metricCfg.color} 90%, white)` }} />
+              <stop offset="100%" style={{ stopColor: metricCfg.color }} />
+            </linearGradient>
+            <linearGradient id="map-bubble-grad-active" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" style={{ stopColor: `color-mix(in srgb, ${metricCfg.hoverColor} 92%, white)` }} />
+              <stop offset="100%" style={{ stopColor: metricCfg.hoverColor }} />
+            </linearGradient>
+            <filter id="map-bubble-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor="#1E3A8A" floodOpacity={0.14} />
+            </filter>
+            <radialGradient id="map-bg-glow" cx="50%" cy="45%" r="55%">
+              <stop offset="0%" stopColor="#EFF6FF" stopOpacity={0.8} />
+              <stop offset="100%" stopColor="#EFF6FF" stopOpacity={0} />
+            </radialGradient>
+          </defs>
+
+          {/* Map background glow */}
+          <rect x={0} y={0} width={W} height={H} fill="url(#map-bg-glow)" className="pointer-events-none" />
 
           {/* Province shapes */}
           {geo.features.map((feature, i) => {
@@ -388,10 +408,6 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
                     onRegionClick?.(isSelected ? null : key);
                   }}>
 
-                  {/* Shadow for depth */}
-                  <circle cx={cx + 1} cy={cy + 1.5} r={isHov || isSelected ? r * 1.2 : r}
-                    fill="rgba(0,0,0,0.12)" className="pointer-events-none transition-all duration-200 ease-out" />
-
                   {/* Selection / Hover ring */}
                   {(isHov || isSelected) && (
                     <circle cx={cx} cy={cy} r={r * 1.2 + 4}
@@ -400,9 +416,9 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
                   )}
                   {/* Bubble */}
                   <circle cx={cx} cy={cy} r={isHov || isSelected ? r * 1.2 : r}
-                    fill={isHov || isSelected ? metricCfg.hoverColor : metricCfg.color}
-                    fillOpacity={isHov || isSelected ? 0.95 : 0.8}
-                    stroke="white" strokeWidth={isHov || isSelected ? 2 : 0.8}
+                    fill={isHov || isSelected ? "url(#map-bubble-grad-active)" : "url(#map-bubble-grad)"}
+                    stroke="rgba(255,255,255,0.7)" strokeWidth={isHov || isSelected ? 1.5 : 0.8}
+                    filter="url(#map-bubble-shadow)"
                     className="transition-all duration-200 ease-out" />
 
                   {/* Value */}
@@ -458,9 +474,6 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
                   fill={isHov ? metricCfg.hoverColor : "#4a5568"}>
                   해외
                 </text>
-                {/* Shadow */}
-                <circle cx={ix + 26} cy={iy + 21.5} r={isHov ? br * 1.2 : br}
-                  fill="rgba(0,0,0,0.12)" className="pointer-events-none transition-all duration-200" />
                 {/* Hover ring */}
                 {isHov && (
                   <circle cx={ix + 25} cy={iy + 20} r={br * 1.2 + 4}
@@ -475,9 +488,10 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
                 )}
                 {/* Bubble */}
                 <circle cx={ix + 25} cy={iy + 20} r={isHov ? br * 1.2 : br}
-                  fill={isHov || isSelected ? metricCfg.hoverColor : metricCfg.color}
-                  fillOpacity={isDimmed ? 0.35 : (isHov || isSelected ? 0.95 : 0.8)}
-                  stroke="white" strokeWidth={isHov ? 2 : 0.8}
+                  fill={isHov || isSelected ? "url(#map-bubble-grad-active)" : "url(#map-bubble-grad)"}
+                  opacity={isDimmed ? 0.4 : 1}
+                  stroke="rgba(255,255,255,0.7)" strokeWidth={isHov ? 1.5 : 0.8}
+                  filter="url(#map-bubble-shadow)"
                   className="transition-all duration-200"
                 />
                 <text x={ix + 25} y={iy + 20} textAnchor="middle" dominantBaseline="middle"

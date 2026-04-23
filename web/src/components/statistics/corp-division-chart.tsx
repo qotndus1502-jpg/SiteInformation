@@ -87,41 +87,54 @@ function BarCell({
   const archW = archVal > 0 ? Math.max(scale(archVal) * pxPerUnit, 36) : 0;
   const civilW = civilVal > 0 ? Math.max(scale(civilVal) * pxPerUnit, 36) : 0;
 
+  // 기존 건축 blue-600 / 토목 blue-200 팔레트 유지.
+  // 건축 (left half, 값 끝=왼쪽): 270deg, tint(blue-400)→base(blue-600)
+  // 토목 (right half, 값 끝=오른쪽): 90deg, tint(blue-100)→base(blue-200)
+  const archGradient = "linear-gradient(270deg, #60A5FA 0%, #2563EB 100%)";
+  const civilGradient = "linear-gradient(90deg, #DBEAFE 0%, #BFDBFE 100%)";
+  const barTransition = "width 800ms cubic-bezier(0.2,0.7,0.3,1), filter 150ms ease-out";
+
   return (
-    <div className="flex items-center justify-center" style={{ opacity: isHov ? 1 : 0.8, height: s.rowH }}>
+    <div className="relative flex items-center justify-center" style={{ height: s.rowH }}>
       {/* Left half - 건축 */}
-      <div className="flex justify-end transition-[width] duration-200 ease-out" style={{ width: archHalfW }}>
+      <div className="flex justify-end" style={{ width: archHalfW, transition: barTransition }}>
         {archVal > 0 && (
           <div
-            className="flex items-center justify-center transition-all duration-200 ease-out"
+            className="flex items-center justify-center"
             style={{
               width: archW,
               height: s.rowH,
-              backgroundColor: s.archColor,
+              background: archGradient,
               borderTopLeftRadius: s.radius,
               borderBottomLeftRadius: s.radius,
+              filter: isHov ? "brightness(1.05)" : "none",
+              transition: barTransition,
             }}
           >
-            <span className="font-bold text-white/90 whitespace-nowrap" style={{ fontSize: s.fontSize }}>
+            <span className="font-semibold text-white/95 whitespace-nowrap" style={{ fontSize: s.fontSize }}>
               {fmtVal(archVal, metric)}
             </span>
           </div>
         )}
       </div>
+      {/* 중앙 분할선 */}
+      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-200/60 -translate-x-px pointer-events-none" />
       {/* Right half - 토목 */}
-      <div className="flex justify-start transition-[width] duration-200 ease-out" style={{ width: civilHalfW }}>
+      <div className="flex justify-start" style={{ width: civilHalfW, transition: barTransition }}>
         {civilVal > 0 && (
           <div
-            className="flex items-center justify-center transition-all duration-200 ease-out"
+            className="flex items-center justify-center"
             style={{
               width: civilW,
               height: s.rowH,
-              backgroundColor: s.civilColor,
+              background: civilGradient,
               borderTopRightRadius: s.radius,
               borderBottomRightRadius: s.radius,
+              filter: isHov ? "brightness(1.05)" : "none",
+              transition: barTransition,
             }}
           >
-            <span className="font-bold whitespace-nowrap" style={{ color: charts.corpDivision.onLight, fontSize: s.fontSize }}>
+            <span className="font-semibold whitespace-nowrap" style={{ color: charts.corpDivision.onLight, fontSize: s.fontSize }}>
               {fmtVal(civilVal, metric)}
             </span>
           </div>
@@ -184,7 +197,8 @@ export function CorpDivisionChart({ data, selectedCorp, onCorpClick }: CorpDivis
           const extraW = m.key === "total_contract" ? 20 : 0;
           return (
             <div key={m.key} className={cn("shrink-0 text-center", mi < metricData.length - 1 && "mr-2")} style={{ width: cellWidth + extraW }}>
-              <span className="inline-block font-bold text-slate-900" style={{ fontSize: titleFontSize }}>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-slate-900 tracking-tight" style={{ fontSize: titleFontSize }}>
+                <span className="inline-block w-0.5 h-3 rounded-sm bg-primary/80" />
                 {`법인별 ${m.label}`}
               </span>
             </div>
@@ -208,7 +222,7 @@ export function CorpDivisionChart({ data, selectedCorp, onCorpClick }: CorpDivis
             >
               {/* Corp name */}
               <span
-                className={cn("font-semibold w-14 shrink-0", isSelected ? "text-primary" : "text-foreground")}
+                className={cn("font-semibold w-14 shrink-0 tracking-tight transition-colors duration-(--motion)", isSelected ? "text-primary" : "text-slate-700")}
                 style={{ fontSize: cellStyle.fontSize }}
               >{corp}</span>
 

@@ -11,9 +11,9 @@ import { SiteList } from "@/components/dashboard/site-list";
 import { SiteDetail } from "@/components/dashboard/site-detail";
 import { SiteMap, type ColorCategory } from "@/components/dashboard/site-map";
 import { SiteFormDialog } from "@/components/dashboard/site-form-dialog";
-import { Button } from "@/components/ui/button";
 import { Plus, Info } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useCountUp } from "@/hooks/use-count-up";
 import { charts } from "@/lib/chart-colors";
 import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
 import type { SiteDashboard } from "@/types/database";
@@ -43,7 +43,7 @@ function DashboardScaler({ children }: { children: React.ReactNode }) {
       style={{ minHeight: "calc(100vh - 52px)" }}
     >
       <div
-        className="flex flex-col gap-1 p-1 lg:p-2"
+        className="flex flex-col gap-2 px-6 pt-0 pb-2"
         style={{
           width: BASE_W,
           zoom: scale,
@@ -166,18 +166,17 @@ function SiteListWithDetail({
                 same scale as the site list next to it */}
             <div style={{ zoom: "var(--dashboard-zoom, 1)" }}>
               <div
-                className="overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] pointer-events-auto shadow-2xl rounded-2xl"
+                className="overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] pointer-events-auto shadow-2xl rounded-xl"
                 style={{
                   maxWidth: cardVisible ? 500 : 0,
                   opacity: cardVisible ? 1 : 0,
                 }}
               >
-                {/* CSS height divided by zoom so the *visual* height fills from
-                    just below the sticky header down to ~16px above the viewport bottom. */}
+                {/* Cap by viewport but shrink to fit content when shorter. */}
                 <div
                   className="w-[500px]"
                   style={{
-                    height:
+                    maxHeight:
                       "calc((100vh - var(--sticky-header-bottom, 200px) - 56px) / var(--dashboard-zoom, 1))",
                   }}
                 >
@@ -192,11 +191,7 @@ function SiteListWithDetail({
   );
 
   if (embedded) return content;
-  return (
-    <div className="mt-[10px] p-4">
-      {content}
-    </div>
-  );
+  return <>{content}</>;
 }
 
 /* ── Hero KPI Card ──────────────────────────────────────── */
@@ -207,14 +202,22 @@ function HeroKpi({
   unit,
 }: {
   label: string;
-  value: string;
+  value: number;
   unit: string;
-  isLast?: boolean;
+  isFirst?: boolean;
 }) {
+  const animated = useCountUp(value);
   return (
-    <div className="flex items-center justify-center gap-2 py-0.5">
-      <p className="text-[14px] text-muted-foreground">{label}</p>
-      <p className="inline-flex items-center text-[20px] font-extrabold text-foreground tracking-tight">{value}<span className="text-[14px] font-normal text-muted-foreground ml-0.5">{unit}</span></p>
+    <div className="flex items-baseline justify-between gap-3 px-5 py-2 bg-card rounded-[6px] border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="text-[12px] font-medium text-muted-foreground tracking-[0.02em] shrink-0">
+        {label}
+      </div>
+      <div className="flex items-baseline gap-1 min-w-0">
+        <div className="font-mono tabular-nums text-[20px] font-bold tracking-[-0.02em] text-foreground">
+          {Math.round(animated).toLocaleString()}
+        </div>
+        <div className="text-[11px] text-muted-foreground">{unit}</div>
+      </div>
     </div>
   );
 }
@@ -372,14 +375,23 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
         nextStickyH = stickyContentRef.current.offsetHeight;
         setStickyContentH(nextStickyH);
       }
-      // Expose sticky header bottom (top-14 + header height) as a CSS var so the
-      // floating detail card can anchor itself below it regardless of viewport width.
-      const headerBottom = 56 + nextStickyH * nextScale;
+      const headerBottom = 44 + nextStickyH * nextScale;
       document.documentElement.style.setProperty("--sticky-header-bottom", `${headerBottom}px`);
     }
     update();
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+
+    // Observe inner content size changes (flex-wrap, font loading, data changes)
+    let ro: ResizeObserver | undefined;
+    if (stickyContentRef.current && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => update());
+      ro.observe(stickyContentRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", update);
+      ro?.disconnect();
+    };
   }, [stickyContentH]);
 
   const buildParams = useCallback((f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>, sYear?: string | null, eYear?: string | null) => {
@@ -540,7 +552,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
   return (
     <>
       {/* Sticky Header: Filter + KPIs - 페이지 헤더 바로 아래 고정 */}
-      <div className="sticky top-14 z-30 bg-background border-b-[1.5px] border-slate-300 -mx-4 sm:-mx-6 overflow-x-hidden" style={{ height: `${stickyContentH * pageScale}px` }}>
+      <div className="sticky top-11 z-30 bg-background border-b border-border -mx-4 sm:-mx-6 overflow-hidden" style={{ height: `${stickyContentH * pageScale}px` }}>
         <div
           ref={stickyContentRef}
           style={{
@@ -548,7 +560,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
             transform: `scale(${pageScale})`,
             transformOrigin: "top left",
           }}
-          className="px-4 sm:px-6"
+          className="px-6 flex flex-col gap-2 py-2"
         >
           <FilterBar
             filterOptions={filterOptions}
@@ -560,11 +572,11 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
             onProgressRangesChange={handleProgressChange}
             onReset={handleResetFilters}
           />
-          <div className="grid grid-cols-4 pb-4">
-            <HeroKpi label="총 현장" value={`${summary.total_sites}`} unit="개" />
-            <HeroKpi label="총 공사비" value={`${Math.round(budget.total_contract ?? 0).toLocaleString()}`} unit="억" />
-            <HeroKpi label="자사 도급액" value={`${Math.round((budget as any).total_our_share ?? 0).toLocaleString()}`} unit="억" />
-            <HeroKpi label="총 인원" value={`${(headcount.total ?? 0).toLocaleString()}`} unit="명" isLast />
+          <div className="grid grid-cols-4 gap-2">
+            <HeroKpi label="총 현장" value={summary.total_sites ?? 0} unit="개" />
+            <HeroKpi label="총 공사비" value={Math.round(budget.total_contract ?? 0)} unit="억" />
+            <HeroKpi label="자사 도급액" value={Math.round((budget as any).total_our_share ?? 0)} unit="억" />
+            <HeroKpi label="총 인원" value={headcount.total ?? 0} unit="명" />
           </div>
         </div>
       </div>
@@ -614,15 +626,14 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
             <SiteListWithDetail
               isAdmin={isAdmin}
               addButton={isAdmin ? (
-                <Button
-                  size="sm"
-                  variant="outline"
+                <button
+                  type="button"
                   onClick={() => setAddOpen(true)}
-                  className="absolute -top-10 right-0 h-7 px-2.5 text-[12px] gap-1 z-10"
+                  className="absolute -top-10 right-0 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/15 transition-colors duration-150"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus className="h-3 w-3" />
                   현장 추가
-                </Button>
+                </button>
               ) : null}
               sites={sites}
               selectedSite={selectedSite}
@@ -650,8 +661,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
               <button
                 type="button"
                 onClick={() => setShowDetailMap(false)}
-                className="absolute top-3 left-3 z-20 flex items-center gap-1 px-3 py-1 rounded-full text-[12px] font-medium border transition-all hover:opacity-90"
-                style={{ borderColor: "#1E3A8A", color: "#fff", backgroundColor: "#1E3A8A" }}
+                className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary hover:bg-primary/15 transition-colors duration-150"
               >
                 ← 대시보드로 돌아가기
               </button>

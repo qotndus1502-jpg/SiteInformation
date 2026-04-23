@@ -61,7 +61,6 @@ interface HeatmapStyle {
 function HalfBar({
   value,
   maxVal,
-  color,
   textColor,
   direction,
   isHov,
@@ -79,25 +78,32 @@ function HalfBar({
   const w = value > 0 ? Math.max((value / maxVal) * HALF_W, 24) : 0;
   const justify = direction === "left" ? "justify-end" : "justify-start";
 
-  // Pin the number to the edge adjacent to the label column so all values
-  // line up vertically regardless of bar length.
   const innerJustify = direction === "left" ? "justify-end" : "justify-start";
   const innerPad: React.CSSProperties =
     direction === "left" ? { paddingRight: 6 } : { paddingLeft: 6 };
 
+  // 기존 건축 blue-600 / 토목 blue-200 팔레트 유지.
+  // 건축 (direction=left, 값 끝=왼쪽): 270deg, tint(blue-400)→base(blue-600)
+  // 토목 (direction=right, 값 끝=오른쪽): 90deg, tint(blue-100)→base(blue-200)
+  const gradient = direction === "left"
+    ? "linear-gradient(270deg, #60A5FA 0%, #2563EB 100%)"
+    : "linear-gradient(90deg, #DBEAFE 0%, #BFDBFE 100%)";
+
   return (
-    <div className={cn("flex items-center", justify)} style={{ width: HALF_W, height: s.rowH, opacity: isHov ? 1 : 0.8 }}>
+    <div className={cn("flex items-center", justify)} style={{ width: HALF_W, height: s.rowH }}>
       {value > 0 && (
         <div
-          className={cn("flex items-center transition-all duration-200 ease-out", innerJustify)}
+          className={cn("flex items-center", innerJustify)}
           style={{
             width: w,
             height: s.rowH,
-            backgroundColor: color,
+            background: gradient,
             borderTopLeftRadius: direction === "left" ? s.radius : 0,
             borderBottomLeftRadius: direction === "left" ? s.radius : 0,
             borderTopRightRadius: direction === "right" ? s.radius : 0,
             borderBottomRightRadius: direction === "right" ? s.radius : 0,
+            filter: isHov ? "brightness(1.05)" : "none",
+            transition: "width 800ms cubic-bezier(0.2,0.7,0.3,1), filter 150ms ease-out",
             ...innerPad,
           }}
         >
@@ -166,9 +172,10 @@ export function AmountHeatmapChart({ data, series: which = "both", mirror = fals
             {/* Title centered above the pyramid */}
             <div className="text-center mb-1">
               <span
-                className="inline-block font-bold text-slate-900"
+                className="inline-flex items-center gap-1.5 font-semibold text-slate-900 tracking-tight"
                 style={{ fontSize: heatStyle.titleFontSize }}
               >
+                <span className="inline-block w-0.5 h-3 rounded-sm bg-primary/80" />
                 {s.title}
               </span>
             </div>
@@ -227,7 +234,7 @@ export function AmountHeatmapChart({ data, series: which = "both", mirror = fals
                       style={{ width: heatStyle.labelColW, height: heatStyle.rowH }}
                     >
                       <span
-                        className="text-[10px] font-semibold text-foreground whitespace-nowrap"
+                        className="text-[11px] font-medium text-slate-700 whitespace-nowrap tracking-tight"
                         style={{ lineHeight: 1, display: "inline-block" }}
                       >
                         {toHundredBillion(label)}

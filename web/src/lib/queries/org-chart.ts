@@ -40,7 +40,7 @@ export async function createDepartment(siteId: number, name: string): Promise<De
 
 export async function updateDepartment(
   deptId: number,
-  patch: { name?: string; sort_order?: number }
+  patch: { name?: string; sort_order?: number; required_count?: number }
 ): Promise<Department> {
   const res = await fetch(`${API_BASE}/api/departments/${deptId}`, {
     method: "PUT",
@@ -48,6 +48,31 @@ export async function updateDepartment(
     body: JSON.stringify(patch),
   })
   return handleMutation<Department>(res)
+}
+
+export type RequiredHeadcount = {
+  general: number
+  specialist: number
+  contract: number
+  jv: number
+}
+
+export async function fetchRequiredHeadcount(siteId: number): Promise<RequiredHeadcount> {
+  const res = await fetch(`${API_BASE}/api/sites/${siteId}/required-headcount`)
+  if (!res.ok) return { general: 0, specialist: 0, contract: 0, jv: 0 }
+  return res.json()
+}
+
+export async function updateRequiredHeadcount(
+  siteId: number,
+  payload: RequiredHeadcount,
+): Promise<RequiredHeadcount> {
+  const res = await fetch(`${API_BASE}/api/sites/${siteId}/required-headcount`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  return handleMutation<RequiredHeadcount>(res)
 }
 
 export async function deleteDepartment(deptId: number): Promise<void> {
@@ -61,6 +86,7 @@ export type OrgMemberInput = {
   department_id: number | null
   parent_id: number | null
   org_type: "OWN" | "JV" | "SUB"
+  employee_type: "일반직" | "전문직" | "현채직" | "공동사"
   company_name: string | null
   rank: string | null
   phone: string | null

@@ -59,9 +59,18 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
   if (!showDonut) return <div style={{ width: 140, height: 140 }} />;
 
   return (
-    <div className="p-2">
+    <div>
       <div className="relative flex items-center gap-3">
-        <svg viewBox={`0 0 ${cx * 2} ${cy * 2}`} className="w-[140px] h-[140px] shrink-0" onMouseLeave={() => setHovSlice(null)}>
+        <svg viewBox={`0 0 ${cx * 2} ${cy * 2}`} className="w-31 h-31 shrink-0" onMouseLeave={() => setHovSlice(null)} style={{ overflow: "visible" }}>
+            <defs>
+              {sliceData.map((s) => (
+                <linearGradient key={s.key} id={`donut-grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" style={{ stopColor: `color-mix(in srgb, ${s.color} 88%, white)` }} />
+                  <stop offset="100%" style={{ stopColor: s.color }} />
+                </linearGradient>
+              ))}
+            </defs>
+
             {sliceData.map((s) => {
               const isOnly = slices.length === 1;
               const startOuter = polarToCartesian(cx, cy, r, s.startAngle);
@@ -77,26 +86,35 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
               const isHov = hovSlice === s.key;
               const isSelected = selectedStatus === s.key;
               const isDimmed = selectedStatus != null && !isSelected;
+              const labelFill = s.key === "COMPLETED" ? "#334155" : "#FFFFFF";
               return (
                 <g key={s.key}>
                   <path
-                    d={d} fill={s.color} stroke="none"
-                    strokeWidth={0}
-                    className="transition-all duration-200 ease-out cursor-pointer"
+                    d={d} fill={`url(#donut-grad-${s.key})`}
+                    stroke="white" strokeWidth={1.5} strokeLinejoin="round"
+                    className="transition-[transform,opacity] duration-(--motion) ease-out cursor-pointer"
                     style={{
-                      transform: isHov || isSelected ? "scale(1.06)" : "scale(1)",
+                      transform: isHov || isSelected ? "scale(1.04)" : "scale(1)",
                       transformOrigin: `${cx}px ${cy}px`,
-                      opacity: isDimmed ? 0.4 : (isHov || isSelected ? 1 : 0.8),
+                      opacity: isDimmed ? 0.4 : (isHov || isSelected ? 1 : 0.92),
                     }}
                     onMouseEnter={() => setHovSlice(s.key)}
                     onClick={(e) => { e.stopPropagation(); onStatusClick?.(isSelected ? null : s.key); }}
                   />
-                  <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700} fill={s.key === "COMPLETED" ? charts.statusDonut.labelOnLight : charts.statusDonut.labelOnDark} className="pointer-events-none">
+                  <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700} fill={labelFill} className="pointer-events-none">
                     {s.count}
                   </text>
                 </g>
               );
             })}
+
+            {/* 중앙 총합 */}
+            <text x={cx} y={cy - 5} textAnchor="middle" dominantBaseline="central" fontSize={16} fontWeight={700} fill="#0F172A" className="pointer-events-none">
+              {donutTotal}
+            </text>
+            <text x={cx} y={cy + 9} textAnchor="middle" dominantBaseline="central" fontSize={8} fontWeight={500} fill="#64748B" letterSpacing={0.5} className="pointer-events-none">
+              TOTAL
+            </text>
         </svg>
       </div>
     </div>

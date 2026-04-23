@@ -77,9 +77,9 @@ export function SiteList({ sites, selectedSiteId, onSelect, showAddressWarnings 
   }, [sites, sortKeys]);
 
   return (
-    <div className="bg-white/60 backdrop-blur-sm overflow-hidden">
+    <div>
       {/* 컬럼 헤더 */}
-      <div className={cn("grid gap-2 px-4 py-2 bg-slate-200/70 text-[13px] font-semibold text-muted-foreground tracking-wide mb-1", TABLE_COLS)}>
+      <div className={cn("grid gap-2 px-4 py-2 bg-card border border-border rounded-[6px] text-[13px] font-semibold text-slate-600 tracking-wide mb-2", TABLE_COLS)}>
         <span className="text-center">No.</span>
         {COLUMNS.map((col) => (
           <button
@@ -110,13 +110,13 @@ export function SiteList({ sites, selectedSiteId, onSelect, showAddressWarnings 
         </button>
       </div>
 
-      {/* 데이터 행 */}
+      {/* 데이터 행 — 헤더와 분리된 별도 카드 */}
       {sorted.length === 0 ? (
-        <div className="flex items-center justify-center h-48 text-muted-foreground">
+        <div className="flex items-center justify-center h-48 text-muted-foreground bg-card border border-border rounded-[6px]">
           <p className="text-sm">검색 결과가 없습니다</p>
         </div>
       ) : (
-        <div className="divide-y divide-border/40">
+        <div className="divide-y divide-border/40 bg-card border border-border rounded-[6px] overflow-hidden">
           {sorted.map((site, idx) => {
             const companyConfig = COMPANY_CONFIG[site.corporation_name];
             const statusConfig = STATUS_CONFIG[site.status];
@@ -128,11 +128,11 @@ export function SiteList({ sites, selectedSiteId, onSelect, showAddressWarnings 
                 data-site-row={site.id}
                 onClick={() => onSelect(site)}
                 className={cn(
-                  "grid gap-2 px-4 py-0.5 cursor-pointer transition-colors items-center",
+                  "grid gap-2 px-4 py-0.5 cursor-pointer transition-[background-color,border-color] duration-(--motion) items-center border-l-[3px]",
                   TABLE_COLS,
                   selectedSiteId === site.id
-                    ? "bg-accent border-l-[3px] border-l-primary"
-                    : "hover:bg-muted/30"
+                    ? "bg-primary/5 border-l-primary"
+                    : "border-l-transparent hover:bg-primary/3 hover:border-l-primary/40"
                 )}
               >
                 <span className="text-[13px] text-muted-foreground font-mono tabular-nums text-center">{idx + 1}</span>

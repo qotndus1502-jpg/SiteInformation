@@ -113,7 +113,7 @@ export function SiteDetail({ site, onClose, onSaved }: SiteDetailProps) {
   }
 
   return (
-    <div className="bg-card rounded-2xl border border-border/40 shadow-sm w-full max-h-full overflow-y-auto">
+    <div className="bg-card rounded-xl border border-border/40 shadow-sm w-full max-h-full overflow-y-auto">
       {/* 조감도 + 닫기 버튼 */}
       <div className="relative">
         <SiteImage siteId={site.id} siteName={site.site_name} division={site.division} />
@@ -150,7 +150,7 @@ export function SiteDetail({ site, onClose, onSaved }: SiteDetailProps) {
         </div>
       )}
       {/* 헤더 — 라운드 코너로 이미지 위에 겹침 */}
-      <div className="relative -mt-5 bg-card rounded-t-2xl p-4 pb-3">
+      <div className="relative -mt-5 bg-card rounded-t-xl p-4 pb-3">
         <div className="flex items-center gap-1 flex-wrap mb-2">
           {companyConfig && <Badge variant={companyConfig.variant} size="sm">{companyConfig.label}</Badge>}
           <Badge variant="gray" size="sm">{site.division}</Badge>

@@ -1,6 +1,5 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { TrendingUp, Shield, Users, Wallet } from "lucide-react";
 
 interface KpiCardProps {
@@ -12,30 +11,26 @@ const CONFIG = {
   progress: {
     title: "공정률",
     icon: TrendingUp,
-    gradient: "from-blue-500 to-blue-700",
-    shadow: "shadow-blue-500/30",
-    edgeShadow: "rgba(37,99,235,0.5)",
+    accent: "#2563EB",
+    accentSoft: "rgba(37,99,235,0.08)",
   },
   safety: {
     title: "안전 등급",
     icon: Shield,
-    gradient: "from-emerald-500 to-emerald-700",
-    shadow: "shadow-emerald-500/30",
-    edgeShadow: "rgba(16,185,129,0.5)",
+    accent: "#10B981",
+    accentSoft: "rgba(16,185,129,0.08)",
   },
   headcount: {
     title: "투입 인원",
     icon: Users,
-    gradient: "from-sky-500 to-sky-700",
-    shadow: "shadow-sky-500/30",
-    edgeShadow: "rgba(14,165,233,0.5)",
+    accent: "#0EA5E9",
+    accentSoft: "rgba(14,165,233,0.08)",
   },
   budget: {
     title: "예산 현황",
     icon: Wallet,
-    gradient: "from-amber-500 to-amber-700",
-    shadow: "shadow-amber-500/30",
-    edgeShadow: "rgba(245,158,11,0.5)",
+    accent: "#F59E0B",
+    accentSoft: "rgba(245,158,11,0.08)",
   },
 };
 
@@ -43,31 +38,35 @@ function ProgressContent({ data }: { data: Record<string, any> }) {
   const pct = ((data.average ?? 0) * 100).toFixed(1);
   return (
     <>
-      <p className="text-3xl font-bold">{pct}%</p>
-      <div className="flex gap-3 text-xs text-white/80 mt-1">
-        <span>정상 {data.on_track ?? 0}개</span>
-        <span>지연 {data.delayed ?? 0}개</span>
+      <p className="text-3xl font-semibold tracking-tight text-slate-900">{pct}<span className="text-xl font-medium text-slate-500 ml-0.5">%</span></p>
+      <div className="flex gap-3 text-[11px] text-slate-600 mt-1.5">
+        <span>정상 <span className="text-slate-900 font-medium">{data.on_track ?? 0}</span>개</span>
+        <span>지연 <span className="text-slate-900 font-medium">{data.delayed ?? 0}</span>개</span>
       </div>
-      <p className="text-xs text-white/60 mt-0.5">활성 현장 {data.total ?? 0}개</p>
+      <p className="text-[11px] text-slate-500 mt-0.5">활성 현장 {data.total ?? 0}개</p>
     </>
   );
 }
 
-function SafetyContent({ data }: { data: Record<string, any> }) {
+function SafetyContent({ data, accent, accentSoft }: { data: Record<string, any>; accent: string; accentSoft: string }) {
   const grades = [
-    { label: "A", count: data.grade_a ?? 0, color: "bg-white/30" },
-    { label: "B", count: data.grade_b ?? 0, color: "bg-white/25" },
-    { label: "C", count: data.grade_c ?? 0, color: "bg-white/20" },
-    { label: "D", count: data.grade_d ?? 0, color: "bg-white/15" },
+    { label: "A", count: data.grade_a ?? 0 },
+    { label: "B", count: data.grade_b ?? 0 },
+    { label: "C", count: data.grade_c ?? 0 },
+    { label: "D", count: data.grade_d ?? 0 },
   ];
   const total = grades.reduce((s, g) => s + g.count, 0);
   return (
     <>
-      <p className="text-3xl font-bold">{total}개 현장</p>
-      <div className="flex gap-2 mt-1">
+      <p className="text-3xl font-semibold tracking-tight text-slate-900">{total}<span className="text-xl font-medium text-slate-500 ml-0.5">개</span></p>
+      <div className="flex gap-1.5 mt-1.5">
         {grades.map((g) => (
-          <div key={g.label} className={cn("px-2 py-0.5 rounded text-xs font-bold", g.color)}>
-            {g.label}: {g.count}
+          <div
+            key={g.label}
+            className="px-2 py-0.5 rounded-md text-[11px] font-semibold"
+            style={{ backgroundColor: accentSoft, color: accent }}
+          >
+            {g.label} {g.count}
           </div>
         ))}
       </div>
@@ -79,10 +78,10 @@ function HeadcountContent({ data }: { data: Record<string, any> }) {
   const byDiv = data.by_division ?? {};
   return (
     <>
-      <p className="text-3xl font-bold">{(data.total ?? 0).toLocaleString()}명</p>
-      <div className="flex gap-3 text-xs text-white/80 mt-1">
+      <p className="text-3xl font-semibold tracking-tight text-slate-900">{(data.total ?? 0).toLocaleString()}<span className="text-xl font-medium text-slate-500 ml-0.5">명</span></p>
+      <div className="flex gap-3 text-[11px] text-slate-600 mt-1.5">
         {Object.entries(byDiv).map(([div, count]) => (
-          <span key={div}>{div} {(count as number).toLocaleString()}명</span>
+          <span key={div}>{div} <span className="text-slate-900 font-medium">{(count as number).toLocaleString()}</span>명</span>
         ))}
       </div>
     </>
@@ -95,52 +94,50 @@ function BudgetContent({ data }: { data: Record<string, any> }) {
   const execRate = ((data.average_execution_rate ?? 0) * 100).toFixed(1);
   return (
     <>
-      <p className="text-3xl font-bold">{total.toLocaleString()}억</p>
-      <div className="flex gap-3 text-xs text-white/80 mt-1">
-        <span>자사분 {ourShare.toLocaleString()}억</span>
-        <span>실행률 {execRate}%</span>
+      <p className="text-3xl font-semibold tracking-tight text-slate-900">{total.toLocaleString()}<span className="text-xl font-medium text-slate-500 ml-0.5">억</span></p>
+      <div className="flex gap-3 text-[11px] text-slate-600 mt-1.5">
+        <span>자사분 <span className="text-slate-900 font-medium">{ourShare.toLocaleString()}</span>억</span>
+        <span>실행률 <span className="text-slate-900 font-medium">{execRate}</span>%</span>
       </div>
     </>
   );
 }
 
-const CONTENT_MAP = {
-  progress: ProgressContent,
-  safety: SafetyContent,
-  headcount: HeadcountContent,
-  budget: BudgetContent,
-};
-
 export function KpiCard({ type, data }: KpiCardProps) {
   const config = CONFIG[type];
   const Icon = config.icon;
-  const Content = CONTENT_MAP[type];
 
   return (
     <div
-      className={cn(
-        "relative rounded-2xl p-5 text-white overflow-hidden transition-all duration-300 cursor-default",
-        "bg-gradient-to-br", config.gradient,
-        "hover:[transform:perspective(800px)_rotateX(0deg)_rotateY(0deg)]",
-        "[transform:perspective(800px)_rotateX(2deg)_rotateY(-2deg)]",
-      )}
-      style={{
-        boxShadow: `0 4px 0 0 ${config.edgeShadow}, 0 8px 24px -4px rgba(0,0,0,0.25), 0 4px 8px -2px rgba(0,0,0,0.1)`,
-        border: "1px solid rgba(255,255,255,0.2)",
-      }}
+      className="relative rounded-2xl p-5 bg-card border border-border shadow-(--shadow-hero) overflow-hidden transition-[box-shadow,transform] duration-(--motion) hover:shadow-(--shadow-card-hover) hover:-translate-y-0.5 cursor-default"
     >
-      {/* Glass highlight */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-transparent pointer-events-none" />
+      {/* Left accent bar */}
+      <div
+        className="absolute top-0 left-0 bottom-0 w-1 rounded-l-2xl"
+        style={{ background: `linear-gradient(180deg, ${config.accent} 0%, ${config.accent}33 100%)` }}
+      />
+
+      {/* Faint corner tint */}
+      <div
+        className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-60"
+        style={{ background: `radial-gradient(circle at top right, ${config.accentSoft} 0%, transparent 70%)` }}
+      />
 
       {/* Icon badge */}
-      <div className="absolute top-4 right-4 p-2.5 rounded-xl bg-white/15 backdrop-blur-sm">
-        <Icon className="h-6 w-6" />
+      <div
+        className="absolute top-4 right-4 h-8 w-8 rounded-lg flex items-center justify-center"
+        style={{ backgroundColor: config.accentSoft, color: config.accent }}
+      >
+        <Icon className="h-4 w-4" />
       </div>
 
       {/* Content */}
       <div className="relative z-10">
-        <p className="text-sm font-medium text-white/80 mb-2">{config.title}</p>
-        <Content data={data} />
+        <p className="text-[11px] font-medium text-slate-500 tracking-wide uppercase mb-2">{config.title}</p>
+        {type === "progress" && <ProgressContent data={data} />}
+        {type === "safety" && <SafetyContent data={data} accent={config.accent} accentSoft={config.accentSoft} />}
+        {type === "headcount" && <HeadcountContent data={data} />}
+        {type === "budget" && <BudgetContent data={data} />}
       </div>
     </div>
   );

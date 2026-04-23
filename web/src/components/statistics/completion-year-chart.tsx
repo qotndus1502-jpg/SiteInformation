@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { charts } from "@/lib/chart-colors";
 
 interface YearData {
@@ -43,9 +44,9 @@ function HorizontalTimeline({
 
   const SLOT_W = 60;
   const LABEL_W = 64;
-  const TOTAL_H = 80;
-  const BUBBLE_CY = 32; // bubble vertical center
-  const YEAR_Y = 64;    // year text top position (below bubble)
+  const TOTAL_H = 60;
+  const BUBBLE_CY = 20; // bubble vertical center
+  const YEAR_Y = 46;    // year text top position (below bubble)
   // Use maxSlots for container width so every timeline has the same width
   // → right-aligned containers share the same left edge → titles line up.
   const totalW = LABEL_W + maxSlots * SLOT_W;
@@ -58,29 +59,29 @@ function HorizontalTimeline({
       <div className="relative" style={{ width: totalW, height: TOTAL_H }}>
         {/* Title — at the left edge of the container (fixed absolute position across timelines) */}
         <span
-          className="absolute inline-block text-[11px] font-bold text-slate-900 whitespace-nowrap"
-          style={{ left: 0, top: BUBBLE_CY, transform: "translateY(-50%)" }}
+          className="absolute inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-900 tracking-tight whitespace-nowrap"
+          style={{ left: 0, top: BUBBLE_CY, transform: "translate(-28px, -50%)" }}
         >
+          <span className="inline-block w-0.5 h-3 rounded-sm" style={{ background: color, opacity: 0.85 }} />
           {label}
         </span>
 
-        {/* Background horizontal line — spans bubble range (right-aligned) */}
+        {/* Background horizontal line — gradient fade at both ends */}
         <div
-          className="absolute h-[2px] rounded-full"
+          className="absolute h-px"
           style={{
             left: firstBubbleCx,
             width: (data.length - 1) * SLOT_W,
             top: BUBBLE_CY,
-            transform: "translateY(-1px)",
-            backgroundColor: color,
-            opacity: 0.25,
+            transform: "translateY(-0.5px)",
+            background: `linear-gradient(90deg, transparent 0%, color-mix(in srgb, ${color} 45%, transparent) 15%, color-mix(in srgb, ${color} 45%, transparent) 85%, transparent 100%)`,
           }}
         />
 
         {/* Nodes — bubble at slot center, year label below */}
         {data.map((d, i) => {
           const isHov = hovIdx === i;
-          const r = maxCount > 0 ? 10 + (d.count / maxCount) * 14 : 10;
+          const r = maxCount > 0 ? 10 + (d.count / maxCount) * 8 : 10;
           const cx = firstBubbleCx + i * SLOT_W;
           const isSelected = selectedYear === d.year;
           const isDimmed = selectedYear != null && !isSelected;
@@ -96,21 +97,31 @@ function HorizontalTimeline({
                   transform: "translate(-50%, -50%)",
                   width: r * 2,
                   height: r * 2,
-                  backgroundColor: isSelected ? "white" : color,
+                  background: isSelected
+                    ? "white"
+                    : `linear-gradient(180deg, color-mix(in srgb, ${color} 90%, white) 0%, ${color} 100%)`,
                   border: isSelected ? `3px solid ${color}` : undefined,
-                  opacity: isDimmed ? 0.35 : isHov ? 1 : 0.85,
-                  boxShadow: isHov && !isSelected ? `0 0 0 2px white, 0 0 0 4px ${color}` : undefined,
+                  opacity: isDimmed ? 0.35 : isHov ? 1 : 0.9,
+                  boxShadow: isHov && !isSelected
+                    ? `0 0 0 2px white, 0 0 0 4px ${color}`
+                    : isSelected
+                      ? undefined
+                      : `0 1px 3px -1px color-mix(in srgb, ${color} 60%, transparent)`,
                 }}
               >
-                <span className="font-bold text-[9px]" style={{ color: isSelected ? color : "white" }}>{d.count}</span>
+                <span className="font-semibold text-[11px]" style={{ color: isSelected ? color : "white" }}>{d.count}</span>
               </div>
               {/* Year label — below bubble, horizontally centered on cx */}
               <span
-                className="absolute text-[11px] font-semibold text-foreground whitespace-nowrap"
+                className={cn(
+                  "absolute text-[11px] font-medium whitespace-nowrap tracking-tight transition-colors duration-(--motion)",
+                  isSelected ? "text-slate-900" : "text-slate-600",
+                )}
                 style={{
                   left: cx,
                   top: YEAR_Y,
                   transform: "translateX(-50%)",
+                  lineHeight: 1,
                 }}
               >
                 {d.year}
@@ -129,11 +140,11 @@ export function CompletionYearChart({ preStartData, activeData, selectedStartYea
   const maxSlots = Math.max(preStartData.length, activeData.length, 1);
 
   if (preStartData.length === 0 && activeData.length === 0) {
-    return <div className="px-2 pt-0 pb-2 -mt-3" style={{ minHeight: 80 }} />;
+    return <div className="px-2 py-0" style={{ minHeight: 60 }} />;
   }
 
   return (
-    <div className="px-2 pt-0 pb-2 -mt-3">
+    <div className="px-2 py-0">
       <div className="flex flex-col items-end gap-0">
         <HorizontalTimeline label={"착공예정 현장"} data={preStartData} color={PRE_COLOR} maxCount={maxCount} maxSlots={maxSlots} selectedYear={selectedStartYear} onYearClick={onStartYearClick} />
         <HorizontalTimeline label={"준공예정 현장"} data={activeData} color={ACTIVE_COLOR} maxCount={maxCount} maxSlots={maxSlots} selectedYear={selectedEndYear} onYearClick={onEndYearClick} />

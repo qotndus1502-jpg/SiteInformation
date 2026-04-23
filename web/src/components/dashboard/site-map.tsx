@@ -545,7 +545,7 @@ export function SiteMap({ sites, selectedSiteId, onSelect, colorCategory = "corp
   }, [updateSource]);
 
   return (
-    <div className="bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden">
+    <div className="bg-card rounded-xl border border-border/40 shadow-sm overflow-hidden">
       <div
         ref={containerRef}
         className="w-full h-[calc(100vh-280px)] min-h-[400px]"
