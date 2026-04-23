@@ -133,7 +133,6 @@ def api_me(user: dict = Depends(get_current_user_raw)):
         "full_name": p.get("full_name"),
         "employee_number": p.get("employee_number"),
         "corporation_id": p.get("corporation_id"),
-        "phone": p.get("phone"),
     }
 
 

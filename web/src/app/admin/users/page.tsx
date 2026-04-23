@@ -14,7 +14,6 @@ interface UserProfile {
   full_name: string | null;
   employee_number: string | null;
   corporation_id: number | null;
-  phone: string | null;
   role: "user" | "admin";
   status: Status;
   requested_at: string;
@@ -158,10 +157,9 @@ export default function AdminUsersPage() {
       {error && <p className="text-[13px] text-destructive">{error}</p>}
 
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[1.5fr_1.2fr_0.7fr_0.9fr_0.9fr_1fr_1.4fr] gap-2 px-4 py-2 bg-muted/40 border-b border-border text-[12px] font-semibold text-muted-foreground">
+        <div className="grid grid-cols-[1.7fr_1.3fr_1fr_1fr_1.1fr_1.5fr] gap-2 px-4 py-2 bg-muted/40 border-b border-border text-[12px] font-semibold text-muted-foreground">
           <span>이메일 / 이름</span>
           <span>소속 / 사번</span>
-          <span>전화</span>
           <span>상태</span>
           <span>권한</span>
           <span>신청일</span>
@@ -176,7 +174,7 @@ export default function AdminUsersPage() {
             const sconf = STATUS_LABEL[u.status];
             const isBusy = busy === u.id;
             return (
-              <div key={u.id} className="grid grid-cols-[1.5fr_1.2fr_0.7fr_0.9fr_0.9fr_1fr_1.4fr] gap-2 px-4 py-2 items-center border-b border-border/40 text-[12px]">
+              <div key={u.id} className="grid grid-cols-[1.7fr_1.3fr_1fr_1fr_1.1fr_1.5fr] gap-2 px-4 py-2 items-center border-b border-border/40 text-[12px]">
                 <div className="flex flex-col min-w-0">
                   <span className="font-semibold text-foreground truncate">{u.full_name || "(이름 없음)"}</span>
                   <span className="text-muted-foreground truncate">{u.email}</span>
@@ -185,7 +183,6 @@ export default function AdminUsersPage() {
                   <span className="truncate">{u.corporation_id != null ? CORP_NAME[u.corporation_id] ?? "-" : "-"}</span>
                   <span className="text-muted-foreground truncate">{u.employee_number ?? "-"}</span>
                 </div>
-                <span className="text-muted-foreground truncate">{u.phone ?? "-"}</span>
                 <span><Badge variant={sconf.variant} size="sm">{sconf.label}</Badge></span>
                 <span>
                   <Badge variant={u.role === "admin" ? "brand" : "gray"} size="sm">
