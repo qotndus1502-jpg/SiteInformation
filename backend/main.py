@@ -140,6 +140,28 @@ def attach_share_amounts(sites: list[dict]) -> list[dict]:
     return sites
 
 
+def auto_status(sites: list[dict]) -> list[dict]:
+    """start_date/end_date 기준으로 status 자동 판정.
+    - start_date > 오늘 → PRE_START
+    - start_date <= 오늘 && (end_date 없음 || end_date >= 오늘) → ACTIVE
+    - end_date < 오늘 → COMPLETED
+    SUSPENDED는 수동 관리이므로 건드리지 않는다.
+    """
+    today = date.today().isoformat()
+    for s in sites:
+        if s.get("status") == "SUSPENDED":
+            continue
+        sd = s.get("start_date")
+        ed = s.get("end_date")
+        if sd and sd > today:
+            s["status"] = "PRE_START"
+        elif ed and ed < today:
+            s["status"] = "COMPLETED"
+        elif sd and sd <= today:
+            s["status"] = "ACTIVE"
+    return sites
+
+
 def clean_facility_type(sites: list[dict]) -> list[dict]:
     """facility_type_name이 발주유형과 동일하면 비워서 중복 표시 방지."""
     for site in sites:
@@ -199,6 +221,7 @@ def get_all_sites_cached() -> list[dict]:
         deduped.append(s)
 
     deduped = clean_facility_type(deduped)
+    deduped = auto_status(deduped)
     deduped = attach_share_amounts(deduped)
     deduped = attach_coords(deduped)
 
@@ -976,19 +999,15 @@ def _date_to_ym(d: str) -> str:
 
 
 def _pre_start_by_completion_year(sites: list[dict]) -> list[dict]:
-    """Group PRE_START sites by start_date month (착공 예정월).
-    Past-dated sites are excluded — admin keeps 착공전 status for not-yet-started
-    projects whose scheduled start already passed, but they don't belong on the
-    '예정' timeline anymore."""
-    today = date.today().isoformat()
+    """Group PRE_START sites by start_date month (착공 시작월)."""
     pre = [s for s in sites if s.get("status") == "PRE_START"]
     months: dict[str, int] = defaultdict(int)
     no_date = 0
     for s in pre:
         sd = s.get("start_date")
-        if sd and sd >= today:
+        if sd:
             months[_date_to_ym(sd)] += 1
-        elif not sd:
+        else:
             no_date += 1
     result = [{"year": k, "count": v} for k, v in sorted(months.items())]
     if no_date > 0:
@@ -997,19 +1016,15 @@ def _pre_start_by_completion_year(sites: list[dict]) -> list[dict]:
 
 
 def _active_by_completion_year(sites: list[dict]) -> list[dict]:
-    """Group ACTIVE sites by end_date year (준공 예정년도).
-    Past-dated sites are excluded — admin may keep 진행중 status for projects
-    whose scheduled end already passed, but they don't belong on the '예정'
-    timeline anymore."""
-    today = date.today().isoformat()
+    """Group ACTIVE sites by end_date year (준공 예정년도)."""
     active = [s for s in sites if s.get("status") == "ACTIVE"]
     years: dict[str, int] = defaultdict(int)
     no_date = 0
     for s in active:
         ed = s.get("end_date")
-        if ed and ed >= today:
+        if ed:
             years[ed[:4]] += 1
-        elif not ed:
+        else:
             no_date += 1
     result = [{"year": k, "count": v} for k, v in sorted(years.items())]
     if no_date > 0:
