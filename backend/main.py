@@ -1811,5 +1811,6 @@ def delete_site(site_id: int, _admin: dict = Depends(require_admin)):
         res = supabase.schema("pmis").from_("project_site").delete().eq("id", site_id).execute()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"DB 오류: {e}")
+    _invalidate_sites_cache()
     return {"ok": True, "id": site_id, "deleted": len(res.data or [])}
 
