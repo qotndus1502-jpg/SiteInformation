@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Query, UploadFile, File, Form, Body, HTTPException
+from fastapi import FastAPI, Query, UploadFile, File, Form, Body, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from supabase import create_client
 from dotenv import load_dotenv
 import os
@@ -34,10 +35,201 @@ app = FastAPI(title="SiteInformation API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://192.168.0.6:3000", "https://site-info-umber.vercel.app"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://192.168.0.6:3000", "http://54.116.15.150", "https://site-info-umber.vercel.app"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ─────────────────────────────────────────────────────────────
+# Auth dependencies
+# ─────────────────────────────────────────────────────────────
+# Users authenticate via Supabase Auth (client-side), then send the JWT as
+# `Authorization: Bearer <token>`. We verify with supabase.auth.get_user()
+# (one extra API call per request — fine for an internal dashboard) and
+# cross-check the profile row for status/role.
+#
+# Three layers:
+#   get_current_user_raw  — JWT valid, profile loaded (may be pending/null)
+#   get_current_user      — above + status == approved
+#   require_admin         — above + role == admin
+
+_bearer = HTTPBearer(auto_error=False)
+
+
+def _load_profile(user_id: str) -> Optional[dict]:
+    try:
+        r = supabase.schema("pmis").from_("user_profile").select("*").eq("id", user_id).limit(1).execute()
+    except Exception:
+        return None
+    rows = r.data or []
+    return rows[0] if rows else None
+
+
+def get_current_user_raw(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+) -> dict:
+    """Verify JWT and attach profile. Profile may be None or pending — the
+    caller decides what to do. Used by /api/me so pending users can learn
+    their own state."""
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다")
+    token = credentials.credentials
+    try:
+        auth_res = supabase.auth.get_user(token)
+        auth_user = getattr(auth_res, "user", None)
+    except Exception:
+        raise HTTPException(status_code=401, detail="인증 토큰이 유효하지 않습니다")
+    if auth_user is None:
+        raise HTTPException(status_code=401, detail="인증 토큰이 유효하지 않습니다")
+    profile = _load_profile(auth_user.id)
+    return {
+        "id": auth_user.id,
+        "email": auth_user.email,
+        "profile": profile,
+        "role": (profile or {}).get("role", "user"),
+        "status": (profile or {}).get("status"),
+    }
+
+
+def get_current_user(user: dict = Depends(get_current_user_raw)) -> dict:
+    """Approved users only. Use on endpoints that should be hidden from
+    pending/rejected accounts."""
+    profile = user.get("profile")
+    if profile is None:
+        raise HTTPException(status_code=403, detail="프로필이 존재하지 않습니다. 관리자에게 문의하세요")
+    status_ = profile.get("status")
+    if status_ == "pending":
+        raise HTTPException(status_code=403, detail="가입 승인 대기 중입니다. 관리자 승인 후 이용하실 수 있습니다")
+    if status_ == "rejected":
+        raise HTTPException(status_code=403, detail="가입이 거부된 계정입니다")
+    if status_ != "approved":
+        raise HTTPException(status_code=403, detail="계정 상태가 유효하지 않습니다")
+    return user
+
+
+def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Admin only."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다")
+    return user
+
+
+# ─────────────────────────────────────────────────────────────
+# Auth-related endpoints
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/api/me")
+def api_me(user: dict = Depends(get_current_user_raw)):
+    """Current user + profile. Works for any authenticated token regardless of
+    approval status, so the frontend can redirect pending/rejected users to
+    the appropriate page."""
+    p = user.get("profile") or {}
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "role": user.get("role") or "user",
+        "status": p.get("status"),  # None if profile missing
+        "full_name": p.get("full_name"),
+        "employee_number": p.get("employee_number"),
+        "corporation_id": p.get("corporation_id"),
+        "phone": p.get("phone"),
+    }
+
+
+# ── Admin: user management ──────────────────────────────────
+
+@app.get("/api/users")
+def list_users(
+    status: Optional[str] = Query(None, description="pending | approved | rejected"),
+    _admin: dict = Depends(require_admin),
+):
+    q = supabase.schema("pmis").from_("user_profile").select("*").order("requested_at", desc=True)
+    if status:
+        q = q.eq("status", status)
+    r = q.execute()
+    return r.data or []
+
+
+@app.post("/api/users/{user_id}/approve")
+def approve_user(
+    user_id: str,
+    payload: dict = Body(default={}),
+    admin: dict = Depends(require_admin),
+):
+    """Approve a pending user. Optional body: {"role": "user" | "admin"}."""
+    role = (payload or {}).get("role", "user")
+    if role not in ("user", "admin"):
+        raise HTTPException(status_code=400, detail="role은 'user' 또는 'admin'이어야 합니다")
+    try:
+        r = supabase.schema("pmis").from_("user_profile").update({
+            "status": "approved",
+            "role": role,
+            "approved_at": datetime.utcnow().isoformat(),
+            "approved_by": admin["id"],
+            "reject_reason": None,
+        }).eq("id", user_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"DB 오류: {e}")
+    row = (r.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+    return {"ok": True, "user": row}
+
+
+@app.post("/api/users/{user_id}/reject")
+def reject_user(
+    user_id: str,
+    payload: dict = Body(default={}),
+    admin: dict = Depends(require_admin),
+):
+    """Reject a pending user with optional reason."""
+    reason = (payload or {}).get("reason") or None
+    try:
+        r = supabase.schema("pmis").from_("user_profile").update({
+            "status": "rejected",
+            "reject_reason": reason,
+            "approved_by": admin["id"],
+        }).eq("id", user_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"DB 오류: {e}")
+    row = (r.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+    return {"ok": True, "user": row}
+
+
+@app.post("/api/users/{user_id}/role")
+def change_user_role(
+    user_id: str,
+    payload: dict = Body(...),
+    _admin: dict = Depends(require_admin),
+):
+    """Change an approved user's role."""
+    role = (payload or {}).get("role")
+    if role not in ("user", "admin"):
+        raise HTTPException(status_code=400, detail="role은 'user' 또는 'admin'이어야 합니다")
+    try:
+        r = supabase.schema("pmis").from_("user_profile").update({"role": role}).eq("id", user_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"DB 오류: {e}")
+    row = (r.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+    return {"ok": True, "user": row}
+
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: str, admin: dict = Depends(require_admin)):
+    """Remove the user completely (auth.users row). The user_profile row
+    cascades via FK. Admin cannot delete themselves."""
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="본인 계정은 삭제할 수 없습니다")
+    try:
+        supabase.auth.admin.delete_user(user_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"삭제 실패: {e}")
+    return {"ok": True}
 
 
 def load_coords() -> dict[str, dict]:
@@ -354,7 +546,7 @@ async def get_sites(
 
 
 @app.post("/api/geocode")
-async def geocode_all_sites():
+async def geocode_all_sites(_admin: dict = Depends(require_admin)):
     """Batch geocode all sites with office_address and cache results."""
     if not KAKAO_REST_KEY:
         return JSONResponse(status_code=400, content={"error": "KAKAO_REST_KEY not configured"})
@@ -392,7 +584,7 @@ async def geocode_all_sites():
 
 
 @app.post("/api/upload-site-image")
-async def upload_site_image(file: UploadFile = File(...), site_id: str = Form(...)):
+async def upload_site_image(file: UploadFile = File(...), site_id: str = Form(...), _admin: dict = Depends(require_admin)):
     """Upload or replace a site image to Supabase Storage."""
     content = await file.read()
     file_name = f"site_{site_id}.jpg"
@@ -405,7 +597,7 @@ async def upload_site_image(file: UploadFile = File(...), site_id: str = Form(..
 
 
 @app.post("/api/upload-org-photo")
-async def upload_org_photo(file: UploadFile = File(...), member_id: str = Form(...)):
+async def upload_org_photo(file: UploadFile = File(...), member_id: str = Form(...), _admin: dict = Depends(require_admin)):
     """Upload or replace an org member photo to Supabase Storage."""
     content = await file.read()
     file_name = f"member_{member_id}.jpg"
@@ -502,7 +694,7 @@ async def get_required_headcount(site_id: int):
 
 
 @app.put("/api/sites/{site_id}/required-headcount")
-async def update_required_headcount(site_id: int, payload: dict = Body(...)):
+async def update_required_headcount(site_id: int, payload: dict = Body(...), _admin: dict = Depends(require_admin)):
     """사원 유형별 소요 인원 저장."""
     data = {
         "general": max(0, int(payload.get("general") or 0)),
@@ -541,7 +733,7 @@ async def get_site_departments(site_id: int):
 
 
 @app.post("/api/sites/{site_id}/departments")
-async def create_site_department(site_id: int, payload: dict = Body(...)):
+async def create_site_department(site_id: int, payload: dict = Body(...), _admin: dict = Depends(require_admin)):
     """Create a new department for a site."""
     name = (payload.get("name") or "").strip()
     if not name:
@@ -559,7 +751,7 @@ async def create_site_department(site_id: int, payload: dict = Body(...)):
 
 
 @app.put("/api/departments/{dept_id}")
-async def update_site_department(dept_id: int, payload: dict = Body(...)):
+async def update_site_department(dept_id: int, payload: dict = Body(...), _admin: dict = Depends(require_admin)):
     """Rename / reorder department / update required_count."""
     patch: dict = {}
     if "name" in payload:
@@ -578,7 +770,7 @@ async def update_site_department(dept_id: int, payload: dict = Body(...)):
 
 
 @app.delete("/api/departments/{dept_id}")
-async def delete_site_department(dept_id: int):
+async def delete_site_department(dept_id: int, _admin: dict = Depends(require_admin)):
     """Delete department. Blocks if active members still reference it."""
     members = supabase.schema("pmis").from_("site_org_member") \
         .select("id", count="exact") \
@@ -603,7 +795,7 @@ def _seed_default_departments(site_id: int) -> None:
 
 
 @app.post("/api/sites/{site_id}/org-members")
-async def create_org_member(site_id: int, member: dict):
+async def create_org_member(site_id: int, member: dict, _admin: dict = Depends(require_admin)):
     """Add a new org member."""
     member["site_id"] = site_id
     response = supabase.schema("pmis").from_("site_org_member") \
@@ -613,7 +805,7 @@ async def create_org_member(site_id: int, member: dict):
 
 
 @app.put("/api/org-members/{member_id}")
-async def update_org_member(member_id: int, updates: dict):
+async def update_org_member(member_id: int, updates: dict, _admin: dict = Depends(require_admin)):
     """Update an org member."""
     updates.pop("id", None)
     response = supabase.schema("pmis").from_("site_org_member") \
@@ -624,7 +816,7 @@ async def update_org_member(member_id: int, updates: dict):
 
 
 @app.delete("/api/org-members/{member_id}")
-async def delete_org_member(member_id: int):
+async def delete_org_member(member_id: int, _admin: dict = Depends(require_admin)):
     """Soft-delete: set is_active=false."""
     supabase.schema("pmis").from_("site_org_member") \
         .update({"is_active": False}) \
@@ -686,7 +878,7 @@ async def get_org_member_profile(member_id: int):
 
 
 @app.put("/api/org-members/{member_id}/profile")
-async def update_org_member_profile(member_id: int, body: dict):
+async def update_org_member_profile(member_id: int, body: dict, _admin: dict = Depends(require_admin)):
     """Update org member profile fields."""
     allowed = {
         "birth_date", "address", "phone_work", "photo_url",
@@ -1466,7 +1658,7 @@ def _clean_site_payload(payload: dict) -> dict:
 
 
 @app.post("/api/geocode/preview")
-def geocode_preview(payload: dict = Body(...)):
+def geocode_preview(payload: dict = Body(...), _admin: dict = Depends(require_admin)):
     """저장 없이 주소 → 좌표 미리보기. 폼의 '좌표 매칭하기' 버튼용."""
     address = (payload.get("address") or "").strip()
     if not address:
@@ -1517,7 +1709,7 @@ def _persist_site_coords(site_id: int, lat: float | None, lon: float | None) -> 
 
 
 @app.post("/api/sites")
-def create_site(payload: dict = Body(...)):
+def create_site(payload: dict = Body(...), _admin: dict = Depends(require_admin)):
     clean = _clean_site_payload(payload)
 
     missing = [k for k in REQUIRED_SITE_COLUMNS if clean.get(k) in (None, "")]
@@ -1549,7 +1741,7 @@ def create_site(payload: dict = Body(...)):
 
 
 @app.put("/api/sites/{site_id}")
-def update_site(site_id: int, payload: dict = Body(...)):
+def update_site(site_id: int, payload: dict = Body(...), _admin: dict = Depends(require_admin)):
     clean = _clean_site_payload(payload)
     has_jv_change = "our_share_ratio" in payload or "jv_partners" in payload
     if not clean and not has_jv_change:
@@ -1591,7 +1783,7 @@ def update_site(site_id: int, payload: dict = Body(...)):
 
 
 @app.delete("/api/sites/{site_id}")
-def delete_site(site_id: int):
+def delete_site(site_id: int, _admin: dict = Depends(require_admin)):
     try:
         res = supabase.schema("pmis").from_("project_site").delete().eq("id", site_id).execute()
     except Exception as e:
