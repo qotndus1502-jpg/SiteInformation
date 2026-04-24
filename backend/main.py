@@ -690,7 +690,7 @@ async def get_headcount_summary(site_id: int):
 @app.get("/api/sites/{site_id}/required-headcount")
 async def get_required_headcount(site_id: int):
     """사원 유형별 소요 인원 조회. 값 없으면 0으로 채워 반환."""
-    response = supabase.schema("pmis").from_("site") \
+    response = supabase.schema("pmis").from_("project_site") \
         .select("required_headcount") \
         .eq("id", site_id) \
         .limit(1) \
@@ -714,7 +714,7 @@ async def update_required_headcount(site_id: int, payload: dict = Body(...), _ad
         "contract": max(0, int(payload.get("contract") or 0)),
         "jv": max(0, int(payload.get("jv") or 0)),
     }
-    supabase.schema("pmis").from_("site") \
+    supabase.schema("pmis").from_("project_site") \
         .update({"required_headcount": data}) \
         .eq("id", site_id) \
         .execute()
