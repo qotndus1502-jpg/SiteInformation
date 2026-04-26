@@ -297,13 +297,16 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
         </div>
         {displayedSite && (
           <div
-            className="shrink-0 hidden lg:block overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+            className="shrink-0 hidden lg:block overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] self-start sticky top-2"
             style={{
               maxWidth: panelOpen ? 700 : 0,
               opacity: panelOpen ? 1 : 0,
             }}
           >
-            <div className="w-[700px]">
+            <div
+              className="w-[700px] overflow-y-auto"
+              style={{ maxHeight: "calc((100vh - 80px) / var(--dashboard-zoom, 1))" }}
+            >
               <SiteDetail site={displayedSite} onClose={handleClose} onSaved={() => fetchSites(filters)} />
             </div>
           </div>
