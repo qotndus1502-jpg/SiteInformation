@@ -323,7 +323,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
           >
             <div
               className="w-[700px] overflow-y-auto overscroll-contain"
-              style={{ maxHeight: "400px", border: "3px solid red" }}
+              style={{ maxHeight: detailMaxH != null ? `${detailMaxH}px` : undefined }}
             >
               <SiteDetail site={displayedSite} onClose={handleClose} onSaved={() => fetchSites(filters)} />
             </div>
