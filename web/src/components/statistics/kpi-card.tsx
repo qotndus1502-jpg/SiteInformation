@@ -21,7 +21,7 @@ const CONFIG = {
     accentSoft: "rgba(16,185,129,0.08)",
   },
   headcount: {
-    title: "투입 인원",
+    title: "현장 인원",
     icon: Users,
     accent: "#0EA5E9",
     accentSoft: "rgba(14,165,233,0.08)",

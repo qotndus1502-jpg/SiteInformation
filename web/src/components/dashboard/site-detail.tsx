@@ -222,7 +222,7 @@ export function SiteDetail({ site, onClose, onSaved }: SiteDetailProps) {
           <Row label="자사도급액">{ourShareDisplay}</Row>
           <Row label="발주처"><span className="font-medium">{site.client_name ?? "-"}</span></Row>
           <Row label="지역">{site.region_group} / {site.region_name}</Row>
-          <Row label="투입 인원">
+          <Row label="현장 인원">
             <span className="flex items-center gap-1.5">
               <span className="font-mono">{site.headcount ?? 0}명</span>
               <button

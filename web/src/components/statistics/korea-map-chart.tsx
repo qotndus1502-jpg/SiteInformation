@@ -81,7 +81,7 @@ type MetricKey = "count" | "total_headcount" | "total_contract";
 
 const METRICS: { key: MetricKey; label: string; color: string; hoverColor: string; unit: string }[] = [
   { key: "count", label: "현장 수", color: charts.koreaMap.bubble, hoverColor: charts.koreaMap.bubbleHover, unit: "개" },
-  { key: "total_headcount", label: "투입 인원", color: charts.koreaMap.bubble, hoverColor: charts.koreaMap.bubbleHover, unit: "명" },
+  { key: "total_headcount", label: "현장 인원", color: charts.koreaMap.bubble, hoverColor: charts.koreaMap.bubbleHover, unit: "명" },
   { key: "total_contract", label: "자사도급액", color: charts.koreaMap.bubble, hoverColor: charts.koreaMap.bubbleHover, unit: "억" },
 ];
 
