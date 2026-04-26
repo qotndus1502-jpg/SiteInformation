@@ -69,6 +69,30 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
   const [panelOpen, setPanelOpen] = useState(false);
   const closingTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // 우측 디테일 카드의 max-height를 실제 픽셀로 계산.
+  // zoom된 컨테이너 안에서 vh 단위가 시각 크기와 어긋나는 문제를 회피.
+  const detailWrapperRef = useRef<HTMLDivElement>(null);
+  const [detailMaxH, setDetailMaxH] = useState<number | null>(null);
+  useEffect(() => {
+    function update() {
+      const el = detailWrapperRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect(); // post-zoom 시각 좌표(px)
+      const zoomStr = getComputedStyle(document.documentElement).getPropertyValue("--dashboard-zoom").trim();
+      const zoom = parseFloat(zoomStr) || 1;
+      const visibleH = window.innerHeight - rect.top - 16; // 시각 픽셀
+      const cssH = Math.max(visibleH / zoom, 200); // pre-zoom CSS 픽셀
+      setDetailMaxH(cssH);
+    }
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, { passive: true });
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update);
+    };
+  }, [displayedSite, panelOpen]);
+
   const handleSelect = useCallback((site: SiteDashboard) => {
     clearTimeout(closingTimer.current);
     setSelectedSite(site);
@@ -297,6 +321,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
         </div>
         {displayedSite && (
           <div
+            ref={detailWrapperRef}
             className="shrink-0 hidden lg:block overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] self-start sticky top-2"
             style={{
               maxWidth: panelOpen ? 700 : 0,
@@ -305,7 +330,7 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
           >
             <div
               className="w-[700px] overflow-y-auto"
-              style={{ maxHeight: "calc((100vh - 80px) / var(--dashboard-zoom, 1))" }}
+              style={{ maxHeight: detailMaxH != null ? `${detailMaxH}px` : undefined }}
             >
               <SiteDetail site={displayedSite} onClose={handleClose} onSaved={() => fetchSites(filters)} />
             </div>
