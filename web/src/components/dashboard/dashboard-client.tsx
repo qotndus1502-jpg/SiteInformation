@@ -71,27 +71,21 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
 
   // 우측 디테일 카드의 max-height를 실제 픽셀로 계산.
   // zoom된 컨테이너 안에서 vh 단위가 시각 크기와 어긋나는 문제를 회피.
-  const detailWrapperRef = useRef<HTMLDivElement>(null);
+  // 위치(rect.top) 의존이면 스크롤마다 값이 커져 overflow가 안 잡히므로 고정 오프셋 기반으로만 계산.
   const [detailMaxH, setDetailMaxH] = useState<number | null>(null);
   useEffect(() => {
     function update() {
-      const el = detailWrapperRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect(); // post-zoom 시각 좌표(px)
       const zoomStr = getComputedStyle(document.documentElement).getPropertyValue("--dashboard-zoom").trim();
       const zoom = parseFloat(zoomStr) || 1;
-      const visibleH = window.innerHeight - rect.top - 16; // 시각 픽셀
+      const HEADER_AND_PADDING = 80; // header(52) + 위/아래 여백
+      const visibleH = window.innerHeight - HEADER_AND_PADDING; // 시각 픽셀
       const cssH = Math.max(visibleH / zoom, 200); // pre-zoom CSS 픽셀
       setDetailMaxH(cssH);
     }
     update();
     window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, { passive: true });
-    return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update);
-    };
-  }, [displayedSite, panelOpen]);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   const handleSelect = useCallback((site: SiteDashboard) => {
     clearTimeout(closingTimer.current);
@@ -321,7 +315,6 @@ export function DashboardClient({ initialSites, filterOptions }: DashboardClient
         </div>
         {displayedSite && (
           <div
-            ref={detailWrapperRef}
             className="shrink-0 hidden lg:block overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] self-start sticky top-2"
             style={{
               maxWidth: panelOpen ? 700 : 0,
