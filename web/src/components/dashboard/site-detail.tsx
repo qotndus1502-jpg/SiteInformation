@@ -113,7 +113,7 @@ export function SiteDetail({ site, onClose, onSaved }: SiteDetailProps) {
   }
 
   return (
-    <div className="bg-card rounded-xl border border-border/40 shadow-sm w-full max-h-full overflow-y-auto">
+    <div className="bg-card rounded-xl border border-border/40 shadow-sm w-full">
       {/* 조감도 + 닫기 버튼 */}
       <div className="relative">
         <SiteImage siteId={site.id} siteName={site.site_name} division={site.division} />
