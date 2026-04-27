@@ -129,22 +129,32 @@ function SiteListWithDetail({
   }, []);
 
   // 우측 디테일 카드의 max-height를 실제 픽셀로 계산 (zoom된 컨테이너 안에서 vh가 어긋나는 문제 회피).
+  // 상위 DashboardScaler가 --dashboard-zoom을 useEffect에서 세팅하는 타이밍 때문에
+  // CSS var는 신뢰 불가 → 카드 자체의 getBoundingClientRect로 실제 스케일을 역산.
+  const cardWrapperRef = useRef<HTMLDivElement>(null);
   const [detailMaxH, setDetailMaxH] = useState<number | null>(null);
   useEffect(() => {
     function update() {
-      const root = getComputedStyle(document.documentElement);
-      const zoom = parseFloat(root.getPropertyValue("--dashboard-zoom").trim()) || 1;
-      const stickyBottom = parseFloat(root.getPropertyValue("--sticky-header-bottom").trim()) || 200;
-      const TOP_OFFSET = stickyBottom + 40; // 상단 여백 (헤더 + 차트 영역)
-      const BOTTOM_MARGIN = 24;
-      const visibleH = window.innerHeight - TOP_OFFSET - BOTTOM_MARGIN; // 시각 픽셀
-      const cssH = Math.max(visibleH / zoom, 200); // pre-zoom CSS 픽셀
+      const el = cardWrapperRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect(); // 실제 rendered 픽셀
+      // rect.top은 화면 기준 px. rect의 width vs CSS width(500px*zoom)로 zoom 역산.
+      const cssWidth = 500;
+      const renderedWidth = rect.width;
+      const zoom = renderedWidth > 0 ? renderedWidth / cssWidth : 1;
+      const BOTTOM_MARGIN = 16;
+      const visibleH = window.innerHeight - rect.top - BOTTOM_MARGIN;
+      const cssH = Math.max(visibleH / zoom, 200);
       setDetailMaxH(cssH);
     }
-    update();
+    // 다음 프레임에 측정 (parent zoom 적용 후)
+    const raf1 = requestAnimationFrame(() => requestAnimationFrame(update));
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
+    return () => {
+      cancelAnimationFrame(raf1);
+      window.removeEventListener("resize", update);
+    };
+  }, [displayedSite, panelOpen, sectionInView]);
 
   const cardVisible = panelOpen && sectionInView;
 
@@ -193,6 +203,7 @@ function SiteListWithDetail({
               >
                 {/* Cap by viewport but shrink to fit content when shorter. */}
                 <div
+                  ref={cardWrapperRef}
                   className="w-[500px] overflow-y-auto overscroll-contain"
                   style={{ maxHeight: detailMaxH != null ? `${detailMaxH}px` : undefined }}
                 >
@@ -348,18 +359,26 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     }
   }, [sites]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 맵 탭 사이드 패널의 max-height (zoom 보정 픽셀 단위)
+  // 맵 탭 사이드 패널의 max-height — wrapper의 실제 rect로 zoom 역산
+  const mapPanelWrapperRef = useRef<HTMLDivElement>(null);
   const [mapPanelMaxH, setMapPanelMaxH] = useState<number | null>(null);
   useEffect(() => {
     function update() {
-      const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--dashboard-zoom").trim()) || 1;
-      const visibleH = window.innerHeight - 80;
+      const el = mapPanelWrapperRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const cssWidth = 500;
+      const zoom = rect.width > 0 ? rect.width / cssWidth : 1;
+      const visibleH = window.innerHeight - rect.top - 16;
       setMapPanelMaxH(Math.max(visibleH / zoom, 200));
     }
-    update();
+    const raf = requestAnimationFrame(() => requestAnimationFrame(update));
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", update);
+    };
+  }, [displayedSite, panelOpen]);
   const [filters, setFilters] = useState<SiteFilter>({});
   const [amountRanges, setAmountRanges] = useState<Set<string>>(new Set());
   const [progressRanges, setProgressRanges] = useState<Set<string>>(new Set());
@@ -760,6 +779,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
                 }}
               >
                 <div
+                  ref={mapPanelWrapperRef}
                   className="w-[500px] overflow-y-auto overscroll-contain"
                   style={{ maxHeight: mapPanelMaxH != null ? `${mapPanelMaxH}px` : undefined }}
                 >
