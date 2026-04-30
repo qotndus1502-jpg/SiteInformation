@@ -1,0 +1,48 @@
+# Production docker stack — pulls images from GHCR by default.
+#
+# 변수:
+#   IMAGE_TAG       — 어떤 태그를 받을지 (default: latest)
+#   IMAGE_REGISTRY  — GHCR 네임스페이스 (default: ghcr.io/qotndus1502-jpg)
+#
+# 사용:
+#   docker compose pull && docker compose up -d
+#   IMAGE_TAG=sha-<7자리> docker compose up -d   # 특정 커밋으로 롤백
+
+services:
+  backend:
+    image: ${IMAGE_REGISTRY:-ghcr.io/qotndus1502-jpg}/site-info-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    networks:
+      - site-info-net
+    expose:
+      - "8001"
+
+  web:
+    image: ${IMAGE_REGISTRY:-ghcr.io/qotndus1502-jpg}/site-info-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      # SSR 시점에 백엔드 컨테이너로 직접 호출
+      INTERNAL_API_BASE: http://backend:8001
+    depends_on:
+      - backend
+    networks:
+      - site-info-net
+    expose:
+      - "3000"
+
+  nginx:
+    image: ${IMAGE_REGISTRY:-ghcr.io/qotndus1502-jpg}/site-info-nginx:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+      - backend
+    networks:
+      - site-info-net
+
+networks:
+  site-info-net:
+    driver: bridge
