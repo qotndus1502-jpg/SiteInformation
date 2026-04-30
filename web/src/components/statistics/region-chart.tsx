@@ -1,6 +1,7 @@
 "use client";
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { ChartTooltipCard, type RechartsTooltipProps } from "./_shared/chart-tooltip";
 
 interface RegionData {
   region_group: string;
@@ -14,17 +15,16 @@ interface RegionChartProps {
 
 const REGION_COLORS = ["#3B82F6", "#06B6D4", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981", "#94A3B8"];
 
-function CustomTooltip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
+function CustomTooltip({ active, payload }: RechartsTooltipProps<RegionData>) {
+  if (!payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-card border border-border rounded-lg shadow-lg px-4 py-3 text-sm">
-      <p className="font-semibold text-foreground mb-1">{d.region_group}</p>
+    <ChartTooltipCard active={active} title={d.region_group}>
       <div className="space-y-0.5">
         <p className="text-muted-foreground">현장 <span className="font-mono font-semibold text-foreground">{d.count}개</span></p>
         <p className="text-muted-foreground">도급액 <span className="font-mono font-semibold text-foreground">{d.total_contract.toLocaleString()}억</span></p>
       </div>
-    </div>
+    </ChartTooltipCard>
   );
 }
 
@@ -33,7 +33,7 @@ export function RegionChart({ data }: RegionChartProps) {
   const total = sorted.reduce((s, d) => s + d.count, 0);
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+    <div className="glass-card rounded-2xl p-5">
       <h3 className="text-base font-bold text-foreground mb-4">지역별 현장 분포</h3>
       <div className="flex items-center gap-4">
         <div className="relative shrink-0" style={{ width: 200, height: 200 }}>

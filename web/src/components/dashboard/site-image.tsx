@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Camera, Check, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { authFetch } from "@/lib/api";
+import { uploadSiteImage } from "@/lib/api/sites";
 
 interface ImageSettings {
   x: number;
@@ -135,23 +135,15 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("site_id", String(siteId));
     try {
-      const res = await authFetch(`/api/upload-site-image`, {
-        method: "POST",
-        body: formData,
-      });
-      if (res.ok) {
-        const reset = { x: 0, y: 0, scale: 1 };
-        setImgSrc(`${STORAGE_URL}/site_${siteId}.jpg?t=${Date.now()}`);
-        setHasImage(true);
-        setSettings(reset);
-        setDraft(reset);
-        saveSettings(siteId, reset);
-        setEditing(true);
-      }
+      await uploadSiteImage(file, siteId);
+      const reset = { x: 0, y: 0, scale: 1 };
+      setImgSrc(`${STORAGE_URL}/site_${siteId}.jpg?t=${Date.now()}`);
+      setHasImage(true);
+      setSettings(reset);
+      setDraft(reset);
+      saveSettings(siteId, reset);
+      setEditing(true);
     } catch {}
     if (fileInputRef.current) fileInputRef.current.value = "";
   };

@@ -26,7 +26,7 @@ const RISK_COLORS: Record<string, string> = {
 export function AlertSitesTable({ data }: AlertSitesTableProps) {
   if (data.length === 0) {
     return (
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+      <div className="glass-card rounded-2xl p-5">
         <h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           주의 현장
@@ -37,7 +37,7 @@ export function AlertSitesTable({ data }: AlertSitesTableProps) {
   }
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+    <div className="glass-card rounded-2xl p-5">
       <h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2">
         <AlertTriangle className="h-4 w-4 text-amber-500" />
         주의 현장

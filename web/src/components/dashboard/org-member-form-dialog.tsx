@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { type OrgMemberInput } from "@/lib/queries/org-chart";
+import { type OrgMemberInput } from "@/lib/api/org";
 import type { Department, OrgMember, OrgRole } from "@/types/org-chart";
 
 type OrgTypeCode = "OWN" | "JV";

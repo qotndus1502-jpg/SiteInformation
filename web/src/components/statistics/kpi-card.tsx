@@ -1,10 +1,18 @@
 "use client";
 
 import { TrendingUp, Shield, Users, Wallet } from "lucide-react";
+import type { StatisticsSummary } from "@/lib/api/statistics";
+
+type KpiType = "progress" | "safety" | "headcount" | "budget";
+
+/** Each kpi card consumes one slice of StatisticsSummary. Keying the data
+ *  type off the discriminated `type` lets each sub-content function stay
+ *  typed without an intermediate `any` cast. */
+type KpiData<T extends KpiType> = StatisticsSummary[T];
 
 interface KpiCardProps {
-  type: "progress" | "safety" | "headcount" | "budget";
-  data: Record<string, any>;
+  type: KpiType;
+  data: KpiData<KpiType>;
 }
 
 const CONFIG = {
@@ -34,7 +42,7 @@ const CONFIG = {
   },
 };
 
-function ProgressContent({ data }: { data: Record<string, any> }) {
+function ProgressContent({ data }: { data: KpiData<"progress"> }) {
   const pct = ((data.average ?? 0) * 100).toFixed(1);
   return (
     <>
@@ -48,7 +56,7 @@ function ProgressContent({ data }: { data: Record<string, any> }) {
   );
 }
 
-function SafetyContent({ data, accent, accentSoft }: { data: Record<string, any>; accent: string; accentSoft: string }) {
+function SafetyContent({ data, accent, accentSoft }: { data: KpiData<"safety">; accent: string; accentSoft: string }) {
   const grades = [
     { label: "A", count: data.grade_a ?? 0 },
     { label: "B", count: data.grade_b ?? 0 },
@@ -74,7 +82,7 @@ function SafetyContent({ data, accent, accentSoft }: { data: Record<string, any>
   );
 }
 
-function HeadcountContent({ data }: { data: Record<string, any> }) {
+function HeadcountContent({ data }: { data: KpiData<"headcount"> }) {
   const byDiv = data.by_division ?? {};
   return (
     <>
@@ -88,7 +96,7 @@ function HeadcountContent({ data }: { data: Record<string, any> }) {
   );
 }
 
-function BudgetContent({ data }: { data: Record<string, any> }) {
+function BudgetContent({ data }: { data: KpiData<"budget"> }) {
   const total = data.total_contract ?? 0;
   const ourShare = data.total_our_share ?? 0;
   const execRate = ((data.average_execution_rate ?? 0) * 100).toFixed(1);
@@ -134,10 +142,13 @@ export function KpiCard({ type, data }: KpiCardProps) {
       {/* Content */}
       <div className="relative z-10">
         <p className="text-[11px] font-medium text-slate-500 tracking-wide uppercase mb-2">{config.title}</p>
-        {type === "progress" && <ProgressContent data={data} />}
-        {type === "safety" && <SafetyContent data={data} accent={config.accent} accentSoft={config.accentSoft} />}
-        {type === "headcount" && <HeadcountContent data={data} />}
-        {type === "budget" && <BudgetContent data={data} />}
+        {/* The `data` prop arrives as a union (one of the four shapes) — we trust
+         *  the parent passes the slice that matches `type`. Cast at the boundary
+         *  rather than per-field, so each sub-content function gets a precise type. */}
+        {type === "progress" && <ProgressContent data={data as KpiData<"progress">} />}
+        {type === "safety" && <SafetyContent data={data as KpiData<"safety">} accent={config.accent} accentSoft={config.accentSoft} />}
+        {type === "headcount" && <HeadcountContent data={data as KpiData<"headcount">} />}
+        {type === "budget" && <BudgetContent data={data as KpiData<"budget">} />}
       </div>
     </div>
   );

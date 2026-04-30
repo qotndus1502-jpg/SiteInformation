@@ -1,5 +1,6 @@
 "use client";
 
+import type { ComponentType } from "react";
 import { HardHat, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,14 +16,16 @@ interface DivisionComparisonProps {
   data: DivisionData[];
 }
 
-const DIV_CONFIG: Record<string, { icon: any; color: string; bg: string }> = {
+type IconComponent = ComponentType<{ className?: string }>;
+
+const DIV_CONFIG: Record<string, { icon: IconComponent; color: string; bg: string }> = {
   "토목": { icon: HardHat, color: "text-emerald-600", bg: "bg-emerald-50" },
   "건축": { icon: Building2, color: "text-blue-600", bg: "bg-blue-50" },
 };
 
 export function DivisionComparison({ data }: DivisionComparisonProps) {
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+    <div className="glass-card rounded-2xl p-5">
       <h3 className="text-base font-bold text-foreground mb-4">부문별 비교</h3>
       <div className="grid grid-cols-2 gap-3">
         {data.map((d) => {

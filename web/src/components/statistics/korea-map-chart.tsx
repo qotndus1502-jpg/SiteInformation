@@ -53,19 +53,6 @@ for (const [area, cfg] of Object.entries(AREA_GROUPS)) {
   for (const m of cfg.members) REGION_TO_AREA[m] = area;
 }
 
-/* ── Province fill colors ─────────────────────────────── */
-
-const F = charts.koreaMap.fill;
-const FILL: Record<string, string> = {
-  "서울": F.dark, "인천": F.dark, "경기": F.mid,
-  "강원": F.light, "충북": F.mid, "충남": F.dark,
-  "세종": F.mid, "대전": F.mid, "전북": F.dark,
-  "전남": F.extra, "광주": F.dark, "경북": F.light,
-  "경남": F.mid, "대구": F.mid, "울산": F.light,
-  "부산": F.dark,
-  "제주": F.mid,
-};
-
 /* ── Minimal nudges (only where centroid is very off) ── */
 
 const NUDGE: Record<string, { dx: number; dy: number }> = {
@@ -79,11 +66,40 @@ const NUDGE: Record<string, { dx: number; dy: number }> = {
 
 type MetricKey = "count" | "total_headcount" | "total_contract";
 
-const METRICS: { key: MetricKey; label: string; color: string; hoverColor: string; unit: string }[] = [
-  { key: "count", label: "현장 수", color: charts.koreaMap.bubble, hoverColor: charts.koreaMap.bubbleHover, unit: "개" },
-  { key: "total_headcount", label: "현장 인원", color: charts.koreaMap.bubble, hoverColor: charts.koreaMap.bubbleHover, unit: "명" },
-  { key: "total_contract", label: "자사도급액", color: charts.koreaMap.bubble, hoverColor: charts.koreaMap.bubbleHover, unit: "억" },
+interface MetricCfg {
+  key: MetricKey;
+  label: string;
+  unit: string;
+  /** Bubble fill (light end of the gradient). */
+  color: string;
+  /** Bubble fill on hover/active (slightly more saturated). */
+  hoverColor: string;
+  /** Outer ring drawn on hover/selected — uses the deepest tone for contrast. */
+  ring: string;
+  /** SVG drop-shadow flood color — re-tinted per metric so the map theme stays cohesive. */
+  shadow: string;
+}
+
+const M = charts.koreaMap.metric;
+const METRICS: MetricCfg[] = [
+  { key: "count",           label: "현장 수",   unit: "개",
+    color: M.count.bubble,     hoverColor: M.count.bubbleHover,
+    ring:  M.count.ring,       shadow:     M.count.shadow },
+  { key: "total_headcount", label: "현장 인원", unit: "명",
+    color: M.headcount.bubble, hoverColor: M.headcount.bubbleHover,
+    ring:  M.headcount.ring,   shadow:     M.headcount.shadow },
+  { key: "total_contract",  label: "자사도급액", unit: "억",
+    color: M.contract.bubble,  hoverColor: M.contract.bubbleHover,
+    ring:  M.contract.ring,    shadow:     M.contract.shadow },
 ];
+
+/** Tailwind class strings for the metric toggle pill — listed statically so
+ *  the JIT picks up every variant. Don't build these from string concat. */
+const TOGGLE_ACTIVE_CLASSES: Record<MetricKey, string> = {
+  count:           "bg-blue-50   text-blue-700   hover:bg-blue-100",
+  total_headcount: "bg-sky-50    text-sky-700    hover:bg-sky-100",
+  total_contract:  "bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
+};
 
 /* ── Bubble radius ────────────────────────────────────── */
 
@@ -159,7 +175,10 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
   const [activeMetric, setActiveMetric] = useState<MetricKey>("count");
 
   useEffect(() => {
-    fetch("/korea-provinces.json").then((r) => r.json()).then(setGeo).catch(() => {});
+    fetch("/korea-provinces.json")
+      .then((r) => r.json())
+      .then((raw: FeatureCollection) => setGeo(raw))
+      .catch(() => {});
   }, []);
 
   // Trust the parent's filtered prop directly — no local copy, no fallback fetch.
@@ -200,10 +219,10 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
   // 해외 stat
   const overseasStat = data.find((d) => d.region === "해외");
 
-  const { pathGen, centroids, projection } = useMemo(() => {
-    if (!geo) return { pathGen: null, centroids: new Map<string, [number, number]>(), projection: null };
+  const { pathGen, centroids } = useMemo(() => {
+    if (!geo) return { pathGen: null, centroids: new Map<string, [number, number]>() };
     const projection = geoMercator().center([127.8, 36.2]).scale(13000).translate([W / 2, H / 2 + 30]);
-    const pg = geoPath().projection(projection);
+    const pg = geoPath(projection);
     const cm = new Map<string, [number, number]>();
     for (const feature of geo.features) {
       const name = feature.properties?.name as string;
@@ -213,7 +232,7 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
       const projected = projection(c);
       if (projected) cm.set(key, projected as [number, number]);
     }
-    return { pathGen: pg, centroids: cm, projection };
+    return { pathGen: pg, centroids: cm };
   }, [geo]);
 
   const areaCentroids = useMemo(() => {
@@ -291,7 +310,9 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
         상세 지도 보기 →
       </button>
 
-      {/* Metric selector - right top */}
+      {/* Metric selector - right top.
+       *  Active pill picks up the same metric color as the bubbles below, so the
+       *  whole card reads as one theme when the user toggles. */}
       <div className="absolute top-3 right-3 z-20 flex flex-col gap-1 items-end">
         {METRICS.map((m) => {
           const isActive = activeMetric === m.key;
@@ -302,8 +323,8 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
               className={cn(
                 "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors duration-150",
                 isActive
-                  ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
-                  : "text-muted-foreground hover:text-slate-900 hover:bg-slate-100/60",
+                  ? TOGGLE_ACTIVE_CLASSES[m.key]
+                  : "bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900",
               )}
             >
               {m.label}
@@ -312,30 +333,50 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
         })}
       </div>
 
-      {/* Map + overlays — fixed aspect ratio so the map keeps its proportions regardless of column width */}
+      {/* Map + overlays — fixed aspect ratio so the map keeps its proportions regardless of column width.
+       *  maxHeight caps how tall the map can grow inside its card so the
+       *  parent container's footprint never changes. */}
       <div className="relative" style={{ marginTop: 20, width: "100%", aspectRatio: `${W} / ${H}`, maxHeight: 430 }}>
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ width: "100%", height: "100%", overflow: "visible" }}>
 
           <defs>
-            <linearGradient id="map-bubble-grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" style={{ stopColor: `color-mix(in srgb, ${metricCfg.color} 90%, white)` }} />
+            {/* Province fill — translucent white wash so the silhouette
+             *  reads as a luminous cutout of the dark card surface, not a
+             *  separate slate island. Alpha is baked into the stops so the
+             *  path itself omits `fillOpacity`. */}
+            {/* Province fill — moderate wash. Provides backdrop so neon
+             *  routes (bubble connection lines) stand out. Not too dark
+             *  (kills visibility), not too bright (no contrast for neon). */}
+            <linearGradient id="map-fill-grad" gradientUnits="userSpaceOnUse"
+              x1={W} y1={150} x2={0} y2={H - 150}>
+              <stop offset="0%"   stopColor="rgba(255,255,255,0.75)" />
+              <stop offset="100%" stopColor="rgba(255,255,255,0.55)" />
+            </linearGradient>
+            <linearGradient id="map-fill-grad-hov" gradientUnits="userSpaceOnUse"
+              x1={W} y1={150} x2={0} y2={H - 150}>
+              <stop offset="0%"   stopColor={`color-mix(in srgb, ${metricCfg.color} 14%, rgba(255,255,255,0.85))`} />
+              <stop offset="100%" stopColor={`color-mix(in srgb, ${metricCfg.color} 8%, rgba(255,255,255,0.70))`} />
+            </linearGradient>
+            {/* Diagonal gradient (top-left → bottom-right) — simulates natural
+             *  ambient light from upper-left, the modern flat-design default.
+             *  Soft contrast (95%→100%) keeps the bubble reading as a single
+             *  surface rather than a glossy ball. */}
+            <linearGradient id="map-bubble-grad" x1="1" y1="1" x2="0" y2="0">
+              <stop offset="0%"   style={{ stopColor: `color-mix(in srgb, ${metricCfg.color} 75%, white)` }} />
               <stop offset="100%" style={{ stopColor: metricCfg.color }} />
             </linearGradient>
-            <linearGradient id="map-bubble-grad-active" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" style={{ stopColor: `color-mix(in srgb, ${metricCfg.hoverColor} 92%, white)` }} />
+            <linearGradient id="map-bubble-grad-active" x1="1" y1="1" x2="0" y2="0">
+              <stop offset="0%"   style={{ stopColor: `color-mix(in srgb, ${metricCfg.hoverColor} 75%, white)` }} />
               <stop offset="100%" style={{ stopColor: metricCfg.hoverColor }} />
             </linearGradient>
-            <filter id="map-bubble-shadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor="#1E3A8A" floodOpacity={0.14} />
+            <filter id="map-bubble-shadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor={metricCfg.shadow} floodOpacity={0.32} />
             </filter>
-            <radialGradient id="map-bg-glow" cx="50%" cy="45%" r="55%">
-              <stop offset="0%" stopColor="#EFF6FF" stopOpacity={0.8} />
-              <stop offset="100%" stopColor="#EFF6FF" stopOpacity={0} />
-            </radialGradient>
           </defs>
 
-          {/* Map background glow */}
-          <rect x={0} y={0} width={W} height={H} fill="url(#map-bg-glow)" className="pointer-events-none" />
+          {/* Map background — none. Card-level gradient (.glass-card-dark)
+           *  provides surface depth; layering an SVG wash on top creates
+           *  a visible "hot spot" that breaks card cohesion. */}
 
           {/* Province shapes */}
           {geo.features.map((feature, i) => {
@@ -345,13 +386,15 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
             const d = pathGen(feature as Feature<Geometry>);
             if (!d) return null;
             const isHov = hoveredRegions.has(key);
-            const fill = FILL[key] ?? "#b0c4b2";
-
             const isJeju = key === "제주";
             return (
               <path key={i} d={d}
-                fill={fill} fillOpacity={isHov ? 1 : 0.65}
-                stroke="white" strokeWidth={isHov ? 3.5 : 3}
+                fill={isHov ? "url(#map-fill-grad-hov)" : "url(#map-fill-grad)"}
+                stroke={isHov
+                  ? `color-mix(in srgb, ${metricCfg.color} 50%, white)`
+                  : "#D5DCE6"}
+                strokeWidth={isHov ? 1.5 : 1}
+                strokeLinejoin="round"
                 className="transition-all duration-200 cursor-pointer"
                 transform={isJeju ? "translate(0, -160)" : undefined}
                 onMouseEnter={() => {
@@ -361,17 +404,6 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
                 onMouseLeave={() => setHovered(null)}
               />
             );
-          })}
-
-          {/* Outlines */}
-          {geo.features.map((feature, i) => {
-            const name = feature.properties?.name as string;
-            const key = NAME_MAP[name];
-            if (!key) return null;
-            const d = pathGen(feature as Feature<Geometry>);
-            if (!d) return null;
-            const isJeju = key === "제주";
-            return <path key={`o-${i}`} d={d} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="0.3" className="pointer-events-none" transform={isJeju ? "translate(0, -160)" : undefined} />;
           })}
 
           {/* Area borders on hover */}
@@ -408,10 +440,11 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
                     onRegionClick?.(isSelected ? null : key);
                   }}>
 
-                  {/* Selection / Hover ring */}
+                  {/* Selection / Hover ring — uses the deepest metric tone for
+                   *  contrast against the lighter bubble fill. */}
                   {(isHov || isSelected) && (
                     <circle cx={cx} cy={cy} r={r * 1.2 + 4}
-                      fill="none" stroke={metricCfg.color} strokeWidth={isSelected ? 3 : 2} strokeOpacity={isSelected ? 0.85 : 0.4}
+                      fill="none" stroke={metricCfg.ring} strokeWidth={isSelected ? 3 : 2} strokeOpacity={isSelected ? 0.85 : 0.4}
                       className="pointer-events-none transition-all duration-200 ease-out" />
                   )}
                   {/* Bubble */}
@@ -422,24 +455,30 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
                     className="transition-all duration-200 ease-out" />
 
                   {/* Value */}
-                  <text x={cx} y={big ? cy - 4 : cy - 1} textAnchor="middle"
+                  <text x={cx} y={big ? cy - 8 : cy - 1} textAnchor="middle"
                     fill="#1E3A8A" className="pointer-events-none transition-all duration-200 ease-out">
                     <tspan fontSize={38} fontWeight={800}>{fmtValue(val)}</tspan>
                   </text>
 
-                  {/* Label */}
+                  {/* Label — unified dark navy (`#1E3A8A`) across all bubbles
+                   *  for one typographic system. Opacity flexes by context:
+                   *  inside-bubble labels lighter (don't fight the number),
+                   *  outside-bubble labels nearly opaque (need contrast on map base). */}
                   {big ? (
-                    <text x={cx} y={cy + 28} textAnchor="middle"
+                    <text x={cx} y={cy + 36} textAnchor="middle"
                       fontSize={28} fontWeight={600}
                       fill="#1E3A8A"
-                      fillOpacity={0.7}
+                      fillOpacity={0.85}
+                      style={{ letterSpacing: "-0.01em" }}
                       className="pointer-events-none transition-all duration-200 ease-out">
                       {label}
                     </text>
                   ) : (
-                    <text x={cx} y={cy + r + 10} textAnchor="middle"
-                      fontSize={28} fontWeight={700}
-                      fill={isHov ? metricCfg.hoverColor : "#4a5568"}
+                    <text x={cx} y={cy + r + 22} textAnchor="middle"
+                      fontSize={28} fontWeight={600}
+                      fill="#1E3A8A"
+                      fillOpacity={isHov ? 1 : 0.95}
+                      style={{ letterSpacing: "-0.01em" }}
                       className="pointer-events-none transition-all duration-200 ease-out">
                       {label}
                     </text>
@@ -464,26 +503,33 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
                 onMouseLeave={() => setHovered(null)}
                 onClick={() => onRegionClick?.(selectedRegion === "해외" ? null : "해외")}
               >
-                {/* Box background */}
+                {/* Box background — metric-tinted glass container */}
                 <rect x={ix - 90} y={iy - 85} width={230} height={175} rx={16}
-                  fill="none" stroke="#CBD5E1" strokeWidth={2}
-                  strokeDasharray="6 3" />
+                  fill={`color-mix(in srgb, ${metricCfg.color} 6%, transparent)`}
+                  stroke="#FFFFFF"
+                  strokeWidth={6}
+                  strokeDasharray="4 4"
+                  strokeOpacity={1} />
                 {/* Label */}
                 <text x={ix + 25} y={iy - 40} textAnchor="middle"
-                  fontSize={28} fontWeight={700}
-                  fill={isHov ? metricCfg.hoverColor : "#4a5568"}>
+                  fontSize={28} fontWeight={600}
+                  fill="#1E3A8A"
+                  fillOpacity={isHov ? 1 : 0.95}
+                  style={{ letterSpacing: "-0.01em" }}
+                  className="pointer-events-none transition-all duration-200 ease-out">
                   해외
                 </text>
-                {/* Hover ring */}
+                {/* Hover ring — same `metricCfg.ring` as domestic bubbles for
+                 *  consistent metric theming across the map. */}
                 {isHov && (
                   <circle cx={ix + 25} cy={iy + 20} r={br * 1.2 + 4}
-                    fill="none" stroke={metricCfg.color} strokeWidth="2" strokeOpacity="0.4"
+                    fill="none" stroke={metricCfg.ring} strokeWidth="2" strokeOpacity="0.4"
                     className="pointer-events-none" />
                 )}
                 {/* Selected ring */}
                 {isSelected && (
                   <circle cx={ix + 25} cy={iy + 20} r={br + 6}
-                    fill="none" stroke={metricCfg.color} strokeWidth="3"
+                    fill="none" stroke={metricCfg.ring} strokeWidth="3"
                     className="pointer-events-none" />
                 )}
                 {/* Bubble */}

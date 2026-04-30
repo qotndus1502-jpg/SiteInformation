@@ -1,83 +1,32 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { BreakdownTabs } from "./breakdown-tabs";
 import { CorpDivisionChart } from "./corp-division-chart";
 import { KoreaMapChart } from "./korea-map-chart";
 import { FilterBar } from "@/components/dashboard/filter-bar";
-import { SiteList } from "@/components/dashboard/site-list";
 import { SiteDetail } from "@/components/dashboard/site-detail";
 import { SiteMap, type ColorCategory } from "@/components/dashboard/site-map";
 import { SiteFormDialog } from "@/components/dashboard/site-form-dialog";
 import { DemoNoticeDialog } from "@/components/layout/demo-notice";
 import { Plus, Info, Building2, Banknote, PieChart, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { useCountUp } from "@/hooks/use-count-up";
 import { charts } from "@/lib/chart-colors";
-import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
+import type { SiteFilter, FilterOptions } from "@/lib/api/sites";
 import type { SiteDashboard } from "@/types/database";
+import { fetchSites } from "@/lib/api/sites";
+import { fetchStatisticsSummary, type StatisticsSummary } from "@/lib/api/statistics";
+import { exportSitesToExcel } from "@/lib/excel-export";
+import { DashboardScaler } from "./_internal/DashboardScaler";
+import { HeroKpi } from "./_internal/HeroKpi";
+import { SiteListWithDetail } from "./_internal/SiteListWithDetail";
 
-/* ── Dashboard Scaler ──────────────────────────────────── */
-
+// Match the BASE_W in DashboardScaler — used for sticky header width calculations.
 const BASE_W = 1560;
-const BASE_H = 920;
-
-function DashboardScaler({ children }: { children: React.ReactNode }) {
-  const [scale, setScale] = useState(1);
-
-  useEffect(() => {
-    function update() {
-      const s = Math.max(window.innerWidth / BASE_W, 0.5);
-      setScale(s);
-      document.documentElement.style.setProperty("--dashboard-zoom", String(s));
-    }
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-
-  return (
-    <div
-      className="-mx-4 -mt-0.5 -mb-4 sm:-mx-6 sm:-mb-4 overflow-x-hidden"
-      style={{ minHeight: "calc(100vh - 52px)" }}
-    >
-      <div
-        className="flex flex-col gap-3 px-6 pt-0 pb-2"
-        style={{
-          width: BASE_W,
-          zoom: scale,
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
 
 /* ── Types ──────────────────────────────────────────────── */
-
-interface StatisticsSummary {
-  progress: Record<string, any>;
-  safety: Record<string, any>;
-  headcount: Record<string, any>;
-  budget: Record<string, any>;
-  by_status: { status: string; count: number; total_contract: number; total_headcount: number }[];
-  by_division: { division: string; count: number }[];
-  total_sites: number;
-  by_corporation: { corporation: string; count: number; avg_progress: number; total_contract: number; total_headcount: number }[];
-  by_region_group: { region_group: string; count: number; total_contract: number; total_headcount: number; avg_progress: number }[];
-  progress_distribution: { label: string; count: number }[];
-  alert_sites: any[];
-  by_division_detail: { division: string; count: number; avg_progress: number; total_contract: number; total_headcount: number }[];
-  by_amount_range: { label: string; count: number; total_contract: number; total_headcount: number }[];
-  by_corporation_division: { corporation: string; division: string; count: number; total_contract: number; total_headcount: number }[];
-  by_region: { region: string; count: number; total_contract: number; total_headcount: number; avg_progress: number }[];
-  pre_start_by_completion_year: { year: string; count: number }[];
-  active_by_completion_year: { year: string; count: number }[];
-  amount_heatmap: { by_contract: any[]; by_our_share: any[]; by_contract_division: any[]; by_our_share_division: any[]; labels: string[]; no_contract_count?: number; no_share_count?: number };
-}
 
 interface StatisticsClientProps {
   summary: StatisticsSummary;
@@ -85,235 +34,7 @@ interface StatisticsClientProps {
   initialSites?: SiteDashboard[];
 }
 
-/* ── SiteList + Detail (detail aligned to selected row) ── */
-
-function SiteListWithDetail({
-  sites,
-  selectedSite,
-  displayedSite,
-  panelOpen,
-  onSelectSite,
-  onCloseSite,
-  onSavedSite,
-  addButton,
-  isAdmin = false,
-  embedded = false,
-}: {
-  sites: SiteDashboard[];
-  selectedSite: SiteDashboard | null;
-  displayedSite: SiteDashboard | null;
-  panelOpen: boolean;
-  onSelectSite: (s: SiteDashboard) => void;
-  onCloseSite: () => void;
-  onSavedSite?: () => void;
-  addButton?: React.ReactNode;
-  isAdmin?: boolean;
-  embedded?: boolean;
-}) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  // Track whether the SITE LIST section is visible in the viewport so the
-  // floating detail card hides when the user scrolls up to the dashboard area.
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const [sectionInView, setSectionInView] = useState(false);
-  useEffect(() => {
-    const el = sectionRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([entry]) => setSectionInView(entry.isIntersecting),
-      { root: null, threshold: 0, rootMargin: "0px 0px -20% 0px" }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  // 우측 디테일 카드의 max-height를 실제 픽셀로 계산 (zoom된 컨테이너 안에서 vh가 어긋나는 문제 회피).
-  // 상위 DashboardScaler가 --dashboard-zoom을 useEffect에서 세팅하는 타이밍 때문에
-  // CSS var는 신뢰 불가 → 카드 자체의 getBoundingClientRect로 실제 스케일을 역산.
-  const cardWrapperRef = useRef<HTMLDivElement>(null);
-  const [detailMaxH, setDetailMaxH] = useState<number | null>(null);
-  useEffect(() => {
-    function update() {
-      const el = cardWrapperRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect(); // 실제 rendered 픽셀
-      // rect.top은 화면 기준 px. rect의 width vs CSS width(500px*zoom)로 zoom 역산.
-      const cssWidth = 500;
-      const renderedWidth = rect.width;
-      const zoom = renderedWidth > 0 ? renderedWidth / cssWidth : 1;
-      const BOTTOM_MARGIN = 16;
-      const visibleH = window.innerHeight - rect.top - BOTTOM_MARGIN;
-      const cssH = Math.max(visibleH / zoom, 200);
-      setDetailMaxH(cssH);
-    }
-    // 다음 프레임에 측정 (parent zoom 적용 후)
-    const raf1 = requestAnimationFrame(() => requestAnimationFrame(update));
-    window.addEventListener("resize", update);
-    return () => {
-      cancelAnimationFrame(raf1);
-      window.removeEventListener("resize", update);
-    };
-  }, [displayedSite, panelOpen, sectionInView]);
-
-  const cardVisible = panelOpen && sectionInView;
-
-  const content = (
-    <>
-      <div ref={sectionRef} className="relative">
-        {/* List transitions to make room for floating detail panel */}
-        <div
-          className="transition-[padding-right] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
-          style={{ paddingRight: cardVisible ? 516 : 0 }}
-        >
-          <div className="relative">
-            {addButton}
-            <SiteList
-              sites={sites}
-              selectedSiteId={selectedSite?.id ?? null}
-              onSelect={onSelectSite}
-              showAddressWarnings={isAdmin}
-            />
-          </div>
-        </div>
-      </div>
-      {/* Floating detail card: portal to body so it escapes DashboardScaler's zoom,
-          but then re-applies the same zoom internally so the card scales in sync
-          with the list. The card is only shown while the SITE LIST section is in
-          the viewport — scrolling up to the dashboard/charts hides it. */}
-      {mounted && displayedSite &&
-        createPortal(
-          <div
-            className="fixed right-4 z-50 pointer-events-none transition-opacity duration-300"
-            style={{
-              top: "calc(var(--sticky-header-bottom, 200px) + 40px)",
-              opacity: cardVisible ? 1 : 0,
-              visibility: cardVisible ? "visible" : "hidden",
-            }}
-          >
-            {/* Zoom layer — matches DashboardScaler so the card is drawn at the
-                same scale as the site list next to it */}
-            <div style={{ zoom: "var(--dashboard-zoom, 1)" }}>
-              <div
-                className="overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] pointer-events-auto shadow-2xl rounded-xl"
-                style={{
-                  maxWidth: cardVisible ? 500 : 0,
-                  opacity: cardVisible ? 1 : 0,
-                }}
-              >
-                {/* Cap by viewport but shrink to fit content when shorter. */}
-                <div
-                  ref={cardWrapperRef}
-                  className="w-[500px] overflow-y-auto overscroll-contain"
-                  style={{ maxHeight: detailMaxH != null ? `${detailMaxH}px` : undefined }}
-                >
-                  <SiteDetail site={displayedSite} onClose={onCloseSite} onSaved={onSavedSite} />
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
-    </>
-  );
-
-  if (embedded) return content;
-  return <>{content}</>;
-}
-
-/* ── Hero KPI Card ──────────────────────────────────────── */
-
-function HeroKpi({
-  label,
-  value,
-  unit,
-  icon: Icon,
-}: {
-  label: string;
-  value: number;
-  unit: string;
-  icon: React.ComponentType<{ className?: string }>;
-  isFirst?: boolean;
-}) {
-  const animated = useCountUp(value);
-  return (
-    <div className="flex items-baseline justify-between gap-3 px-5 py-2 bg-card rounded-[6px] border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground tracking-[0.02em] shrink-0">
-        <Icon className="h-5 w-5 text-primary/70" />
-        {label}
-      </div>
-      <div className="flex items-baseline gap-1 min-w-0">
-        <div className="font-mono tabular-nums text-[20px] font-bold tracking-[-0.02em] text-foreground">
-          {Math.round(animated).toLocaleString()}
-        </div>
-        <div className="text-[11px] text-muted-foreground">{unit}</div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Mini Pie Chart (filled, for inside KPI cards) ──── */
-
-const CORP_PIE_COLORS: Record<string, string> = {
-  "남광토건": "rgba(255,255,255,0.9)",
-  "극동건설": "rgba(255,255,255,0.5)",
-  "금광기업": "rgba(255,255,255,0.25)",
-};
-
-function MiniPie({ data, valueKey }: { data: { name: string; value: number }[]; valueKey: string }) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (total === 0) return <div style={{ width: 100, height: 100 }} />;
-
-  const cx = 50;
-  const cy = 50;
-  const r = 42;
-  let currentAngle = -90;
-
-  const slices = data.map((d) => {
-    const pct = d.value / total;
-    const startAngle = currentAngle;
-    const sweep = pct * 360;
-    currentAngle += sweep;
-
-    const startRad = (startAngle * Math.PI) / 180;
-    const endRad = ((startAngle + sweep) * Math.PI) / 180;
-    const x1 = cx + r * Math.cos(startRad);
-    const y1 = cy + r * Math.sin(startRad);
-    const x2 = cx + r * Math.cos(endRad);
-    const y2 = cy + r * Math.sin(endRad);
-    const largeArc = sweep > 180 ? 1 : 0;
-
-    const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-    return { ...d, path, pct };
-  });
-
-  return (
-    <div className="flex items-center gap-2">
-      <svg viewBox="0 0 100 100" className="w-[80px] h-[80px] shrink-0">
-        {slices.map((s) => (
-          <path
-            key={s.name}
-            d={s.path}
-            fill={CORP_PIE_COLORS[s.name] ?? "rgba(255,255,255,0.3)"}
-          />
-        ))}
-      </svg>
-      <div className="flex flex-col gap-0.5">
-        {slices.map((s) => (
-          <div key={s.name} className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: CORP_PIE_COLORS[s.name] }} />
-            <span className="text-[8px] text-white/70">{s.name}</span>
-            <span className="text-[8px] font-bold text-white/90">{(s.pct * 100).toFixed(0)}%</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* ── Main Component ─────────────────────────────────────── */
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
 function setToParam(s: Set<string>): string {
   return Array.from(s).join(",");
@@ -394,6 +115,18 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
   const [showDetailMap, setShowDetailMap] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const { isAdmin } = useAuth();
+
+  // Header has a "현장 관리" link that lands on /statistics?addSite=1 — when
+  // that lands here for an admin, auto-open the site form and clean the URL
+  // so a later refresh doesn't re-open the dialog.
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("addSite") === "1" && isAdmin) {
+      setAddOpen(true);
+      router.replace("/statistics");
+    }
+  }, [searchParams, isAdmin, router]);
   const [mapColorCategory, setMapColorCategory] = useState<ColorCategory>("corporation");
   const detailMapRef = useRef<HTMLDivElement>(null);
 
@@ -453,6 +186,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     if (f.facilityType && f.facilityType !== "all") params.set("facilityType", f.facilityType);
     if (f.orderType && f.orderType !== "all") params.set("orderType", f.orderType);
     if (f.status && f.status !== "all") params.set("status", f.status);
+    if (f.managingEntity && f.managingEntity !== "all") params.set("managingEntity", f.managingEntity);
     if (f.search) params.set("search", f.search);
     if (aRanges.size > 0) params.set("amountRanges", setToParam(aRanges));
     if (pRanges.size > 0) params.set("progressRanges", setToParam(pRanges));
@@ -464,19 +198,17 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
 
   const fetchSummary = useCallback(async (f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>, sYear?: string | null, eYear?: string | null) => {
     const params = buildParams(f, aRanges, pRanges, sRanges, sYear, eYear);
+    const filterDict = Object.fromEntries(params.entries());
     try {
-      const qs = params.toString();
-      const [summaryRes, sitesRes] = await Promise.all([
-        fetch(`${API_BASE}/api/statistics/summary${qs ? `?${qs}` : ""}`),
-        fetch(`${API_BASE}/api/sites${qs ? `?${qs}` : ""}`),
+      const [summaryData, sitesData] = await Promise.all([
+        fetchStatisticsSummary(params.toString()),
+        fetchSites(filterDict),
       ]);
-      if (summaryRes.ok) {
-        const data = await summaryRes.json();
-        setSummary({ ...initialSummary, ...data });
+      if (summaryData) {
+        setSummary({ ...initialSummary, ...summaryData });
       }
-      if (sitesRes.ok) {
-        const data = await sitesRes.json();
-        setSites(data);
+      if (sitesData) {
+        setSites(sitesData);
       }
     } catch {}
   }, [initialSummary, buildParams]);
@@ -505,6 +237,18 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
   const handleRefreshAfterSave = useCallback(() => {
     fetchSummary(filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
   }, [filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
+
+  const handleExport = useCallback(() => {
+    const corps = filters.corporation && filters.corporation !== "all"
+      ? filters.corporation.split(",").filter(Boolean)
+      : [];
+    const regions = filters.region && filters.region !== "all"
+      ? filters.region.split(",").filter(Boolean)
+      : [];
+    void exportSitesToExcel(sites, {
+      filterSummary: { corporations: corps, regions },
+    });
+  }, [sites, filters.corporation, filters.region]);
 
   const handleResetFilters = useCallback(() => {
     const empty: SiteFilter = {};
@@ -623,11 +367,12 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
             onAmountRangesChange={handleAmountChange}
             onProgressRangesChange={handleProgressChange}
             onReset={handleResetFilters}
+            onExport={handleExport}
           />
           <div className="grid grid-cols-4 gap-2">
             <HeroKpi icon={Building2} label="총 현장"    value={summary.total_sites ?? 0} unit="개" />
             <HeroKpi icon={Banknote}  label="총 공사비"  value={Math.round(budget.total_contract ?? 0)} unit="억" />
-            <HeroKpi icon={PieChart}  label="자사 도급액" value={Math.round((budget as any).total_our_share ?? 0)} unit="억" />
+            <HeroKpi icon={PieChart}  label="자사 도급액" value={Math.round(budget.total_our_share ?? 0)} unit="억" />
             <HeroKpi icon={Users}     label="총 인원"    value={headcount.total ?? 0} unit="명" />
           </div>
         </div>
@@ -674,19 +419,11 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
           </div>
 
           {/* ── Site List area ── */}
+          {/* Add-site action moved to the header ("현장 관리") — admins
+           *  reach the form via that link, not a floating button on the list. */}
           <div ref={siteListRef}>
             <SiteListWithDetail
               isAdmin={isAdmin}
-              addButton={isAdmin ? (
-                <button
-                  type="button"
-                  onClick={() => setAddOpen(true)}
-                  className="absolute -top-8 right-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors duration-150"
-                >
-                  <Plus className="h-3 w-3" />
-                  현장 추가
-                </button>
-              ) : null}
               sites={sites}
               selectedSite={selectedSite}
               displayedSite={displayedSite}

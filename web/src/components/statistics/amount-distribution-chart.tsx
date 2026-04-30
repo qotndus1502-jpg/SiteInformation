@@ -2,6 +2,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { charts } from "@/lib/chart-colors";
+import type { RechartsTooltipProps } from "./_shared/chart-tooltip";
 
 interface AmountDistData {
   label: string;
@@ -14,7 +15,7 @@ interface AmountDistributionChartProps {
 
 const BAR_COLORS = charts.amountDistribution;
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label }: RechartsTooltipProps<AmountDistData>) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-card border border-border rounded-lg shadow-lg px-4 py-3 text-sm">
@@ -26,7 +27,7 @@ function CustomTooltip({ active, payload, label }: any) {
 
 export function AmountDistributionChart({ data }: AmountDistributionChartProps) {
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-(--shadow-card) hover:shadow-(--shadow-card-hover) hover:-translate-y-0.5 transition-[box-shadow,transform] duration-(--motion)">
+    <div className="glass-card rounded-2xl p-5 hover:shadow-(--shadow-card-hover) hover:-translate-y-0.5 transition-[box-shadow,transform] duration-(--motion)">
       <h3 className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-slate-900 tracking-tight mb-4">
         <span className="inline-block w-0.5 h-3.5 rounded-sm bg-primary/80" />
         도급액 규모별 분포

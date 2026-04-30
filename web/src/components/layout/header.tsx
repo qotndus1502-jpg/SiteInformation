@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, LogOut, ShieldCheck, Users } from "lucide-react";
+import { Bell, LogOut, ShieldCheck, Users, Building2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
@@ -21,12 +21,9 @@ export function Header() {
   return (
     <header className="h-11 bg-background backdrop-blur-xl border-b border-border/50 flex items-center justify-between px-4 sticky top-0 z-30 transition-colors shadow-sm">
       <div className="flex items-center gap-3 min-w-0">
-        <Link href="/statistics" className="text-[15px] font-semibold text-foreground whitespace-nowrap tracking-tight hover:text-primary transition-colors">
+        <Link href="/statistics" className="text-[18px] font-semibold text-foreground whitespace-nowrap tracking-tight hover:text-primary transition-colors">
           전사 현장 통합 대시보드
         </Link>
-        <span className="text-[12px] text-muted-foreground truncate hidden md:inline">
-          현재 데모 버전 운영 중입니다. 일부 데이터 누락 및 오류가 있으니 업무 시 참고 부탁드립니다.
-        </span>
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -39,6 +36,22 @@ export function Header() {
             >
               <Users className="h-3 w-3" />
               사용자
+            </Link>
+            <Link
+              href="/statistics?addSite=1"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-card/60"
+              title="현장 관리"
+            >
+              <MapPin className="h-3 w-3" />
+              현장 관리
+            </Link>
+            <Link
+              href="/admin/managing-entities"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-card/60"
+              title="현장관리부서"
+            >
+              <Building2 className="h-3 w-3" />
+              현장관리부서
             </Link>
             <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold">
               <ShieldCheck className="h-3 w-3" />

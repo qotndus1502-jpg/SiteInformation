@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import type { RechartsTooltipProps } from "./_shared/chart-tooltip";
 
 interface ProgressDistData {
   label: string;
@@ -13,7 +14,7 @@ interface ProgressDistributionChartProps {
 
 const BAR_COLORS = ["#EF4444", "#F59E0B", "#3B82F6", "#06B6D4", "#16A34A"];
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label }: RechartsTooltipProps<ProgressDistData>) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-card border border-border rounded-lg shadow-lg px-4 py-3 text-sm">
@@ -25,7 +26,7 @@ function CustomTooltip({ active, payload, label }: any) {
 
 export function ProgressDistributionChart({ data }: ProgressDistributionChartProps) {
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+    <div className="glass-card rounded-2xl p-5">
       <h3 className="text-base font-bold text-foreground mb-4">공정률 분포</h3>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>

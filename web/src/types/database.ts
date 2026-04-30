@@ -34,6 +34,8 @@ export interface SiteDashboard {
   delay_days: number | null
   jv_summary: string | null
   latest_memo: string | null
+  managing_entity_id: number | null
+  managing_entity_name: string | null
 }
 
 export type SiteStatus = "ACTIVE" | "COMPLETED" | "SUSPENDED" | "PRE_START"

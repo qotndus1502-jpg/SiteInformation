@@ -114,18 +114,21 @@ export function SiteDetail({ site, onClose, onSaved }: SiteDetailProps) {
 
   return (
     <div className="bg-card rounded-xl border border-border/40 shadow-sm w-full">
-      {/* 조감도 + 닫기 버튼 */}
-      <div className="relative">
-        <SiteImage siteId={site.id} siteName={site.site_name} division={site.division} />
-        {onClose && (
+      {/* Sticky 닫기 버튼 — 카드 스크롤 시에도 항상 우측 상단 고정 */}
+      {onClose && (
+        <div className="sticky top-2 z-20 flex justify-end px-2 -mb-10 pointer-events-none">
           <button
             onClick={onClose}
-            className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-colors"
+            className="p-1.5 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-colors pointer-events-auto"
             aria-label="닫기"
           >
             <X className="h-4 w-4" />
           </button>
-        )}
+        </div>
+      )}
+      {/* 조감도 */}
+      <div className="relative">
+        <SiteImage siteId={site.id} siteName={site.site_name} division={site.division} />
       </div>
 
       {/* 지도 팝업 */}

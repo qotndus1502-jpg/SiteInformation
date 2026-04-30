@@ -368,4 +368,39 @@ html {
   }
 }
 
+/* iPhone-style glass card — translucent white with backdrop blur + saturate
+ *  boost. Picks up the page background's subtle radial gradient through the
+ *  blur, giving the depth that distinguishes glass from a flat fill. */
+.glass-card {
+  background-color: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow:
+    0 1px 3px 0 rgba(15, 23, 42, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.4) inset,
+    0 1px 0 0 rgba(255, 255, 255, 0.9) inset;
+}
+.dark .glass-card {
+  background-color: rgba(15, 23, 42, 0.55);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 1px 2px 0 rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Sophisticated navy variant — used for the Korea map card.
+ *  Layered: (a) top specular pool, (b) bottom-right ambient pool,
+ *  (c) 155° base ramp with a midstop bend for surface depth. inset
+ *  highlight + bottom shade make the card feel milled, not painted. */
+.glass-card-dark {
+  /* 페이지 bg(#EEF2F7) 보다 한 단계 어두운 light slate 단색.
+   *  복잡한 그래디언트/radial overlay 모두 제거 — 미묘한 darker tone만. */
+  background-color: #D5DCE6;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow:
+    0 1px 2px 0 rgba(15, 23, 42, 0.04),
+    0 0 0 1px rgba(15, 23, 42, 0.03);
+}
+
 /* Org chart print styles are injected into a hidden iframe at print time — see handlePrint in org-chart-dialog.tsx */

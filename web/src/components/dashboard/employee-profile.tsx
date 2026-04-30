@@ -7,15 +7,11 @@ import {
   GraduationCap, Smartphone,
 } from "lucide-react";
 import type { OrgMember, ResumeData } from "@/types/org-chart";
+import { fetchOrgMemberProfile, type OrgMemberProfile } from "@/lib/api/org";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
-interface ProfileApiResponse {
-  member: OrgMember;
-  resume: ResumeData;
-  peers: { id: number; name: string; rank: string | null; role_name: string; phone_work?: string; photo_url?: string }[];
-}
+type ProfileApiResponse = OrgMemberProfile;
 
 interface EmployeeProfileProps {
   memberId: number;
@@ -90,12 +86,7 @@ export function EmployeeProfile({ memberId, siteName, onBack, onClose, fallbackM
     setLoading(true);
     setImgError(false);
     try {
-      const res = await fetch(`${API_BASE}/api/org-members/${id}/profile`);
-      if (res.ok) {
-        setData(await res.json());
-      } else {
-        setData(null);
-      }
+      setData(await fetchOrgMemberProfile(id));
     } catch {
       setData(null);
     }
@@ -171,7 +162,7 @@ export function EmployeeProfile({ memberId, siteName, onBack, onClose, fallbackM
         <div className="flex-1 overflow-y-auto py-2">
           {peers.map((p) => {
             const isActive = p.id === selectedId;
-            const peerPhoto = (p as any).photo_url
+            const peerPhoto = p.photo_url
               || (SUPABASE_URL ? `${SUPABASE_URL}/storage/v1/object/public/org-photos/member_${p.id}.jpg` : null);
             return (
               <button

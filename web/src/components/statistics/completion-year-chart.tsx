@@ -44,9 +44,9 @@ function HorizontalTimeline({
 
   const SLOT_W = 60;
   const LABEL_W = 64;
-  const TOTAL_H = 60;
-  const BUBBLE_CY = 20; // bubble vertical center
-  const YEAR_Y = 46;    // year text top position (below bubble)
+  const TOTAL_H = 50;
+  const BUBBLE_CY = 16; // bubble vertical center
+  const YEAR_Y = 36;    // year text top position (below bubble)
   // Use maxSlots for container width so every timeline has the same width
   // → right-aligned containers share the same left edge → titles line up.
   const totalW = LABEL_W + maxSlots * SLOT_W;

@@ -2,6 +2,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { charts } from "@/lib/chart-colors";
+import { ChartTooltipCard, ChartTooltipDotRow, type RechartsTooltipProps } from "./_shared/chart-tooltip";
 
 interface CorpData {
   corporation: string;
@@ -21,23 +22,30 @@ const CORP_COLORS: Record<string, string> = {
   "금광기업": charts.corporationBars.geumgwang,
 };
 
-function CustomTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
+/** Chart's input is mapped through `chartData` below — series values come out
+ *  as numbers, so we narrow `entry.value` to number for the math. */
+function CustomTooltip({ active, payload, label }: RechartsTooltipProps<Record<string, number | string>>) {
+  if (!payload?.length) return null;
   return (
-    <div className="bg-card border border-border rounded-lg shadow-lg px-4 py-3 text-sm">
-      <p className="font-semibold text-foreground mb-1.5">{label}</p>
-      {payload.map((entry: any) => (
-        <div key={entry.name} className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-          <span className="text-muted-foreground">{entry.name}:</span>
-          <span className="font-mono font-semibold text-foreground">
-            {entry.name === "평균공정률" ? `${(entry.value * 100).toFixed(1)}%` :
-             entry.name === "총도급액" ? `${entry.value.toLocaleString()}억` :
-             entry.value.toLocaleString()}
-          </span>
-        </div>
-      ))}
-    </div>
+    <ChartTooltipCard active={active} title={label}>
+      {payload.map((entry) => {
+        const v = typeof entry.value === "number" ? entry.value : 0;
+        return (
+          <ChartTooltipDotRow
+            key={entry.name ?? ""}
+            color={entry.color ?? "#999"}
+            label={entry.name ?? ""}
+            value={
+              entry.name === "평균공정률"
+                ? `${(v * 100).toFixed(1)}%`
+                : entry.name === "총도급액"
+                  ? `${v.toLocaleString()}억`
+                  : v.toLocaleString()
+            }
+          />
+        );
+      })}
+    </ChartTooltipCard>
   );
 }
 
@@ -51,7 +59,7 @@ export function CorporationChart({ data }: CorporationChartProps) {
   }));
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+    <div className="glass-card rounded-2xl p-5">
       <h3 className="text-base font-bold text-foreground mb-4">법인별 성과 비교</h3>
       <div style={{ width: "100%", height: 300 }}>
         <ResponsiveContainer width="100%" height={300}>

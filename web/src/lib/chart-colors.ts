@@ -44,10 +44,17 @@ export const semantic = {
     "#1D4ED8",
   ],
   region: {
-    fillLight: "#E2E8F0",
-    fillMid:   "#D6DEE8",
-    fillDark:  "#CBD5E1",
-    fillExtra: "#B8C4D0",
+    // Map base — modern "cool slate" palette tuned to whisper, not shout.
+    // Slight blue undertone reads as Linear/Vercel/Notion-style tech UI.
+    // Each step is intentionally close to the next (~10% step) so the
+    // 4-tone shading creates rhythm without distracting from the bubbles.
+    //
+    // Calibrated against pure white card bg + the metric bubble palettes
+    // so any of count/headcount/contract bubbles pop with strong contrast.
+    fillLight: "#F1F4F9", // near-white, cool slate-50/100 territory
+    fillMid:   "#E2E7F0", // light cool slate
+    fillDark:  "#CBD3E0", // medium cool slate
+    fillExtra: "#A9B3C5", // accent cool slate (used sparingly)
     bubble:      "#BFDBFE",
     bubbleHover: "#93C5FD",
   },
@@ -127,14 +134,47 @@ export const charts = {
 
   /* 통계 페이지 — 한국 지도 */
   koreaMap: {
-    bubble:      semantic.region.bubble,
-    bubbleHover: semantic.region.bubbleHover,
+    /** 지도 베이스(시·도 영역)의 회색조 채움. metric과 무관. */
     fill: {
       light: semantic.region.fillLight,
       mid:   semantic.region.fillMid,
       dark:  semantic.region.fillDark,
       extra: semantic.region.fillExtra,
     },
+
+    /** Metric별 버블 테마. 사용자가 우측 상단 토글로 metric을 바꾸면
+     *  버블 그래디언트(`bubble`/`bubbleHover`), 호버·선택 링(`ring`),
+     *  드롭 섀도우(`shadow`)가 동시에 이 팔레트로 전환된다.
+     *
+     *  - count(파랑): 기존 톤 유지 — 회귀 위험 0
+     *  - headcount(시안): 사람·활력 의미
+     *  - contract(앰버): 금액·자산 의미
+     *  세 톤 모두 Tailwind 100~700 라인의 검증된 색을 사용. */
+    metric: {
+      count: {
+        bubble:      "#BFDBFE",
+        bubbleHover: "#93C5FD",
+        ring:        "#2563EB",
+        shadow:      "#1E3A8A",
+      },
+      headcount: {
+        bubble:      "#BAE6FD",
+        bubbleHover: "#7DD3FC",
+        ring:        "#0284C7",
+        shadow:      "#075985",
+      },
+      contract: {
+        bubble:      "#C7D2FE",
+        bubbleHover: "#A5B4FC",
+        ring:        "#4F46E5",
+        shadow:      "#3730A3",
+      },
+    },
+
+    /** Deprecated — Phase before metric-themed bubbles. Kept until all
+     *  callers migrate; unused by korea-map-chart after the metric refactor. */
+    bubble:      semantic.region.bubble,
+    bubbleHover: semantic.region.bubbleHover,
   },
 
   /* 대시보드/통계 — 지도 마커 (상태/공종/법인 카테고리)

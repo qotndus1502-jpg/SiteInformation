@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Users, Plus, X, Check, ChevronUp, ChevronDown, Settings2, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,19 +14,18 @@ import {
   createDepartment,
   updateDepartment,
   deleteDepartment,
-  createOrgMember,
-  updateOrgMember,
-  deleteOrgMember,
   fetchRequiredHeadcount,
   updateRequiredHeadcount,
   type OrgMemberInput,
   type RequiredHeadcount,
-} from "@/lib/queries/org-chart";
+} from "@/lib/api/org";
 import type { Department, OrgMember, OrgRole } from "@/types/org-chart";
 import type { SiteDashboard } from "@/types/database";
 import { useAuth } from "@/lib/auth-context";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
+import { API_BASE } from "@/lib/env";
+import { useMemberStaging } from "./_internal/useMemberStaging";
+import { useOrgChartData } from "./_internal/useOrgChartData";
+import { useOrgChartMetrics } from "./_internal/useOrgChartMetrics";
 
 interface OrgChartDialogProps {
   site: SiteDashboard;
@@ -36,11 +35,17 @@ interface OrgChartDialogProps {
 
 export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps) {
   const { isAdmin } = useAuth();
-  const [members, setMembers] = useState<OrgMember[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [roles, setRoles] = useState<OrgRole[]>([]);
-  const [requiredHeadcount, setRequiredHeadcount] = useState<RequiredHeadcount>({ general: 0, specialist: 0, contract: 0, jv: 0 });
-  const [loading, setLoading] = useState(false);
+  const {
+    members,
+    departments,
+    setDepartments,
+    roles,
+    requiredHeadcount,
+    setRequiredHeadcount,
+    loading,
+    load,
+    reloadDepartments,
+  } = useOrgChartData(site.id, open);
 
   // 인원 추가/수정 폼 상태
   const [memberFormOpen, setMemberFormOpen] = useState(false);
@@ -50,24 +55,17 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
 
   // ── 인원 편집 모드 스테이징 ──
   // 모든 변경은 로컬에 쌓였다가 "저장" 클릭 시 일괄 API 적용. "취소"는 snapshot으로 복구.
-  const [pendingCreates, setPendingCreates] = useState<Array<{ tempId: number; payload: OrgMemberInput }>>([]);
-  const [pendingUpdates, setPendingUpdates] = useState<Array<{ id: number; patch: OrgMemberInput }>>([]);
-  const [pendingDeletes, setPendingDeletes] = useState<number[]>([]);
-  const [savingBatch, setSavingBatch] = useState(false);
-  const tempIdRef = useRef<number>(-1);
-  const nextTempId = () => {
-    const id = tempIdRef.current;
-    tempIdRef.current -= 1;
-    return id;
-  };
-  const clearPending = () => {
-    setPendingCreates([]);
-    setPendingUpdates([]);
-    setPendingDeletes([]);
-    tempIdRef.current = -1;
-  };
-  const hasPendingChanges =
-    pendingCreates.length > 0 || pendingUpdates.length > 0 || pendingDeletes.length > 0;
+  const {
+    pendingCreates,
+    pendingUpdates,
+    pendingDeletes,
+    savingBatch,
+    hasPendingChanges,
+    stageSubmit: handleMemberSubmit,
+    stageDelete,
+    commitBatch,
+    clearPending,
+  } = useMemberStaging();
 
   const openAddMember = (opts: { departmentId?: number | null; roleCode?: string | null }) => {
     setMemberFormInitial(null);
@@ -82,38 +80,10 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     setMemberFormOpen(true);
   };
 
-  const handleMemberSubmit = (payload: OrgMemberInput, memberId: number | null) => {
-    if (memberId == null) {
-      // 신규 스테이징
-      const tempId = nextTempId();
-      setPendingCreates((prev) => [...prev, { tempId, payload }]);
-    } else if (memberId < 0) {
-      // 스테이징 중인 생성 수정
-      setPendingCreates((prev) =>
-        prev.map((p) => (p.tempId === memberId ? { ...p, payload } : p))
-      );
-    } else {
-      // 서버 멤버 수정
-      setPendingUpdates((prev) => {
-        const exists = prev.find((u) => u.id === memberId);
-        if (exists) {
-          return prev.map((u) => (u.id === memberId ? { id: memberId, patch: payload } : u));
-        }
-        return [...prev, { id: memberId, patch: payload }];
-      });
-    }
-  };
-
   const handleQuickDelete = (m: OrgMember, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm(`${m.name} 님을 조직도에서 삭제하시겠습니까?`)) return;
-    if (m.id < 0) {
-      // 스테이징 된 생성 제거
-      setPendingCreates((prev) => prev.filter((p) => p.tempId !== m.id));
-    } else {
-      setPendingDeletes((prev) => (prev.includes(m.id) ? prev : [...prev, m.id]));
-      setPendingUpdates((prev) => prev.filter((u) => u.id !== m.id));
-    }
+    stageDelete(m.id);
   };
 
   const handleCommitBatch = async () => {
@@ -122,33 +92,13 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       setMode("view");
       return;
     }
-    setSavingBatch(true);
     try {
-      // 1) 삭제 먼저 (삭제된 대상에 대한 update가 남아있을 일은 없지만 순서상 안전)
-      for (const id of pendingDeletes) {
-        await deleteOrgMember(id);
-      }
-      // 2) 업데이트
-      for (const u of pendingUpdates) {
-        await updateOrgMember(u.id, u.patch);
-      }
-      // 3) 생성 — tempId 간 parent 참조 매핑
-      const tempToReal = new Map<number, number>();
-      for (const c of pendingCreates) {
-        const payload: OrgMemberInput = { ...c.payload };
-        if (payload.parent_id != null && payload.parent_id < 0) {
-          payload.parent_id = tempToReal.get(payload.parent_id) ?? null;
-        }
-        const res = await createOrgMember(site.id, payload);
-        tempToReal.set(c.tempId, res.id);
-      }
-      clearPending();
-      setMode("view");
-      await load();
+      await commitBatch(site.id, async () => {
+        setMode("view");
+        await load();
+      });
     } catch (err) {
       alert((err as Error).message || "저장 실패");
-    } finally {
-      setSavingBatch(false);
     }
   };
 
@@ -193,86 +143,15 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
   const [deptError, setDeptError] = useState<string | null>(null);
 
   // 조직도 콘텐츠를 viewport에 맞춰 scale up — 큰 모니터에서도 맥북처럼 꽉 찬 느낌을 주려고.
-  const contentRef = useRef<HTMLDivElement>(null);
-  const dialogContentRef = useRef<HTMLDivElement>(null);
-  const primaryRowRef = useRef<HTMLDivElement>(null);
-  // 다이얼로그 박스는 현장에 관계없이 고정. 가장 큰 현장(구리갈매역세권)이 꽉 차는 viewport 비율 기준.
-  const [metrics, setMetrics] = useState<{ w: number; h: number; scale: number }>({ w: 0, h: 0, scale: 1 });
   // primary 카드 상단 Y (다이얼로그 기준) — 표 정렬용. DOM에서 실측.
-  const [primaryTop, setPrimaryTop] = useState<number>(92);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    const measure = () => {
-      const el = contentRef.current;
-      if (!el) return;
-      const naturalW = el.offsetWidth;
-      const naturalH = el.offsetHeight;
-      if (!naturalW || !naturalH) return;
-      // 박스는 viewport 최대 크기로 고정 — 현장별 비율 조정 없음.
-      // Scale은 구리갈매역세권(최대 현장) 기준 REF 치수로 계산해 모든 현장에서
-      // 카드 크기가 동일하게 유지된다. 세로 꽉 차게(availableH / REF_H)가 우선,
-      // 가로(boxW / REF_W)는 cap으로만 동작. naturalH > REF_H 면 clip 방지로 측정값 사용.
-      const REF_W = 1380;
-      const REF_H = 900; // 구리갈매역세권 기준 natural height
-      const TOP_OFFSET = 80; // scale wrapper top 위치
-      const BOTTOM_PADDING = 16;
-      const boxW = window.innerWidth * 0.96;
-      const boxH = window.innerHeight * 0.94;
-      // 로딩/빈 상태에서도 박스는 그대로 유지.
-      if (loading || members.length === 0) {
-        setMetrics({ w: boxW, h: boxH, scale: 1 });
-        return;
-      }
-      const availableH = boxH - TOP_OFFSET - BOTTOM_PADDING;
-      const effectiveRefH = Math.max(REF_H, naturalH);
-      const s = Math.min(boxW / REF_W, availableH / effectiveRefH);
-      setMetrics({ w: boxW, h: boxH, scale: s });
-      void naturalW;
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    if (contentRef.current) ro.observe(contentRef.current);
-    window.addEventListener("resize", measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [open, members.length, loading, showProfile, departments.length, mode]);
-
-  const load = useCallback(async () => {
-    if (!open) return;
-    setLoading(true);
-    try {
-      const [orgData, deptData, roleData, requiredData] = await Promise.all([
-        fetchOrgChart(site.id),
-        fetchDepartments(site.id),
-        fetchOrgRoles(),
-        fetchRequiredHeadcount(site.id),
-      ]);
-      setMembers(orgData);
-      setDepartments(deptData);
-      setRoles(roleData);
-      setRequiredHeadcount(requiredData);
-    } catch {
-      setMembers([]);
-      setDepartments([]);
-      setRoles([]);
-      setRequiredHeadcount({ general: 0, specialist: 0, contract: 0, jv: 0 });
-    }
-    setLoading(false);
-  }, [open, site.id]);
-
-  const reloadDepartments = useCallback(async () => {
-    try {
-      const deptData = await fetchDepartments(site.id);
-      setDepartments(deptData);
-    } catch {
-      /* noop */
-    }
-  }, [site.id]);
-
-  useEffect(() => { load(); }, [load]);
+  const { contentRef, primaryRowRef, metrics, primaryTop } = useOrgChartMetrics({
+    open,
+    loading,
+    membersCount: members.length,
+    departmentsCount: departments.length,
+    mode,
+    showProfile,
+  });
 
   useEffect(() => {
     if (!open) {
@@ -307,28 +186,6 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
   };
 
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
-
-  // primary 카드(현장소장/현장대리인) 상단 Y를 실제 DOM에서 측정해 인원 현황표 위치와 정렬
-  useLayoutEffect(() => {
-    if (!open) return;
-    const measure = () => {
-      const primaryEl = primaryRowRef.current;
-      const firstCard = primaryEl?.querySelector("div > div"); // 카드 wrapper
-      const dialogEl = (firstCard || primaryEl)?.closest("[data-org-chart-print]") as HTMLElement | null;
-      if (!primaryEl || !dialogEl) return;
-      const primaryRect = primaryEl.getBoundingClientRect();
-      const dialogRect = dialogEl.getBoundingClientRect();
-      setPrimaryTop(primaryRect.top - dialogRect.top);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    if (primaryRowRef.current) ro.observe(primaryRowRef.current);
-    window.addEventListener("resize", measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [open, metrics.scale, members.length, departments.length]);
 
   /* ─────────────────────────────────────────────────────────────────
    * 조직도 인원 배치 로직

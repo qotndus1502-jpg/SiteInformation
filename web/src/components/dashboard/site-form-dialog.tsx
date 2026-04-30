@@ -10,15 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { X, Plus } from "lucide-react";
 import type { SiteDashboard, SiteStatus } from "@/types/database";
 import { STATUS_CONFIG } from "@/types/database";
-import { authFetch } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
-
-interface Corporation { id: number; name: string; code: string }
-interface Region { code: string; name: string; region_group: string | null }
-interface FacilityType { code: string; name: string; division: string | null }
-interface ClientOrg { id: number; name: string; org_type: string | null }
-interface PartnerCompany { id: number; name: string; is_group_member: boolean }
+import {
+  type ClientOrg,
+  type Corporation,
+  type FacilityType,
+  type PartnerCompany,
+  type Region,
+  fetchAllLookups,
+} from "@/lib/api/lookup";
+import { previewGeocode } from "@/lib/api/geocode";
+import { createSite, deleteSite, fetchSiteRaw, updateSite } from "@/lib/api/sites";
+import { fetchManagingEntities, type ManagingEntity } from "@/lib/api/managing-entities";
 
 interface JvPartnerRow { name: string; share_pct: string }
 
@@ -38,6 +40,7 @@ interface FormState {
   office_address: string;
   site_address: string;
   status: string;
+  managing_entity_id: string;
   jv_partners: JvPartnerRow[];
 }
 
@@ -45,7 +48,7 @@ const EMPTY: FormState = {
   name: "", corporation_id: "", division: "", category: "",
   region_code: "", facility_type_code: "", order_type: "", client_name: "",
   contract_amount: "", our_share_ratio: "", start_date: "", end_date: "",
-  office_address: "", site_address: "", status: "", jv_partners: [],
+  office_address: "", site_address: "", status: "", managing_entity_id: "", jv_partners: [],
 };
 
 /* Parse jv_summary text "법인A 50.00%, 회사B 30.00%" → [{name, ratio}]. */
@@ -82,6 +85,7 @@ function siteToForm(site: SiteDashboard, corps: Corporation[], regions: Region[]
     office_address: site.office_address ?? "",
     site_address: "",
     status: site.status ?? "",
+    managing_entity_id: site.managing_entity_id != null ? String(site.managing_entity_id) : "",
     jv_partners: others.map((o) => ({ name: o.name, share_pct: String(o.pct) })),
   };
 }
@@ -100,6 +104,7 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
   const [clients, setClients] = useState<ClientOrg[]>([]);
   const [orderTypes, setOrderTypes] = useState<string[]>([]);
   const [partners, setPartners] = useState<PartnerCompany[]>([]);
+  const [managingEntities, setManagingEntities] = useState<ManagingEntity[]>([]);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,13 +123,8 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
     }
     setGeocoding(true);
     try {
-      const res = await authFetch(`/api/geocode/preview`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (j?.ok && j.latitude != null && j.longitude != null) {
+      const j = await previewGeocode(address);
+      if (j.ok) {
         setGeocodeResult({ ok: true, lat: j.latitude, lon: j.longitude });
         const matched = j.matched_address || address;
         setForm((prev) => ({
@@ -134,7 +134,7 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
           region_code: prev.region_code || j.region_code || "",
         }));
       } else {
-        setGeocodeResult({ ok: false, reason: j?.reason });
+        setGeocodeResult({ ok: false, reason: j.reason });
       }
     } catch (e) {
       setGeocodeResult({ ok: false, reason: e instanceof Error ? e.message : String(e) });
@@ -148,16 +148,14 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
   /* Lookup 데이터 로드 (열릴 때 1회) */
   useEffect(() => {
     if (!open) return;
-    Promise.all([
-      fetch(`${API_BASE}/api/lookup/corporations`).then((r) => r.json()),
-      fetch(`${API_BASE}/api/lookup/regions`).then((r) => r.json()),
-      fetch(`${API_BASE}/api/lookup/facility-types`).then((r) => r.json()),
-      fetch(`${API_BASE}/api/lookup/clients`).then((r) => r.json()),
-      fetch(`${API_BASE}/api/lookup/order-types`).then((r) => r.json()),
-      fetch(`${API_BASE}/api/lookup/partners`).then((r) => r.json()),
-    ]).then(([c, r, f, cl, ot, pt]) => {
-      setCorps(c); setRegions(r); setFacs(f); setClients(cl); setOrderTypes(ot); setPartners(pt);
-    }).catch(() => {});
+    fetchAllLookups()
+      .then(([c, r, f, cl, ot, pt]) => {
+        setCorps(c); setRegions(r); setFacs(f); setClients(cl); setOrderTypes(ot); setPartners(pt);
+      })
+      .catch(() => {});
+    fetchManagingEntities()
+      .then((list) => setManagingEntities(list))
+      .catch(() => {});
   }, [open]);
 
   /* site가 있으면 form 초기화 + project_site raw에서 site_address 로드 */
@@ -165,11 +163,11 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
     if (!open) return;
     if (site && corps.length && regions.length && facs.length) {
       setForm(siteToForm(site, corps, regions, facs));
-      fetch(`${API_BASE}/api/sites/${site.id}/raw`)
-        .then((r) => r.ok ? r.json() : null)
+      fetchSiteRaw(site.id)
         .then((raw) => {
-          if (raw?.site_address) {
-            setForm((prev) => ({ ...prev, site_address: raw.site_address }));
+          const addr = raw?.site_address;
+          if (addr) {
+            setForm((prev) => ({ ...prev, site_address: addr }));
           }
         })
         .catch(() => {});
@@ -214,27 +212,16 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
       office_address: form.office_address || null,
       site_address: form.site_address || null,
       status: form.status || null,
+      managing_entity_id: form.managing_entity_id ? Number(form.managing_entity_id) : null,
       our_share_ratio: form.our_share_ratio ? Number(form.our_share_ratio) : null,
       jv_partners: form.jv_partners
         .filter((p) => p.name.trim() && p.share_pct)
         .map((p) => ({ name: p.name.trim(), share_pct: Number(p.share_pct) })),
     };
 
-    const path = isEdit ? `/api/sites/${site!.id}` : `/api/sites`;
-    const method = isEdit ? "PUT" : "POST";
-
     try {
-      const res = await authFetch(path, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.detail || `저장 실패 (${res.status})`);
-      }
-      const json = await res.json().catch(() => ({}));
-      const savedSite = json?.site as { latitude?: number | null; longitude?: number | null; site_address?: string | null } | undefined;
+      const json = isEdit ? await updateSite(site!.id, payload) : await createSite(payload);
+      const savedSite = json.site as { latitude?: number | null; longitude?: number | null; site_address?: string | null } | null;
       const hasAddress = !!(form.office_address.trim() || form.site_address.trim());
       const matched = savedSite?.latitude != null && savedSite?.longitude != null;
       // 응답의 site_address(매칭에 성공한 주소)를 폼에 반영 — box 2 자동 채움
@@ -326,7 +313,15 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
 
           <div className="flex flex-col gap-1.5">
             <Label>법인 *</Label>
-            <Select value={form.corporation_id} onValueChange={(v) => set("corporation_id", v)}>
+            <Select
+              value={form.corporation_id}
+              onValueChange={(v) => setForm((prev) => ({
+                ...prev,
+                corporation_id: v,
+                // 법인이 바뀌면 이전 현장관리부서는 무효 — 초기화
+                managing_entity_id: prev.corporation_id === v ? prev.managing_entity_id : "",
+              }))}
+            >
               <SelectTrigger className="w-full"><SelectValue placeholder="선택" /></SelectTrigger>
               <SelectContent>
                 {corps.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
@@ -341,6 +336,24 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
               <SelectContent>
                 <SelectItem value="토목">토목</SelectItem>
                 <SelectItem value="건축">건축</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="col-span-2 flex flex-col gap-1.5">
+            <Label>현장관리부서</Label>
+            <Select
+              value={form.managing_entity_id}
+              onValueChange={(v) => set("managing_entity_id", v)}
+              disabled={!form.corporation_id}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={form.corporation_id ? "선택" : "법인을 먼저 선택하세요"} />
+              </SelectTrigger>
+              <SelectContent>
+                {managingEntities
+                  .filter((m) => String(m.corporation_id) === form.corporation_id)
+                  .map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -497,11 +510,7 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
                   if (!confirm(`"${site!.site_name}" 현장을 삭제합니다. 이 작업은 되돌릴 수 없습니다.\n정말 삭제할까요?`)) return;
                   setSaving(true);
                   try {
-                    const res = await authFetch(`/api/sites/${site!.id}`, { method: "DELETE" });
-                    if (!res.ok) {
-                      const j = await res.json().catch(() => ({}));
-                      throw new Error(j.detail || `삭제 실패 (${res.status})`);
-                    }
+                    await deleteSite(site!.id);
                     onSaved?.();
                     onOpenChange(false);
                   } catch (err: unknown) {

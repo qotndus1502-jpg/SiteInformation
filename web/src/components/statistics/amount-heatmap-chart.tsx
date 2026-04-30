@@ -9,9 +9,14 @@ interface DivisionRow {
   [label: string]: string | number;
 }
 
+interface CorporationRow {
+  corporation: string;
+  [label: string]: string | number;
+}
+
 interface AmountHeatmapData {
-  by_contract: any[];
-  by_our_share: any[];
+  by_contract: CorporationRow[];
+  by_our_share: CorporationRow[];
   by_contract_division: DivisionRow[];
   by_our_share_division: DivisionRow[];
   labels: string[];

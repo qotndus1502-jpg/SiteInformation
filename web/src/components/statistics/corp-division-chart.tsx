@@ -151,7 +151,7 @@ export function CorpDivisionChart({ data, selectedCorp, onCorpClick }: CorpDivis
 
   const cellStyle: BarCellStyle = {
     barAreaW: 250,
-    rowH: 22,
+    rowH: 16,
     radius: 6,
     fontSize: 11,
     archColor: DEFAULT_DIV_COLORS["건축"],
@@ -189,7 +189,7 @@ export function CorpDivisionChart({ data, selectedCorp, onCorpClick }: CorpDivis
   const cellWidth = cellStyle.barAreaW + 30;
 
   return (
-    <div className="px-3 pt-0 pb-2 inline-flex flex-col relative" onMouseLeave={() => setHovIdx(null)}>
+    <div className="px-3 pt-1 pb-1 inline-flex flex-col relative" onMouseLeave={() => setHovIdx(null)}>
       {/* Header row: empty corp column + metric labels */}
       <div className="flex items-center gap-0 mb-1 mt-0">
         <div className="w-14 shrink-0" />

@@ -5,10 +5,9 @@ import { cn } from "@/lib/utils";
 import { User, X, Camera, ZoomIn, ZoomOut, Check } from "lucide-react";
 import type { OrgMember } from "@/types/org-chart";
 import { useAuth } from "@/lib/auth-context";
-import { authFetch } from "@/lib/api";
+import { uploadOrgPhoto } from "@/lib/api/org";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
 
 interface PhotoSettings {
@@ -76,20 +75,15 @@ export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps)
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("member_id", String(member.id));
     try {
-      const res = await authFetch(`/api/upload-org-photo`, { method: "POST", body: formData });
-      if (res.ok) {
-        const reset = { x: 0, y: 0, scale: 1 };
-        setImgSrc(`${SUPABASE_URL}/storage/v1/object/public/org-photos/member_${member.id}.jpg?t=${Date.now()}`);
-        setImgError(false);
-        setSettings(reset);
-        setDraft(reset);
-        savePhotoSettings(member.id, reset);
-        setEditing(true);
-      }
+      await uploadOrgPhoto(file, member.id);
+      const reset = { x: 0, y: 0, scale: 1 };
+      setImgSrc(`${SUPABASE_URL}/storage/v1/object/public/org-photos/member_${member.id}.jpg?t=${Date.now()}`);
+      setImgError(false);
+      setSettings(reset);
+      setDraft(reset);
+      savePhotoSettings(member.id, reset);
+      setEditing(true);
     } catch {}
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -221,13 +215,13 @@ export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps)
           onClick={() => { if (!editing && onSelect) onSelect(); }}
           tabIndex={0}
           className={cn(
-            "group relative cursor-pointer outline-none w-50 rounded-md overflow-hidden",
+            "group relative cursor-pointer outline-none w-50 rounded-md",
             "bg-slate-50 shadow-sm ring-1 ring-slate-200",
             "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
           )}
         >
           {/* 헤더 — 역할명 (현장대리인/현장소장) */}
-          <div className="px-2.5 py-1.5 bg-slate-700 text-white text-[12px] font-medium tracking-wide whitespace-nowrap text-center truncate">
+          <div className="rounded-t-md px-2.5 py-1.5 bg-slate-700 text-white text-[12px] font-medium tracking-wide whitespace-nowrap text-center truncate">
             {roleText}
           </div>
           {/* 본체 — 사진 + 이름/전화 */}

@@ -4,7 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 // Routes accessible without authentication. Everything else requires login.
 const PUBLIC_PATHS = ["/login", "/signup"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

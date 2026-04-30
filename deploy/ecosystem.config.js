@@ -13,11 +13,11 @@ module.exports = {
     {
       name: "backend",
       cwd: "/home/ubuntu/app/backend",
-      interpreter: "/home/ubuntu/app/backend/venv/bin/python",
-      script: "-m",
-      args: "uvicorn main:app --host 127.0.0.1 --port 8001",
+      script: "/home/ubuntu/app/backend/venv/bin/uvicorn",
+      args: "main:app --host 127.0.0.1 --port 8001",
+      interpreter: "none",  // PM2의 Node wrapper 우회 — shebang으로 직접 exec
       env: {
-        // These will be loaded from .env in the backend directory
+        // .env in cwd is loaded by the FastAPI app itself (python-dotenv).
       },
     },
   ],

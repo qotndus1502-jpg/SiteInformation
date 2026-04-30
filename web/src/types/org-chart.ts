@@ -40,7 +40,7 @@ export interface OrgMember {
   hobby?: string | null
   entry_type?: string | null
   task_detail?: string | null
-  resume_data?: Record<string, any> | null
+  resume_data?: Record<string, unknown> | null
 }
 
 export type OrgTreeNode = OrgMember & {

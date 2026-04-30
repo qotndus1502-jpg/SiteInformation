@@ -2,9 +2,15 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { charts } from "@/lib/chart-colors";
+import type { RechartsTooltipProps } from "./_shared/chart-tooltip";
+
+interface StatusRow {
+  status: string;
+  count: number;
+}
 
 interface StatusChartProps {
-  data: { status: string; count: number }[];
+  data: StatusRow[];
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -14,7 +20,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   SUSPENDED: { label: "중단", color: charts.statusPie.suspended },
 };
 
-function CustomTooltip({ active, payload }: any) {
+function CustomTooltip({ active, payload }: RechartsTooltipProps<StatusRow>) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   const config = STATUS_CONFIG[entry.payload.status] ?? { label: entry.payload.status, color: "#999" };
@@ -33,7 +39,7 @@ export function StatusChart({ data }: StatusChartProps) {
   const total = data.reduce((s, d) => s + d.count, 0);
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+    <div className="glass-card rounded-2xl p-5">
       <h3 className="text-base font-bold text-foreground mb-4">현장 상태 분포</h3>
       <div className="flex items-center gap-6">
         <div className="relative shrink-0" style={{ width: 200, height: 200 }}>

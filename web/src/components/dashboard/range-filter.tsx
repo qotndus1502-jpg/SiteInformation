@@ -36,7 +36,7 @@ export function RangeFilter({ label, options, selected, onChange }: RangeFilterP
           className={cn(
             "flex items-center justify-between gap-1.5 rounded-full border px-2.5 !font-normal whitespace-nowrap cursor-pointer outline-none",
             "!text-[11px]",
-            "h-7 shrink-0",
+            "h-6 shrink-0",
             "transition-colors duration-150",
             "focus-visible:ring-[4px] focus-visible:ring-ring/15 focus-visible:border-ring",
             count === 0

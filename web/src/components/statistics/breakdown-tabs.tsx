@@ -21,7 +21,15 @@ interface BreakdownTabsProps {
   pre_start_by_completion_year: { year: string; count: number }[];
   active_by_completion_year: { year: string; count: number }[];
   corpDivisionData: { corporation: string; division: string; count: number; total_contract: number; total_headcount: number }[];
-  amount_heatmap: { by_contract: any[]; by_our_share: any[]; by_contract_division: any[]; by_our_share_division: any[]; labels: string[]; no_contract_count?: number; no_share_count?: number };
+  amount_heatmap: {
+    by_contract: ({ corporation: string } & Record<string, string | number>)[];
+    by_our_share: ({ corporation: string } & Record<string, string | number>)[];
+    by_contract_division: ({ division: string } & Record<string, string | number>)[];
+    by_our_share_division: ({ division: string } & Record<string, string | number>)[];
+    labels: string[];
+    no_contract_count?: number;
+    no_share_count?: number;
+  };
   onShowDetailMap?: () => void;
   /* ── Cross-filter (Power BI style) ───────────────────── */
   selectedRegion?: string | null;
@@ -122,17 +130,28 @@ export function BreakdownTabs({
   return (
     <div className="h-full overflow-hidden">
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] h-full gap-2">
-        <div className="rounded-[6px] bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
+        <div className="rounded-[6px] glass-card-dark overflow-hidden">
           <KoreaMapChart data={by_region} onShowDetailMap={onShowDetailMap} selectedRegion={selectedRegion} onRegionClick={onRegionClick} />
         </div>
         <div className="flex flex-col min-h-0 gap-2">
           {/* Row 1 — 법인별: 현장수 / 자사도급액 / 인원 (right edge aligned with row 3 below) */}
-          <div className="rounded-[6px] bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] p-3 flex justify-end">
+          <div className="relative rounded-[6px] glass-card py-4 px-3 flex justify-end">
+            {/* Legend — same position as Row 2/3 for alignment */}
+            <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-4 h-1.5 rounded-sm shadow-[0_0_0_1px_rgba(255,255,255,0.95),0_1px_2px_rgba(15,23,42,0.08)]" style={{ backgroundColor: DIV_COLORS["건축"] }} />
+                <span className="text-[11px] font-medium text-slate-600 tracking-wide">건축</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-4 h-1.5 rounded-sm shadow-[0_0_0_1px_rgba(255,255,255,0.95),0_1px_2px_rgba(15,23,42,0.08)]" style={{ backgroundColor: DIV_COLORS["토목"] }} />
+                <span className="text-[11px] font-medium text-slate-600 tracking-wide">토목</span>
+              </div>
+            </div>
             <CorpDivisionChart data={corpDivisionData} selectedCorp={selectedCorp} onCorpClick={onCorpClick} />
           </div>
 
           {/* Row 2 — 상태별: 도넛 + 착공·준공예정 가로 배치 (Row 1 의 CorpDivisionChart 폭에 맞춰 우측 정렬) */}
-          <div className="relative px-3 py-2 rounded-[6px] bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="relative px-3 py-0 rounded-[6px] glass-card">
             {/* Legend — top-left of the row (matches Row 3 legend x position) */}
             <div className="absolute top-2 left-5 z-10 flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
@@ -143,10 +162,6 @@ export function BreakdownTabs({
                 <span className="w-4 h-1.5 rounded-sm shadow-[0_0_0_1px_rgba(255,255,255,0.95),0_1px_2px_rgba(15,23,42,0.08)]" style={{ backgroundColor: STATUS_COLORS.PRE_START }} />
                 <span className="text-[11px] font-medium text-slate-600 tracking-wide">착공전</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-4 h-1.5 rounded-sm shadow-[0_0_0_1px_rgba(255,255,255,0.95),0_1px_2px_rgba(15,23,42,0.08)]" style={{ backgroundColor: STATUS_COLORS.COMPLETED }} />
-                <span className="text-[11px] font-medium text-slate-600 tracking-wide">준공</span>
-              </div>
             </div>
             <div className="flex justify-end">
               <div style={{ width: 956 }} className="flex items-start">
@@ -155,7 +170,7 @@ export function BreakdownTabs({
                   <StatusDonutChart data={by_status} selectedStatus={selectedStatus} onStatusClick={onStatusClick} />
                 </div>
                 {/* CompletionYear — 도넛 우측 나머지 영역 */}
-                <div className="flex-1 flex items-start">
+                <div className="flex-1 flex items-start pt-3">
                   <CompletionYearChart preStartData={completionYears} activeData={activeYears} selectedStartYear={selectedStartYear} selectedEndYear={selectedEndYear} onStartYearClick={onStartYearClick} onEndYearClick={onEndYearClick} />
                 </div>
               </div>
@@ -163,7 +178,7 @@ export function BreakdownTabs({
           </div>
 
           {/* Row 3 — 금액별: 자사도급액별(좌, mirror) | 총공사비별(우) — 두 차트가 중앙에서 맞닿도록 */}
-          <div className="relative p-3 rounded-[6px] bg-card border border-border shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="relative p-3 rounded-[6px] glass-card">
             {/* Legend — top-left of the row (matches Row 2 legend x position) */}
             <div className="absolute top-3 left-5 z-10 flex flex-col gap-1">
               <div className="flex items-center gap-1.5">

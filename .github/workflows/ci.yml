@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Don't queue concurrent runs of the same branch — cancel the older one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      # Lint stays informational while the React 19 violation backlog is
+      # worked through (see `web/LINT_BACKLOG.md`). The `no-explicit-any` and
+      # most unused-var issues are already cleaned up. Drop `continue-on-error`
+      # once the backlog is empty.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      # The build step here uses placeholder env vars because real Supabase
+      # secrets only need to be present at runtime; build only needs them to
+      # parse to non-empty strings.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE: http://localhost:8001
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # Boot the production build and run public e2e tests against it. We use
+      # the production server (not `next dev`) because the build artifacts are
+      # what we actually ship.
+      - name: Start production server
+        run: npm run start &
+        env:
+          NEXT_PUBLIC_API_BASE: http://localhost:8001
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+
+      - name: Wait for server to be ready
+        run: npx wait-on http://127.0.0.1:3000/login --timeout 60000
+
+      - name: Run public e2e tests
+        run: npm run test:e2e -- e2e/public
+
+  backend:
+    name: Backend (import smoke)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Make sure every router/service module imports cleanly. Catches typos,
+      # missing imports, and circular dependencies before they ship.
+      - name: Import smoke test
+        env:
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-key
+          KAKAO_REST_KEY: ci-placeholder-kakao-key
+        run: python scripts/smoke_import.py

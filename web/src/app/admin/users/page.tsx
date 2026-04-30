@@ -4,22 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { authFetch } from "@/lib/api";
-
-type Status = "pending" | "approved" | "rejected";
-
-interface UserProfile {
-  id: string;
-  email: string;
-  full_name: string | null;
-  employee_number: string | null;
-  corporation_id: number | null;
-  role: "user" | "admin";
-  status: Status;
-  requested_at: string;
-  approved_at: string | null;
-  reject_reason: string | null;
-}
+import {
+  approveUser,
+  changeUserRole,
+  deleteUser,
+  fetchUsers,
+  rejectUser,
+  type UserProfile,
+  type UserRole,
+  type UserStatus as Status,
+} from "@/lib/api/users";
 
 const CORP_NAME: Record<number, string> = { 1: "남광토건", 2: "극동건설", 3: "금광기업" };
 
@@ -40,10 +34,7 @@ export default function AdminUsersPage() {
     setLoading(true);
     setError(null);
     try {
-      const qs = filter === "all" ? "" : `?status=${filter}`;
-      const res = await authFetch(`/api/users${qs}`);
-      if (!res.ok) throw new Error(`목록 조회 실패 (${res.status})`);
-      setUsers(await res.json());
+      setUsers(await fetchUsers(filter));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -53,18 +44,10 @@ export default function AdminUsersPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const approve = async (id: string, role: "user" | "admin") => {
+  const approve = async (id: string, role: UserRole) => {
     setBusy(id);
     try {
-      const res = await authFetch(`/api/users/${id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.detail || `승인 실패 (${res.status})`);
-      }
+      await approveUser(id, role);
       await load();
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
@@ -78,15 +61,7 @@ export default function AdminUsersPage() {
     if (reason === null) return;
     setBusy(id);
     try {
-      const res = await authFetch(`/api/users/${id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.detail || `거부 실패 (${res.status})`);
-      }
+      await rejectUser(id, reason);
       await load();
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
@@ -95,18 +70,10 @@ export default function AdminUsersPage() {
     }
   };
 
-  const changeRole = async (id: string, role: "user" | "admin") => {
+  const changeRole = async (id: string, role: UserRole) => {
     setBusy(id);
     try {
-      const res = await authFetch(`/api/users/${id}/role`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.detail || `권한 변경 실패 (${res.status})`);
-      }
+      await changeUserRole(id, role);
       await load();
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
@@ -119,11 +86,7 @@ export default function AdminUsersPage() {
     if (!confirm(`${email} 계정을 완전히 삭제할까요? 복구 불가합니다.`)) return;
     setBusy(id);
     try {
-      const res = await authFetch(`/api/users/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.detail || `삭제 실패 (${res.status})`);
-      }
+      await deleteUser(id);
       await load();
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));

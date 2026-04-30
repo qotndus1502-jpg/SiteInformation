@@ -12,7 +12,7 @@ export function BarOnlyChart({ title, entries, unit }: BarOnlyChartProps) {
   const total = entries.reduce((s, e) => s + e.value, 0);
   if (total === 0) {
     return (
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex items-center justify-center min-h-[220px]">
+      <div className="glass-card rounded-2xl p-5 flex items-center justify-center min-h-[220px]">
         <p className="text-sm text-muted-foreground">데이터 없음</p>
       </div>
     );
@@ -20,7 +20,7 @@ export function BarOnlyChart({ title, entries, unit }: BarOnlyChartProps) {
   const maxVal = Math.max(...entries.map((e) => e.value), 1);
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col">
+    <div className="glass-card rounded-2xl p-5 flex flex-col">
       <h4 className="text-sm font-bold text-foreground mb-4">{title}</h4>
 
       {/* Vertical bars */}

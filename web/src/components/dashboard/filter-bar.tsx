@@ -1,9 +1,9 @@
 "use client";
 
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Download, Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RangeFilter } from "./range-filter";
-import type { SiteFilter, FilterOptions } from "@/lib/queries/sites";
+import type { SiteFilter, FilterOptions } from "@/lib/api/sites";
 
 const STATUS_OPTIONS = [
   { value: "ACTIVE", label: "진행중" },
@@ -39,6 +39,7 @@ const PROGRESS_OPTIONS = [
 
 export const GRID_COLS = "grid-cols-[minmax(80px,0.8fr)_minmax(70px,0.7fr)_minmax(70px,0.7fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(80px,0.8fr)_minmax(140px,2.5fr)_minmax(75px,0.9fr)_minmax(70px,0.9fr)]";
 
+
 const TC = "!text-[11px] !font-normal !text-muted-foreground w-full !h-7 !py-0 !rounded-md";
 
 export interface FilterBarProps {
@@ -50,12 +51,13 @@ export interface FilterBarProps {
   onAmountRangesChange: (v: Set<string>) => void;
   onProgressRangesChange: (v: Set<string>) => void;
   onReset?: () => void;
+  onExport?: () => void;
 }
 
 export function FilterBar({
   filterOptions, filters, onFilterChange,
   amountRanges, progressRanges, onAmountRangesChange, onProgressRangesChange,
-  onReset,
+  onReset, onExport,
 }: FilterBarProps) {
   return (
     <div className="flex items-center flex-wrap gap-1.5 px-3 py-2 bg-card rounded-[6px] border border-border">
@@ -101,6 +103,15 @@ export function FilterBar({
         selected={strToSet(filters.status)}
         onChange={(s) => onFilterChange("status", setToStr(s))}
       />
+      <RangeFilter
+        label="관리부서"
+        options={filterOptions.managingEntities.map((m) => ({
+          value: String(m.id),
+          label: m.corporation_name ? `${m.name} (${m.corporation_name})` : m.name,
+        }))}
+        selected={strToSet(filters.managingEntity)}
+        onChange={(s) => onFilterChange("managingEntity", setToStr(s))}
+      />
 
       {/* 검색 — flex-1 로 남은 공간 흡수, pill 형태 */}
       <div className="relative flex-1 min-w-[140px]">
@@ -109,7 +120,7 @@ export function FilterBar({
           placeholder="현장명 검색..."
           value={filters.search ?? ""}
           onChange={(e) => onFilterChange("search", e.target.value)}
-          className="!h-7 pl-8 !text-[11px] !font-normal !text-muted-foreground w-full !py-0 !rounded-full !border !border-border !bg-card"
+          className="!h-6 pl-8 !text-[11px] !font-normal !text-muted-foreground w-full !py-0 !rounded-full !border !border-border !bg-card"
           size="sm"
         />
       </div>
@@ -124,9 +135,21 @@ export function FilterBar({
           onClick={onReset}
           title="필터 초기화"
           aria-label="필터 초기화"
-          className="shrink-0 inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-normal text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors duration-150"
+          className="shrink-0 inline-flex items-center justify-center h-6 px-3 rounded-full text-[11px] font-normal text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors duration-150"
         >
           초기화
+        </button>
+      )}
+
+      {onExport && (
+        <button
+          type="button"
+          onClick={onExport}
+          title="현재 필터된 현장 리스트를 엑셀로 다운로드"
+          aria-label="엑셀 다운로드"
+          className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full border border-primary/20 bg-primary/10 text-primary cursor-pointer outline-none transition-colors duration-150 hover:bg-primary/15"
+        >
+          <Download className="size-3 shrink-0" />
         </button>
       )}
     </div>
