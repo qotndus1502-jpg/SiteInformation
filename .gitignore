@@ -37,3 +37,6 @@ Thumbs.db
 test-results/
 playwright-report/
 /playwright/.cache/
+
+# SSL certificates and private keys (managed out-of-band, never commit)
+deploy/ssl/
