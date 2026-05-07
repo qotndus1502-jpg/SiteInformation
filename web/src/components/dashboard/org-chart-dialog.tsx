@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Users, Plus, X, Check, ChevronUp, ChevronDown, Settings2, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { OrgMemberCard } from "./org-member-card";
 import { EmployeeProfile } from "./employee-profile";
 import { OrgMemberFormDialog } from "./org-member-form-dialog";
@@ -635,14 +636,33 @@ ${styleHtml}
           >
             <div className="relative">
             {loading ? (
-              <div className="flex items-center justify-center min-h-100 min-w-150 text-muted-foreground">불러오는 중...</div>
+              <div className="flex flex-col items-center min-h-100 min-w-150 px-3 pt-4 pb-3 gap-4">
+                {/* 최상위 카드 2개 */}
+                <div className="flex items-start gap-5 justify-center">
+                  <Skeleton className="w-70 h-34 rounded-lg" />
+                  <Skeleton className="w-70 h-34 rounded-lg" />
+                </div>
+                <Skeleton className="w-px h-4 rounded-none" />
+                {/* 부서 행 2줄 */}
+                {Array.from({ length: 2 }).map((_, rowIdx) => (
+                  <div key={rowIdx} className="flex items-start gap-3 justify-center">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="flex flex-col items-center gap-2">
+                        <Skeleton className="w-32 h-6 rounded-md" />
+                        <Skeleton className="w-32 h-28 rounded-lg" />
+                        <Skeleton className="w-32 h-28 rounded-lg" />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             ) : members.length === 0 && displayedDepts.length === 0 && mode !== "members" ? (
               <div className="flex flex-col items-center justify-center min-h-100 min-w-150 text-muted-foreground">
                 <Users className="h-12 w-12 opacity-20 mb-3" />
                 <p className="text-sm">등록된 조직원이 없습니다</p>
               </div>
             ) : (
-              <div className="flex flex-col items-center px-3 pt-4 pb-3">
+              <div className="flex flex-col items-center px-3 pt-4 pb-3 min-h-150">
                 {/* === 최상위: 현장대리인 + 현장소장 — 각 카드가 독립 === */}
                 {(topLevel.length > 0 || mode === "members") && (
                   <div ref={primaryRowRef}>
