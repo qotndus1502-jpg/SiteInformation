@@ -62,34 +62,6 @@ export function SiteListWithDetail({
     return () => io.disconnect();
   }, []);
 
-  // 우측 디테일 카드의 max-height를 실제 픽셀로 계산 (zoom된 컨테이너 안에서 vh가 어긋나는 문제 회피).
-  // 상위 DashboardScaler가 --dashboard-zoom을 useEffect에서 세팅하는 타이밍 때문에
-  // CSS var는 신뢰 불가 → 카드 자체의 getBoundingClientRect로 실제 스케일을 역산.
-  const cardWrapperRef = useRef<HTMLDivElement>(null);
-  const [detailMaxH, setDetailMaxH] = useState<number | null>(null);
-  useEffect(() => {
-    function update() {
-      const el = cardWrapperRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect(); // 실제 rendered 픽셀
-      // rect.top은 화면 기준 px. rect의 width vs CSS width(500px*zoom)로 zoom 역산.
-      const cssWidth = 500;
-      const renderedWidth = rect.width;
-      const zoom = renderedWidth > 0 ? renderedWidth / cssWidth : 1;
-      const BOTTOM_MARGIN = 16;
-      const visibleH = window.innerHeight - rect.top - BOTTOM_MARGIN;
-      const cssH = Math.max(visibleH / zoom, 200);
-      setDetailMaxH(cssH);
-    }
-    // 다음 프레임에 측정 (parent zoom 적용 후)
-    const raf1 = requestAnimationFrame(() => requestAnimationFrame(update));
-    window.addEventListener("resize", update);
-    return () => {
-      cancelAnimationFrame(raf1);
-      window.removeEventListener("resize", update);
-    };
-  }, [displayedSite, panelOpen, sectionInView]);
-
   const cardVisible = panelOpen && sectionInView;
 
   const content = (
@@ -117,30 +89,37 @@ export function SiteListWithDetail({
           the viewport — scrolling up to the dashboard/charts hides it. */}
       {mounted && displayedSite &&
         createPortal(
+          /* Zoom layer has explicit calc'd CSS height = (viewport - top_offset - bottom_margin) / zoom,
+             so its rendered height (after zoom) matches viewport - top_offset - bottom_margin.
+             50px bottom margin matches showDetailMap mode. */
           <div
-            className="fixed right-4 z-50 pointer-events-none transition-opacity duration-300"
+            className="fixed z-50 pointer-events-none transition-opacity duration-300"
             style={{
-              top: "calc(var(--sticky-header-bottom, 200px) + 40px)",
+              /* showDetailMap과 동일한 위치/높이 공식:
+                  - top: sticky + pt-1.5(6 CSS px)*zoom screen = showDetailMap의 flex 컨테이너 top과 일치
+                  - right: KPI 우측(DashboardScaler px-6 = 24 CSS * zoom screen)과 정렬 */
+              right: "calc(24px * var(--dashboard-zoom, 1))",
+              top: "calc(var(--sticky-header-bottom, 200px) + 6px * var(--dashboard-zoom, 1))",
               opacity: cardVisible ? 1 : 0,
               visibility: cardVisible ? "visible" : "hidden",
             }}
           >
-            {/* Zoom layer — matches DashboardScaler so the card is drawn at the
-                same scale as the site list next to it */}
-            <div style={{ zoom: "var(--dashboard-zoom, 1)" }}>
+            <div
+              style={{
+                zoom: "var(--dashboard-zoom, 1)",
+                /* showDetailMap flex 컨테이너와 동일: 렌더 높이 = 100vh - sticky - 50 screen */
+                height:
+                  "calc((100vh - var(--sticky-header-bottom, 200px) - 50px) / var(--dashboard-zoom, 1))",
+              }}
+            >
               <div
-                className="overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] pointer-events-auto shadow-2xl rounded-xl"
+                className="h-full overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] pointer-events-auto"
                 style={{
                   maxWidth: cardVisible ? 500 : 0,
                   opacity: cardVisible ? 1 : 0,
                 }}
               >
-                {/* Cap by viewport but shrink to fit content when shorter. */}
-                <div
-                  ref={cardWrapperRef}
-                  className="w-[500px] overflow-y-auto overscroll-contain"
-                  style={{ maxHeight: detailMaxH != null ? `${detailMaxH}px` : undefined }}
-                >
+                <div className="w-[500px] h-full overflow-y-auto overscroll-contain">
                   <SiteDetail site={displayedSite} onClose={onCloseSite} onSaved={onSavedSite} />
                 </div>
               </div>

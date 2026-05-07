@@ -80,26 +80,6 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     }
   }, [sites]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 맵 탭 사이드 패널의 max-height — wrapper의 실제 rect로 zoom 역산
-  const mapPanelWrapperRef = useRef<HTMLDivElement>(null);
-  const [mapPanelMaxH, setMapPanelMaxH] = useState<number | null>(null);
-  useEffect(() => {
-    function update() {
-      const el = mapPanelWrapperRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const cssWidth = 500;
-      const zoom = rect.width > 0 ? rect.width / cssWidth : 1;
-      const visibleH = window.innerHeight - rect.top - 16;
-      setMapPanelMaxH(Math.max(visibleH / zoom, 200));
-    }
-    const raf = requestAnimationFrame(() => requestAnimationFrame(update));
-    window.addEventListener("resize", update);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", update);
-    };
-  }, [displayedSite, panelOpen]);
   const [filters, setFilters] = useState<SiteFilter>({});
   const [amountRanges, setAmountRanges] = useState<Set<string>>(new Set());
   const [progressRanges, setProgressRanges] = useState<Set<string>>(new Set());
@@ -196,9 +176,11 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     return params;
   }, []);
 
+  const [isFetching, setIsFetching] = useState(false);
   const fetchSummary = useCallback(async (f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>, sYear?: string | null, eYear?: string | null) => {
     const params = buildParams(f, aRanges, pRanges, sRanges, sYear, eYear);
     const filterDict = Object.fromEntries(params.entries());
+    setIsFetching(true);
     try {
       const [summaryData, sitesData] = await Promise.all([
         fetchStatisticsSummary(params.toString()),
@@ -210,7 +192,9 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
       if (sitesData) {
         setSites(sitesData);
       }
-    } catch {}
+    } catch {} finally {
+      setIsFetching(false);
+    }
   }, [initialSummary, buildParams]);
 
   const handleFilterChange = useCallback((key: keyof SiteFilter, value: string) => {
@@ -388,7 +372,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
       {!showDetailMap ? (
         <>
           {/* ── Charts area ── */}
-          <div className="flex-1 min-h-0">
+          <div className={cn("flex-1 min-h-0 transition-opacity duration-200", isFetching ? "opacity-60" : "opacity-100")}>
             <BreakdownTabs
               by_corporation={summary.by_corporation ?? []}
               by_division_detail={summary.by_division_detail ?? []}
@@ -421,7 +405,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
           {/* ── Site List area ── */}
           {/* Add-site action moved to the header ("현장 관리") — admins
            *  reach the form via that link, not a floating button on the list. */}
-          <div ref={siteListRef}>
+          <div ref={siteListRef} className={cn("transition-opacity duration-200", isFetching ? "opacity-60" : "opacity-100")}>
             <SiteListWithDetail
               isAdmin={isAdmin}
               sites={sites}
@@ -436,7 +420,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
         </>
       ) : (
         /* ── Detail map fills the whole body under the header (no heading row, no page scroll) ── */
-        <div ref={detailMapRef} className="pt-1.5 px-4 overflow-hidden">
+        <div ref={detailMapRef} className="pt-1.5 overflow-hidden">
           {/* Map + animated detail card side-by-side — fills viewport, no page scroll */}
           <div
             className="flex gap-3"
@@ -515,11 +499,7 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
                   opacity: panelOpen ? 1 : 0,
                 }}
               >
-                <div
-                  ref={mapPanelWrapperRef}
-                  className="w-[500px] overflow-y-auto overscroll-contain"
-                  style={{ maxHeight: mapPanelMaxH != null ? `${mapPanelMaxH}px` : undefined }}
-                >
+                <div className="w-[500px] h-full overflow-y-auto overscroll-contain">
                   <SiteDetail site={displayedSite} onClose={handleCloseSite} onSaved={handleRefreshAfterSave} />
                 </div>
               </div>

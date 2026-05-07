@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 const BASE_W = 1560;
+
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /** Page-level zoom wrapper.
  *
@@ -13,9 +15,9 @@ const BASE_W = 1560;
  *  zoom and re-apply it. Don't replace `zoom` with `transform: scale` — it
  *  collapses layout in a way the floating card relies on. */
 export function DashboardScaler({ children }: { children: React.ReactNode }) {
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState<number | null>(null);
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     function update() {
       const s = Math.max(window.innerWidth / BASE_W, 0.5);
       setScale(s);
@@ -35,7 +37,8 @@ export function DashboardScaler({ children }: { children: React.ReactNode }) {
         className="flex flex-col gap-3 px-6 pt-0 pb-2"
         style={{
           width: BASE_W,
-          zoom: scale,
+          zoom: scale ?? 1,
+          visibility: scale === null ? "hidden" : "visible",
         }}
       >
         {children}
