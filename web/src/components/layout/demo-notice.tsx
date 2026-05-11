@@ -4,11 +4,20 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Info } from "lucide-react";
 
+const SESSION_KEY = "demoNoticeSeen";
+
 export function DemoNoticeDialog() {
   const [open, setOpen] = useState(false);
 
+  // Show once per browser session, not on every /statistics mount. Repeated
+  // navigation into the dashboard was popping the modal each time.
   useEffect(() => {
-    // Show on every mount (= every navigation into /statistics).
+    try {
+      if (sessionStorage.getItem(SESSION_KEY) === "1") return;
+      sessionStorage.setItem(SESSION_KEY, "1");
+    } catch {
+      // sessionStorage can throw in privacy mode — fall through and just open.
+    }
     setOpen(true);
   }, []);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { memo, useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
@@ -36,6 +36,76 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
     ? <ArrowUp className="h-3 w-3 text-primary" />
     : <ArrowDown className="h-3 w-3 text-primary" />;
 }
+
+interface SiteListRowProps {
+  site: SiteDashboard;
+  idx: number;
+  selected: boolean;
+  onSelect: (site: SiteDashboard) => void;
+  showAddressWarning: boolean;
+}
+
+/** Per-row render is `memo`'d so that re-rendering the parent (selecting a
+ *  different site, sorting, adjusting filters) doesn't recompute all 1000+
+ *  rows — only the two rows whose `selected` flag flipped + any rows whose
+ *  underlying `site` object reference changed. */
+const SiteListRow = memo(function SiteListRow({ site, idx, selected, onSelect, showAddressWarning }: SiteListRowProps) {
+  const companyConfig = COMPANY_CONFIG[site.corporation_name];
+  const statusConfig = STATUS_CONFIG[site.status];
+  const progressPct = (site.progress_rate ?? 0) * 100;
+  return (
+    <div
+      data-site-row={site.id}
+      onClick={() => onSelect(site)}
+      className={cn(
+        "grid gap-2 px-4 py-0.5 cursor-pointer transition-[background-color,border-color] duration-(--motion) items-center border-l-[3px]",
+        TABLE_COLS,
+        selected
+          ? "bg-primary/5 border-l-primary"
+          : "border-l-transparent hover:bg-primary/3 hover:border-l-primary/40"
+      )}
+    >
+      <span className="text-[13px] text-muted-foreground font-mono tabular-nums text-center">{idx + 1}</span>
+      <span>
+        {companyConfig ? (
+          <Badge variant={companyConfig.variant} size="sm">{companyConfig.label}</Badge>
+        ) : (
+          <span className="text-[16px] text-foreground">{site.corporation_name}</span>
+        )}
+      </span>
+      <span className="text-[14px] text-foreground font-mono tabular-nums">{site.division}</span>
+      <span className="text-[14px] text-foreground font-mono tabular-nums">{site.region_name}</span>
+      <span className="text-[14px] text-foreground font-mono tabular-nums truncate">{site.facility_type_name}</span>
+      <span className="text-[14px] text-foreground font-mono tabular-nums truncate">{site.order_type ?? "-"}</span>
+      <span>
+        {statusConfig ? (
+          <Badge variant={statusConfig.variant} size="sm">{statusConfig.label}</Badge>
+        ) : (
+          <span className="text-xs">{site.status}</span>
+        )}
+      </span>
+      <div className="min-w-0 flex items-center gap-1.5">
+        {showAddressWarning && (site.latitude == null || site.longitude == null) && (
+          <span
+            className="shrink-0 inline-block h-1.5 w-1.5 rounded-full bg-red-500"
+            title="주소 매칭 불가 — 지도에 표시되지 않음"
+          />
+        )}
+        <p className="text-[13.5px] font-semibold text-foreground truncate">{site.site_name}</p>
+      </div>
+      <span className="text-[14px] text-foreground font-mono text-right tabular-nums">
+        {site.contract_amount != null ? `${Math.round(site.contract_amount).toLocaleString()}억` : "-"}
+      </span>
+      <span />
+      <div className="text-right">
+        <span className="text-[14px] text-foreground font-mono tabular-nums">{progressPct.toFixed(0)}%</span>
+        <div className="h-1 bg-muted rounded-full mt-0.5 overflow-hidden">
+          <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, progressPct)}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export function SiteList({ sites, selectedSiteId, onSelect, showAddressWarnings = false }: SiteListProps) {
   const [sortKeys, setSortKeys] = useState<{ key: SortKey; dir: SortDir }[]>([]);
@@ -117,65 +187,16 @@ export function SiteList({ sites, selectedSiteId, onSelect, showAddressWarnings 
         </div>
       ) : (
         <div className="divide-y divide-border/40">
-          {sorted.map((site, idx) => {
-            const companyConfig = COMPANY_CONFIG[site.corporation_name];
-            const statusConfig = STATUS_CONFIG[site.status];
-            const progressPct = (site.progress_rate ?? 0) * 100;
-
-            return (
-              <div
-                key={site.id}
-                data-site-row={site.id}
-                onClick={() => onSelect(site)}
-                className={cn(
-                  "grid gap-2 px-4 py-0.5 cursor-pointer transition-[background-color,border-color] duration-(--motion) items-center border-l-[3px]",
-                  TABLE_COLS,
-                  selectedSiteId === site.id
-                    ? "bg-primary/5 border-l-primary"
-                    : "border-l-transparent hover:bg-primary/3 hover:border-l-primary/40"
-                )}
-              >
-                <span className="text-[13px] text-muted-foreground font-mono tabular-nums text-center">{idx + 1}</span>
-                <span>
-                  {companyConfig ? (
-                    <Badge variant={companyConfig.variant} size="sm">{companyConfig.label}</Badge>
-                  ) : (
-                    <span className="text-[16px] text-foreground">{site.corporation_name}</span>
-                  )}
-                </span>
-                <span className="text-[14px] text-foreground font-mono tabular-nums">{site.division}</span>
-                <span className="text-[14px] text-foreground font-mono tabular-nums">{site.region_name}</span>
-                <span className="text-[14px] text-foreground font-mono tabular-nums truncate">{site.facility_type_name}</span>
-                <span className="text-[14px] text-foreground font-mono tabular-nums truncate">{site.order_type ?? "-"}</span>
-                <span>
-                  {statusConfig ? (
-                    <Badge variant={statusConfig.variant} size="sm">{statusConfig.label}</Badge>
-                  ) : (
-                    <span className="text-xs">{site.status}</span>
-                  )}
-                </span>
-                <div className="min-w-0 flex items-center gap-1.5">
-                  {showAddressWarnings && (site.latitude == null || site.longitude == null) && (
-                    <span
-                      className="shrink-0 inline-block h-1.5 w-1.5 rounded-full bg-red-500"
-                      title="주소 매칭 불가 — 지도에 표시되지 않음"
-                    />
-                  )}
-                  <p className="text-[13.5px] font-semibold text-foreground truncate">{site.site_name}</p>
-                </div>
-                <span className="text-[14px] text-foreground font-mono text-right tabular-nums">
-                  {site.contract_amount != null ? `${Math.round(site.contract_amount).toLocaleString()}억` : "-"}
-                </span>
-                <span />
-                <div className="text-right">
-                  <span className="text-[14px] text-foreground font-mono tabular-nums">{progressPct.toFixed(0)}%</span>
-                  <div className="h-1 bg-muted rounded-full mt-0.5 overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, progressPct)}%` }} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {sorted.map((site, idx) => (
+            <SiteListRow
+              key={site.id}
+              site={site}
+              idx={idx}
+              selected={selectedSiteId === site.id}
+              onSelect={onSelect}
+              showAddressWarning={showAddressWarnings}
+            />
+          ))}
         </div>
       )}
     </div>

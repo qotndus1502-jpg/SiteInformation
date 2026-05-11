@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { Camera, Check, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { uploadSiteImage } from "@/lib/api/sites";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ImageSettings {
   x: number;
@@ -113,6 +114,7 @@ function BuildingIllustration() {
 export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
   const { isAdmin } = useAuth();
   const [hasImage, setHasImage] = useState(true);
+  const [imgLoaded, setImgLoaded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [lightbox, setLightbox] = useState(false);
   const [settings, setSettings] = useState<ImageSettings>(() => loadSettings(siteId));
@@ -126,6 +128,7 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
   useEffect(() => {
     setImgSrc(`${STORAGE_URL}/site_${siteId}.jpg`);
     setHasImage(true);
+    setImgLoaded(false);
     const loaded = loadSettings(siteId);
     setSettings(loaded);
     setDraft(loaded);
@@ -140,6 +143,7 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
       const reset = { x: 0, y: 0, scale: 1 };
       setImgSrc(`${STORAGE_URL}/site_${siteId}.jpg?t=${Date.now()}`);
       setHasImage(true);
+      setImgLoaded(false);
       setSettings(reset);
       setDraft(reset);
       saveSettings(siteId, reset);
@@ -283,16 +287,23 @@ export function SiteImage({ siteId, siteName, division }: SiteImageProps) {
       <img
         src={imgSrc}
         alt={`${siteName} 조감도`}
-        className="absolute pointer-events-none"
+        className="absolute pointer-events-none transition-opacity duration-200"
         style={{
           left: "50%",
           top: "50%",
           width: "100%",
           transform: `translate(-50%, -50%) translate(${current.x}px, ${current.y}px) scale(${current.scale})`,
+          opacity: imgLoaded ? 1 : 0,
         }}
         draggable={false}
+        onLoad={() => setImgLoaded(true)}
         onError={() => setHasImage(false)}
       />
+
+      {/* Loading skeleton — shown while the image fetches from Supabase storage */}
+      {!imgLoaded && (
+        <Skeleton className="absolute inset-0 rounded-none pointer-events-none" />
+      )}
 
       {editing ? (
         <>

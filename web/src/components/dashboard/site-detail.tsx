@@ -114,9 +114,13 @@ export function SiteDetail({ site, onClose, onSaved }: SiteDetailProps) {
 
   return (
     <div className="bg-card rounded-xl border border-border/40 shadow-sm w-full">
-      {/* Sticky 닫기 버튼 — 카드 스크롤 시에도 항상 우측 상단 고정 */}
+      {/* Sticky 닫기 버튼 — 카드 스크롤 시에도 항상 우측 상단 고정.
+          버튼 자연 높이(=28px: p-1.5 12px + 아이콘 16px)와 -mb-7(-28px)을 정확히 매칭해
+          flow 상 net margin이 0 → 다음 sibling(이미지)이 카드 top에 깔끔하게 붙는다.
+          (이전 -mb-10은 -40 → -12px만큼 이미지가 카드 boundary 위로 튀어나가
+           위쪽이 잘려 보였음) */}
       {onClose && (
-        <div className="sticky top-2 z-20 flex justify-end px-2 -mb-10 pointer-events-none">
+        <div className="sticky top-2 z-20 flex justify-end px-2 -mb-7 pointer-events-none">
           <button
             onClick={onClose}
             className="p-1.5 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-colors pointer-events-auto"
@@ -126,8 +130,8 @@ export function SiteDetail({ site, onClose, onSaved }: SiteDetailProps) {
           </button>
         </div>
       )}
-      {/* 조감도 */}
-      <div className="relative">
+      {/* 조감도 — 카드의 rounded-xl과 맞도록 top corners 둥글게 + overflow-hidden */}
+      <div className="relative rounded-t-xl overflow-hidden">
         <SiteImage siteId={site.id} siteName={site.site_name} division={site.division} />
       </div>
 
@@ -237,7 +241,7 @@ export function SiteDetail({ site, onClose, onSaved }: SiteDetailProps) {
               </button>
             </span>
           </Row>
-          <OrgChartDialog site={site} open={orgOpen} onOpenChange={setOrgOpen} />
+          <OrgChartDialog site={site} open={orgOpen} onOpenChange={setOrgOpen} onSaved={onSaved} />
         </div>
         {site.jv_summary && (
           <>
