@@ -714,13 +714,13 @@ ${styleHtml}
                             {/* 부서 카드 — 헤더와 본체를 하나의 카드로 통합 */}
                             <div
                               className={cn(
-                                "w-full rounded-md overflow-hidden",
+                                "w-full rounded-md",
                                 isEmpty
                                   ? "border border-dashed border-slate-300 bg-slate-50/50"
                                   : "shadow-sm ring-1 ring-slate-200 bg-slate-50"
                               )}
                             >
-                              <div className="px-2.5 py-1.5 bg-slate-700 text-white text-[12px] font-medium tracking-wide whitespace-nowrap text-center truncate">
+                              <div className="rounded-t-md px-2.5 py-1.5 bg-slate-700 text-white text-[12px] font-medium tracking-wide whitespace-nowrap text-center truncate">
                                 {dept.name}
                               </div>
                               <div className="px-2 py-2">
