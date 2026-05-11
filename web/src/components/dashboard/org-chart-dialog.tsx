@@ -9,21 +9,15 @@ import { OrgMemberCard } from "./org-member-card";
 import { EmployeeProfile } from "./employee-profile";
 import { OrgMemberFormDialog } from "./org-member-form-dialog";
 import {
-  fetchOrgChart,
-  fetchDepartments,
-  fetchOrgRoles,
   createDepartment,
   updateDepartment,
   deleteDepartment,
-  fetchRequiredHeadcount,
   updateRequiredHeadcount,
-  type OrgMemberInput,
   type RequiredHeadcount,
 } from "@/lib/api/org";
 import type { Department, OrgMember, OrgRole } from "@/types/org-chart";
 import type { SiteDashboard } from "@/types/database";
 import { useAuth } from "@/lib/auth-context";
-import { API_BASE } from "@/lib/env";
 import { useMemberStaging } from "./_internal/useMemberStaging";
 import { useOrgChartData } from "./_internal/useOrgChartData";
 import { useOrgChartMetrics } from "./_internal/useOrgChartMetrics";
@@ -32,9 +26,12 @@ interface OrgChartDialogProps {
   site: SiteDashboard;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  /** 인원 변경이 commit된 직후 호출 — 부모가 site list를 refetch해서
+   *  현장 인원 수(v_site_dashboard.headcount)를 즉시 반영하게 한다. */
+  onSaved?: () => void;
 }
 
-export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps) {
+export function OrgChartDialog({ site, open, onOpenChange, onSaved }: OrgChartDialogProps) {
   const { isAdmin } = useAuth();
   const {
     members,
@@ -97,6 +94,7 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
       await commitBatch(site.id, async () => {
         setMode("view");
         await load();
+        onSaved?.();
       });
     } catch (err) {
       alert((err as Error).message || "저장 실패");
@@ -344,16 +342,6 @@ export function OrgChartDialog({ site, open, onOpenChange }: OrgChartDialogProps
     setDeptError(null);
     try {
       await deleteDepartment(deptId);
-      await reloadDepartments();
-    } catch (e) {
-      setDeptError((e as Error).message);
-    }
-  };
-
-  const handleUpdateRequired = async (deptId: number, value: number) => {
-    setDeptError(null);
-    try {
-      await updateDepartment(deptId, { required_count: value });
       await reloadDepartments();
     } catch (e) {
       setDeptError((e as Error).message);
@@ -806,7 +794,15 @@ ${styleHtml}
           const cell = "px-3 py-1.5 text-center font-mono border-r border-slate-200";
           const emptyStr = (n: number) => (n > 0 ? n : "-");
           return (
-            <div data-org-chart-status-table className="absolute left-8 z-10" style={{ top: `${primaryTop}px` }}>
+            <div
+              data-org-chart-status-table
+              className="absolute left-8 z-10"
+              style={{
+                top: `${primaryTop}px`,
+                transform: `scale(${metrics.scale * 0.8})`,
+                transformOrigin: "top left",
+              }}
+            >
               <div className="rounded-md overflow-hidden ring-1 ring-slate-200 shadow-sm bg-white">
                 <table className="text-[13px] border-collapse">
                   <thead>

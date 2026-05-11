@@ -17,6 +17,22 @@ interface UseOrgChartMetricsOpts {
   showProfile: boolean;
 }
 
+const REF_W = 1380;
+const REF_H = 900;
+const TARGET_RATIO = REF_W / REF_H;
+
+/** Contain max box (maxW × maxH) into TARGET_RATIO. Returns the largest
+ *  ratio-locked box that fits inside the viewport-relative max. */
+function fitBoxToRatio(maxW: number, maxH: number): { boxW: number; boxH: number } {
+  let boxW = maxW;
+  let boxH = maxW / TARGET_RATIO;
+  if (boxH > maxH) {
+    boxH = maxH;
+    boxW = maxH * TARGET_RATIO;
+  }
+  return { boxW, boxH };
+}
+
 /** Two layout-effect measurements for the org-chart dialog:
  *
  *  1. `metrics` — the dialog box dimensions (full viewport-relative w/h) and
@@ -42,7 +58,18 @@ export function useOrgChartMetrics({
 }: UseOrgChartMetricsOpts) {
   const contentRef = useRef<HTMLDivElement>(null);
   const primaryRowRef = useRef<HTMLDivElement>(null);
-  const [metrics, setMetrics] = useState<DialogMetrics>({ w: 0, h: 0, scale: 1 });
+  // Seed with viewport-relative dimensions so the first paint already fills
+  // the screen — otherwise width/height start at 0 and the dialog visibly
+  // expands once useLayoutEffect's measure() runs, which reads as a frozen
+  // dim overlay during the data fetch. Falls back to a sane SSR default.
+  //
+  // 다이얼로그 박스는 REF_W:REF_H(1380:900≈1.53) 종횡비로 락.
+  // viewport가 더 와이드/좁아도 다이얼로그 자체 비율은 일정.
+  const [metrics, setMetrics] = useState<DialogMetrics>(() => {
+    if (typeof window === "undefined") return { w: 1280, h: 800, scale: 1 };
+    const { boxW, boxH } = fitBoxToRatio(window.innerWidth * 0.96, window.innerHeight * 0.94);
+    return { w: boxW, h: boxH, scale: 1 };
+  });
   const [primaryTop, setPrimaryTop] = useState<number>(92);
 
   // (1) Box + scale measurement
@@ -54,16 +81,12 @@ export function useOrgChartMetrics({
       const naturalW = el.offsetWidth;
       const naturalH = el.offsetHeight;
       if (!naturalW || !naturalH) return;
-      // 박스는 viewport 최대 크기로 고정 — 현장별 비율 조정 없음.
-      // Scale은 구리갈매역세권(최대 현장) 기준 REF 치수로 계산해 모든 현장에서
-      // 카드 크기가 동일하게 유지된다. 세로 꽉 차게(availableH / REF_H)가 우선,
-      // 가로(boxW / REF_W)는 cap으로만 동작. naturalH > REF_H 면 clip 방지로 측정값 사용.
-      const REF_W = 1380;
-      const REF_H = 900;
+      // 박스는 viewport에 contain하되 종횡비(REF_W:REF_H = 1380:900 ≈ 1.53)는 락.
+      // viewport가 와이드/세로형이어도 다이얼로그 비율은 일정 — 좌우 또는 상하 여백.
+      // Scale은 REF_W/REF_H 기준이라 카드 크기는 모든 현장/모든 viewport에서 동일.
       const TOP_OFFSET = 80;
       const BOTTOM_PADDING = 16;
-      const boxW = window.innerWidth * 0.96;
-      const boxH = window.innerHeight * 0.94;
+      const { boxW, boxH } = fitBoxToRatio(window.innerWidth * 0.96, window.innerHeight * 0.94);
       if (loading || membersCount === 0) {
         setMetrics({ w: boxW, h: boxH, scale: 1 });
         return;
