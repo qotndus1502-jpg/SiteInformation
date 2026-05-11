@@ -204,46 +204,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/sites/{site_id}/org-chart": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Site Org Chart
-         * @description Get all active org members for a site.
-         */
-        get: operations["get_site_org_chart_api_sites__site_id__org_chart_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/org-roles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Org Roles
-         * @description Get all available org roles.
-         */
-        get: operations["get_org_roles_api_org_roles_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/sites/{site_id}/headcount-summary": {
         parameters: {
             query?: never;
@@ -541,58 +501,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/lookup/corporations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Lookup Corporations */
-        get: operations["lookup_corporations_api_lookup_corporations_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/lookup/regions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Lookup Regions */
-        get: operations["lookup_regions_api_lookup_regions_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/lookup/facility-types": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Lookup Facility Types */
-        get: operations["lookup_facility_types_api_lookup_facility_types_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/lookup/order-types": {
+    "/api/managing-entities": {
         parameters: {
             query?: never;
             header?: never;
@@ -600,36 +509,44 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Lookup Order Types
-         * @description 발주유형은 lookup 테이블이 없고 ORDER_TYPES 상수로 관리되므로 그대로 노출.
+         * List Managing Entities
+         * @description 전체 관리주체 — 법인 정보 + 담당 현장 수 포함.
          */
-        get: operations["lookup_order_types_api_lookup_order_types_get"];
+        get: operations["list_managing_entities_api_managing_entities_get"];
         put?: never;
-        post?: never;
+        /** Create Managing Entity */
+        post: operations["create_managing_entity_api_managing_entities_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/lookup/clients": {
+    "/api/managing-entities/{entity_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Lookup Clients */
-        get: operations["lookup_clients_api_lookup_clients_get"];
-        put?: never;
+        get?: never;
+        /**
+         * Update Managing Entity
+         * @description 이름/sort_order만 수정. 법인 이동은 사이트들과의 정합성 깨질 수 있어 막는다.
+         */
+        put: operations["update_managing_entity_api_managing_entities__entity_id__put"];
         post?: never;
-        delete?: never;
+        /**
+         * Delete Managing Entity
+         * @description 삭제 시 담당 현장의 managing_entity_id는 SET NULL.
+         */
+        delete: operations["delete_managing_entity_api_managing_entities__entity_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/lookup/partners": {
+    "/api/managing-entities/{entity_id}/assignable-sites": {
         parameters: {
             query?: never;
             header?: never;
@@ -637,11 +554,36 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Lookup Partners
-         * @description JV 파트너(하부업체) 목록 — 자동완성용.
+         * Assignable Sites
+         * @description 이 주체가 담당할 수 있는 현장 — 같은 법인 사이트 전체.
+         *     각 사이트의 현재 managing_entity_id도 같이 반환해서 UI가 체크 상태를
+         *     표시할 수 있게 한다.
          */
-        get: operations["lookup_partners_api_lookup_partners_get"];
+        get: operations["assignable_sites_api_managing_entities__entity_id__assignable_sites_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/managing-entities/{entity_id}/sites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Assign Sites
+         * @description 이 주체가 담당할 사이트 ID 리스트로 일괄 재할당.
+         *     - 기존에 이 주체로 묶인 사이트 중 리스트에 없는 건 NULL로 해제
+         *     - 리스트에 있는 사이트는 이 주체로 설정 (다른 주체에 묶여 있어도 덮어씀)
+         *     - 사이트 법인이 주체 법인과 다르면 트리거가 거부 → 미리 검증
+         */
+        put: operations["assign_sites_api_managing_entities__entity_id__sites_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1039,57 +981,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_site_org_chart_api_sites__site_id__org_chart_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                site_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_org_roles_api_org_roles_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
         };
@@ -1570,6 +1461,7 @@ export interface operations {
                 groupShareRanges?: string | null;
                 startYear?: string | null;
                 endYear?: string | null;
+                managingEntity?: string | null;
             };
             header?: never;
             path?: never;
@@ -1779,6 +1671,7 @@ export interface operations {
                 groupShareRanges?: string | null;
                 startYear?: string | null;
                 endYear?: string | null;
+                managingEntity?: string | null;
             };
             header?: never;
             path?: never;
@@ -1806,7 +1699,7 @@ export interface operations {
             };
         };
     };
-    lookup_corporations_api_lookup_corporations_get: {
+    list_managing_entities_api_managing_entities_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1826,11 +1719,85 @@ export interface operations {
             };
         };
     };
-    lookup_regions_api_lookup_regions_get: {
+    create_managing_entity_api_managing_entities_post: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_managing_entity_api_managing_entities__entity_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_managing_entity_api_managing_entities__entity_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: number;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1844,13 +1811,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    lookup_facility_types_api_lookup_facility_types_get: {
+    assignable_sites_api_managing_entities__entity_id__assignable_sites_get: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                entity_id: number;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1864,16 +1842,33 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    lookup_order_types_api_lookup_order_types_get: {
+    assign_sites_api_managing_entities__entity_id__sites_put: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                entity_id: number;
+            };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1884,44 +1879,13 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-        };
-    };
-    lookup_clients_api_lookup_clients_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    lookup_partners_api_lookup_partners_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

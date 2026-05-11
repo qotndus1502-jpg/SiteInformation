@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
@@ -41,7 +41,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const supabase = useMemo(() => createClient(), []);
 
+  // Dedup guard: avoid re-fetching the same profile when both `refresh()`
+  // (mount) and `onAuthStateChange` (initial session callback) fire for
+  // the same user, which is the normal Supabase-js sequence.
+  const lastProfileUserIdRef = useRef<string | null>(null);
+
   const loadProfile = useCallback(async (userId: string) => {
+    if (lastProfileUserIdRef.current === userId) return;
+    lastProfileUserIdRef.current = userId;
     const { data } = await supabase
       .schema("pmis")
       .from("user_profile")
@@ -52,10 +59,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const refresh = useCallback(async () => {
-    const { data: { user: u } } = await supabase.auth.getUser();
+    // `getSession()` reads from the locally-stored session — no /auth/v1/user
+    // network call. Backend now verifies the JWT signature locally on every
+    // request (see `backend/deps.py` JWKS-based verification), so client-side
+    // we just need the session for displaying user info / firing fetches.
+    const { data: { session } } = await supabase.auth.getSession();
+    const u = session?.user ?? null;
     setUser(u);
     if (u) await loadProfile(u.id);
-    else setProfile(null);
+    else {
+      setProfile(null);
+      lastProfileUserIdRef.current = null;
+    }
   }, [supabase, loadProfile]);
 
   useEffect(() => {
@@ -69,7 +84,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const u = session?.user ?? null;
       setUser(u);
       if (u) await loadProfile(u.id);
-      else setProfile(null);
+      else {
+        setProfile(null);
+        lastProfileUserIdRef.current = null;
+      }
     });
 
     return () => {

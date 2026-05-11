@@ -11,7 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers.auth import router as auth_router
 from routers.employees import router as employees_router
 from routers.geocode import router as geocode_router
-from routers.lookup import router as lookup_router
 from routers.managing_entities import router as managing_entities_router
 from routers.org import router as org_router
 from routers.sites import router as sites_router
@@ -39,6 +38,5 @@ app.include_router(employees_router)
 app.include_router(org_router)
 app.include_router(sites_router)
 app.include_router(statistics_router)
-app.include_router(lookup_router)
 app.include_router(managing_entities_router)
 app.include_router(geocode_router)

@@ -1,7 +1,8 @@
 """Org chart, members, departments, headcount, photo upload.
 
 Largest single domain — covers everything inside the per-site Org Chart
-dialog. Read endpoints are public; mutations require admin.
+dialog. Read endpoints require an authenticated user; mutations require
+admin.
 """
 import json
 from datetime import datetime
@@ -11,18 +12,31 @@ from fastapi.responses import JSONResponse
 import traceback
 
 from supabase_client import supabase
-from deps import require_admin
+from deps import get_current_user, require_admin
 from services.org import seed_default_departments
 
 router = APIRouter()
 
 
-# ── Org chart (read) ─────────────────────────────────────────
+# ── Org chart reads (org-chart, org-roles) moved to direct Supabase ─
+# in `web/src/lib/api/org.ts` — RLS-protected via migrations 012/013.
+# Mutations below still need backend-side validation + service-role.
 
-@router.get("/api/sites/{site_id}/org-chart")
-async def get_site_org_chart(site_id: int):
-    """Get all active org members for a site."""
-    response = (
+
+@router.get("/api/sites/{site_id}/org-chart-bundle")
+async def get_org_chart_bundle(site_id: int, _user: dict = Depends(get_current_user)):
+    """All four org-chart slices in one round-trip.
+
+    The dialog used to fan out: v_site_org_chart + departments +
+    org_role + required-headcount in parallel from the browser. Even
+    parallel, that's 4× JWT validation, 4× connection setup, and 4×
+    auth-lock contention on the supabase-js getSession() — measurable
+    on dialog-open. Folding them server-side cuts it to one request.
+
+    Auto-seeds default departments on first access (mirrors
+    /api/sites/{id}/departments behavior so callers don't need a
+    separate priming call)."""
+    org_resp = (
         supabase.schema("pmis")
         .from_("v_site_org_chart")
         .select("*")
@@ -30,13 +44,33 @@ async def get_site_org_chart(site_id: int):
         .order("sort_order")
         .execute()
     )
-    return response.data or []
+    members = org_resp.data or []
 
+    dept_resp = (
+        supabase.schema("pmis")
+        .from_("site_department")
+        .select("*")
+        .eq("site_id", site_id)
+        .order("sort_order")
+        .execute()
+    )
+    departments = dept_resp.data or []
+    if not departments:
+        try:
+            seed_default_departments(site_id)
+            dept_resp = (
+                supabase.schema("pmis")
+                .from_("site_department")
+                .select("*")
+                .eq("site_id", site_id)
+                .order("sort_order")
+                .execute()
+            )
+            departments = dept_resp.data or []
+        except Exception as e:
+            print(f"[WARN] default department auto-seed failed for site {site_id}: {e}")
 
-@router.get("/api/org-roles")
-async def get_org_roles():
-    """Get all available org roles."""
-    response = (
+    role_resp = (
         supabase.schema("pmis")
         .from_("org_role")
         .select("*")
@@ -44,13 +78,37 @@ async def get_org_roles():
         .order("sort_order")
         .execute()
     )
-    return response.data or []
+    roles = role_resp.data or []
+
+    rh_resp = (
+        supabase.schema("pmis")
+        .from_("project_site")
+        .select("required_headcount")
+        .eq("id", site_id)
+        .limit(1)
+        .execute()
+    )
+    rh_row = (rh_resp.data or [{}])[0]
+    rh_data = rh_row.get("required_headcount") or {}
+    required_headcount = {
+        "general": int(rh_data.get("general") or 0),
+        "specialist": int(rh_data.get("specialist") or 0),
+        "contract": int(rh_data.get("contract") or 0),
+        "jv": int(rh_data.get("jv") or 0),
+    }
+
+    return {
+        "members": members,
+        "departments": departments,
+        "roles": roles,
+        "required_headcount": required_headcount,
+    }
 
 
 # ── Headcount ────────────────────────────────────────────────
 
 @router.get("/api/sites/{site_id}/headcount-summary")
-async def get_headcount_summary(site_id: int):
+async def get_headcount_summary(site_id: int, _user: dict = Depends(get_current_user)):
     """Get headcount summary for a site."""
     response = (
         supabase.schema("pmis")
@@ -64,7 +122,7 @@ async def get_headcount_summary(site_id: int):
 
 
 @router.get("/api/sites/{site_id}/required-headcount")
-async def get_required_headcount(site_id: int):
+async def get_required_headcount(site_id: int, _user: dict = Depends(get_current_user)):
     """사원 유형별 소요 인원 조회. 값 없으면 0으로 채워 반환."""
     response = (
         supabase.schema("pmis")
@@ -100,7 +158,7 @@ async def update_required_headcount(site_id: int, payload: dict = Body(...), _ad
 # ── Departments ──────────────────────────────────────────────
 
 @router.get("/api/sites/{site_id}/departments")
-async def get_site_departments(site_id: int):
+async def get_site_departments(site_id: int, _user: dict = Depends(get_current_user)):
     """Get departments for a site. Auto-seeds defaults on first access if empty."""
     response = (
         supabase.schema("pmis")
@@ -155,7 +213,7 @@ async def create_site_department(site_id: int, payload: dict = Body(...), _admin
 
 @router.put("/api/departments/{dept_id}")
 async def update_site_department(dept_id: int, payload: dict = Body(...), _admin: dict = Depends(require_admin)):
-    """Rename / reorder department / update required_count."""
+    """Rename or reorder a department."""
     patch: dict = {}
     if "name" in payload:
         n = (payload.get("name") or "").strip()
@@ -164,8 +222,6 @@ async def update_site_department(dept_id: int, payload: dict = Body(...), _admin
         patch["name"] = n
     if "sort_order" in payload:
         patch["sort_order"] = int(payload["sort_order"])
-    if "required_count" in payload:
-        patch["required_count"] = max(0, int(payload["required_count"] or 0))
     if not patch:
         raise HTTPException(status_code=400, detail="변경할 내용이 없습니다")
     res = supabase.schema("pmis").from_("site_department").update(patch).eq("id", dept_id).execute()
@@ -222,7 +278,7 @@ async def delete_org_member(member_id: int, _admin: dict = Depends(require_admin
 
 
 @router.get("/api/org-members/{member_id}/profile")
-async def get_org_member_profile(member_id: int):
+async def get_org_member_profile(member_id: int, _user: dict = Depends(get_current_user)):
     """Get org member profile. Returns member data + parsed resume_data."""
     try:
         response = (
@@ -307,12 +363,24 @@ async def update_org_member_profile(member_id: int, body: dict, _admin: dict = D
 
 @router.post("/api/upload-org-photo")
 async def upload_org_photo(file: UploadFile = File(...), member_id: str = Form(...), _admin: dict = Depends(require_admin)):
-    """Upload or replace an org member photo to Supabase Storage."""
+    """Upload or replace an org member photo to Supabase Storage.
+
+    Also persists the URL to `site_org_member.photo_url` so the chart can
+    skip the per-card image fetch for members who never had a photo (no
+    column = no <img src>, no 404). Cache-busting `?t=` is appended so
+    the chart re-fetches after a replace."""
     content = await file.read()
     file_name = f"member_{member_id}.jpg"
     supabase.storage.from_("org-photos").upload(
         file_name, content,
         file_options={"content-type": file.content_type or "image/jpeg", "upsert": "true"},
     )
-    url = supabase.storage.from_("org-photos").get_public_url(file_name)
-    return {"ok": True, "url": url}
+    public_url = supabase.storage.from_("org-photos").get_public_url(file_name)
+    versioned_url = f"{public_url}?t={int(datetime.utcnow().timestamp())}"
+    try:
+        supabase.schema("pmis").from_("site_org_member").update(
+            {"photo_url": versioned_url}
+        ).eq("id", int(member_id)).execute()
+    except Exception as e:
+        print(f"[WARN] failed to persist photo_url for member {member_id}: {e}")
+    return {"ok": True, "url": versioned_url}

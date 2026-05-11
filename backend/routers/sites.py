@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 import traceback
 
 from supabase_client import supabase
-from deps import require_admin
+from deps import get_current_user, require_admin
 from services.geocode import persist_site_coords, resolve_region_code, sync_geocode
 from services.org import seed_default_departments
 from services.sites_cache import (
@@ -35,7 +35,7 @@ _FILTER_OPTIONS_CACHE: dict = {"data": None, "ts": 0.0}
 
 
 @router.get("/api/filter-options")
-async def get_filter_options():
+async def get_filter_options(_user: dict = Depends(get_current_user)):
     """Derive filter options from the cached dashboard view. No extra DB round-trip."""
     now = time.time()
     cached = _FILTER_OPTIONS_CACHE["data"]
@@ -109,6 +109,7 @@ async def get_sites(
     startYear: Optional[str] = Query(None),
     endYear: Optional[str] = Query(None),
     managingEntity: Optional[str] = Query(None),
+    _user: dict = Depends(get_current_user),
 ):
     try:
         return filter_sites_in_memory(
@@ -135,7 +136,7 @@ async def get_sites(
 
 
 @router.get("/api/sites/{site_id}/raw")
-def get_site_raw(site_id: int):
+def get_site_raw(site_id: int, _user: dict = Depends(get_current_user)):
     """편집 폼용 — project_site의 raw 컬럼 (특히 site_address) 반환."""
     r = (
         supabase.schema("pmis")

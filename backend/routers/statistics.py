@@ -11,8 +11,9 @@ useful elsewhere and keeping them here makes the route's contract obvious.
 from collections import defaultdict
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from deps import get_current_user
 from services.sites_cache import (
     _date_to_ym,
     filter_sites_in_memory,
@@ -37,6 +38,7 @@ async def get_statistics_summary(
     startYear: Optional[str] = Query(None),
     endYear: Optional[str] = Query(None),
     managingEntity: Optional[str] = Query(None),
+    _user: dict = Depends(get_current_user),
 ):
     """Aggregate KPI summary from all sites, with optional filters.
     Sources sites from the in-memory cache (no Supabase round-trip on hot path)."""

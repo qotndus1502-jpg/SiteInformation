@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from supabase_client import supabase
-from deps import require_admin
+from deps import get_current_user, require_admin
 from services.sites_cache import invalidate_sites_cache
 
 router = APIRouter()
@@ -34,7 +34,7 @@ def _site_counts() -> dict[int, int]:
 
 
 @router.get("/api/managing-entities")
-def list_managing_entities():
+def list_managing_entities(_user: dict = Depends(get_current_user)):
     """전체 관리주체 — 법인 정보 + 담당 현장 수 포함."""
     er = (
         supabase.schema("pmis")

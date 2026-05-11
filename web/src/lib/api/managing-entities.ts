@@ -1,4 +1,4 @@
-import { authFetch, handleMutation, API_BASE } from "./client";
+import { authFetch, handleMutation } from "./client";
 
 export interface ManagingEntity {
   id: number;
@@ -16,7 +16,7 @@ export interface AssignableSite {
 }
 
 export async function fetchManagingEntities(): Promise<ManagingEntity[]> {
-  const res = await fetch(`${API_BASE}/api/managing-entities`);
+  const res = await authFetch(`/api/managing-entities`);
   return res.json();
 }
 

@@ -52,7 +52,6 @@ export interface Department {
   site_id: number
   name: string
   sort_order: number
-  required_count: number
 }
 
 // ── Employee (public schema) ──

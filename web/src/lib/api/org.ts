@@ -1,20 +1,59 @@
 import type { Department, OrgMember, OrgRole, OrgTreeNode, ResumeData } from "@/types/org-chart";
-import { authFetch, handleMutation, API_BASE } from "./client";
+import { createClient } from "@/lib/supabase/client";
+import { authFetch, handleMutation } from "./client";
 
-/* ── Reads ── */
+/* ── Reads — direct Supabase where there's no business logic ── */
 
+/** All four slices the org-chart dialog needs in a single round-trip.
+ *  The dialog used to fan-out: org chart + departments + roles +
+ *  required-headcount in parallel from the browser. Each call paid for
+ *  its own JWT-validation + getSession() lock contention; folding into
+ *  one backend handler measurably shortens the open-to-data delay. */
+export interface OrgChartBundle {
+  members: OrgMember[];
+  departments: Department[];
+  roles: OrgRole[];
+  required_headcount: { general: number; specialist: number; contract: number; jv: number };
+}
+
+export async function fetchOrgChartBundle(siteId: number): Promise<OrgChartBundle> {
+  const res = await authFetch(`/api/sites/${siteId}/org-chart-bundle`);
+  return handleMutation<OrgChartBundle>(res);
+}
+
+/** Site org chart. Reads `pmis.v_site_org_chart` directly — the view
+ *  pre-joins `site_org_member` with `org_role` and `site_department`
+ *  and is row-level-secured (migration 013 → security_invoker, so the
+ *  underlying tables' approved-user policies apply). */
 export async function fetchOrgChart(siteId: number): Promise<OrgMember[]> {
-  const res = await fetch(`${API_BASE}/api/sites/${siteId}/org-chart`);
-  return res.json();
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .schema("pmis")
+    .from("v_site_org_chart")
+    .select("*")
+    .eq("site_id", siteId)
+    .order("sort_order");
+  if (error) throw error;
+  return (data ?? []) as OrgMember[];
 }
 
 export async function fetchOrgRoles(): Promise<OrgRole[]> {
-  const res = await fetch(`${API_BASE}/api/org-roles`);
-  return res.json();
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .schema("pmis")
+    .from("org_role")
+    .select("*")
+    .eq("is_active", true)
+    .order("sort_order");
+  if (error) throw error;
+  return (data ?? []) as OrgRole[];
 }
 
+/** Departments still go through the backend — first read on a new site
+ *  triggers default-department seeding (see services/org.py). Pure
+ *  Supabase read would skip that side effect. */
 export async function fetchDepartments(siteId: number): Promise<Department[]> {
-  const res = await fetch(`${API_BASE}/api/sites/${siteId}/departments`);
+  const res = await authFetch(`/api/sites/${siteId}/departments`);
   return res.json();
 }
 
@@ -31,7 +70,7 @@ export async function createDepartment(siteId: number, name: string): Promise<De
 
 export async function updateDepartment(
   deptId: number,
-  patch: { name?: string; sort_order?: number; required_count?: number },
+  patch: { name?: string; sort_order?: number },
 ): Promise<Department> {
   const res = await authFetch(`/api/departments/${deptId}`, {
     method: "PUT",
@@ -56,7 +95,7 @@ export type RequiredHeadcount = {
 };
 
 export async function fetchRequiredHeadcount(siteId: number): Promise<RequiredHeadcount> {
-  const res = await fetch(`${API_BASE}/api/sites/${siteId}/required-headcount`);
+  const res = await authFetch(`/api/sites/${siteId}/required-headcount`);
   if (!res.ok) return { general: 0, specialist: 0, contract: 0, jv: 0 };
   return res.json();
 }
@@ -88,6 +127,17 @@ export type OrgMemberInput = {
   email: string | null;
   sort_order?: number;
   is_active?: boolean;
+  // Profile fields (migration 002 columns).
+  birth_date?: string | null;
+  address?: string | null;
+  phone_work?: string | null;
+  photo_url?: string | null;
+  job_category?: string | null;
+  entry_type?: string | null;
+  task_detail?: string | null;
+  hobby?: string | null;
+  skills?: string | null;
+  resume_data?: ResumeData | null;
 };
 
 export async function createOrgMember(
@@ -139,7 +189,7 @@ export interface OrgMemberProfile {
 }
 
 export async function fetchOrgMemberProfile(memberId: number): Promise<OrgMemberProfile | null> {
-  const res = await fetch(`${API_BASE}/api/org-members/${memberId}/profile`);
+  const res = await authFetch(`/api/org-members/${memberId}/profile`);
   if (!res.ok) return null;
   return res.json();
 }

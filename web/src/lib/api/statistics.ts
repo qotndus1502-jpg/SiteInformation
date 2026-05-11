@@ -1,4 +1,4 @@
-import { API_BASE } from "./client";
+import { authFetch, fetchWithAuth } from "./client";
 
 /* ── Statistics summary response ── */
 
@@ -46,9 +46,14 @@ export interface StatisticsSummary {
   };
 }
 
-export async function fetchStatisticsSummary(qs = ""): Promise<StatisticsSummary | null> {
-  const url = `${API_BASE}/api/statistics/summary${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url, { cache: "no-store" });
+export async function fetchStatisticsSummary(
+  qs = "",
+  init?: { signal?: AbortSignal; token?: string },
+): Promise<StatisticsSummary | null> {
+  const path = `/api/statistics/summary${qs ? `?${qs}` : ""}`;
+  const res = init?.token !== undefined
+    ? await fetchWithAuth(path, { cache: "no-store", signal: init.signal, token: init.token })
+    : await authFetch(path, { cache: "no-store", signal: init?.signal });
   if (!res.ok) return null;
   return res.json();
 }

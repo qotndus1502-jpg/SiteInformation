@@ -1,5 +1,9 @@
-import { authFetch, handleMutation, API_BASE } from "./client";
+import { authFetch, fetchWithAuth, handleMutation } from "./client";
 import type { SiteDashboard } from "@/types/database";
+
+/** Reads accept an optional `token` so server callers (page.tsx) can pass
+ *  the JWT they read from cookies via `auth-server.ts`. Browser callers
+ *  omit `token` and hit the auto-grabbing `authFetch` path. */
 
 /* ── Site filter / options types ── */
 
@@ -53,20 +57,64 @@ function buildQueryString(params: Record<string, string | undefined>): string {
 
 /* ── Reads ── */
 
-export async function fetchSites(filter: Record<string, string | undefined> = {}): Promise<SiteDashboard[]> {
+/** Default empty value used when a fetch fails — keeps callers' assumption
+ *  that they always get an array, even on 401/500. Prevents "sites.map is
+ *  not a function" downstream. */
+const EMPTY_SITES: SiteDashboard[] = [];
+
+const EMPTY_FILTER_OPTIONS: FilterOptions = {
+  corporations: [],
+  regions: [],
+  facilityTypes: [],
+  orderTypes: [],
+  divisions: [],
+  statuses: [],
+  managingEntities: [],
+};
+
+export async function fetchSites(
+  filter: Record<string, string | undefined> = {},
+  init?: { signal?: AbortSignal; token?: string },
+): Promise<SiteDashboard[]> {
   const qs = buildQueryString(filter);
-  const url = `${API_BASE}/api/sites${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url);
-  return res.json();
+  const path = `/api/sites${qs ? `?${qs}` : ""}`;
+  const res = init?.token !== undefined
+    ? await fetchWithAuth(path, { signal: init.signal, token: init.token })
+    : await authFetch(path, { signal: init?.signal });
+  if (!res.ok) {
+    if (typeof window !== "undefined") {
+      console.warn(`[fetchSites] ${res.status}: ${res.statusText}`);
+    }
+    return EMPTY_SITES;
+  }
+  const body = await res.json();
+  // Backend always returns an array on success; defend against shape drift
+  // (e.g. error envelopes that slip past `res.ok`).
+  return Array.isArray(body) ? (body as SiteDashboard[]) : EMPTY_SITES;
 }
 
-export async function fetchFilterOptions(): Promise<FilterOptions> {
-  const res = await fetch(`${API_BASE}/api/filter-options`);
-  return res.json();
+export async function fetchFilterOptions(init?: { token?: string }): Promise<FilterOptions> {
+  const res = init?.token !== undefined
+    ? await fetchWithAuth(`/api/filter-options`, { token: init.token })
+    : await authFetch(`/api/filter-options`);
+  if (!res.ok) {
+    if (typeof window !== "undefined") {
+      console.warn(`[fetchFilterOptions] ${res.status}: ${res.statusText}`);
+    }
+    return EMPTY_FILTER_OPTIONS;
+  }
+  const body = await res.json();
+  // Sanity check that the response has the expected shape — backend errors
+  // come back as `{detail: "..."}` not the FilterOptions object.
+  return body && typeof body === "object" && "corporations" in body
+    ? (body as FilterOptions)
+    : EMPTY_FILTER_OPTIONS;
 }
 
-export async function fetchSiteRaw(siteId: number): Promise<SiteRaw | null> {
-  const res = await fetch(`${API_BASE}/api/sites/${siteId}/raw`);
+export async function fetchSiteRaw(siteId: number, init?: { token?: string }): Promise<SiteRaw | null> {
+  const res = init?.token !== undefined
+    ? await fetchWithAuth(`/api/sites/${siteId}/raw`, { token: init.token })
+    : await authFetch(`/api/sites/${siteId}/raw`);
   if (!res.ok) return null;
   return res.json();
 }

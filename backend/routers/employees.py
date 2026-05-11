@@ -1,22 +1,27 @@
 """Employee + Team endpoints (public schema, separate from pmis).
 
 These read from the legacy `Employee` / `Team` / `Location` tables — not the
-project_site / org_member tables — so they live in their own router. Public
-schema, default Supabase access. No auth (public read).
+project_site / org_member tables — so they live in their own router. The
+data is PII (name/position/phone/email) so all reads require an
+authenticated user.
 """
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
+from deps import get_current_user
 from supabase_client import supabase
 
 router = APIRouter()
 
 
 @router.get("/api/employees")
-async def get_employees(teamId: Optional[int] = Query(None)):
+async def get_employees(
+    teamId: Optional[int] = Query(None),
+    _user: dict = Depends(get_current_user),
+):
     """Get employees, optionally filtered by team."""
     query = supabase.from_("Employee").select("*")
     if teamId:
@@ -26,7 +31,7 @@ async def get_employees(teamId: Optional[int] = Query(None)):
 
 
 @router.get("/api/employees/{employee_id}")
-async def get_employee(employee_id: int):
+async def get_employee(employee_id: int, _user: dict = Depends(get_current_user)):
     """Get single employee with team & location info."""
     emp = supabase.from_("Employee").select("*").eq("id", employee_id).single().execute()
     if not emp.data:
@@ -61,14 +66,14 @@ async def get_employee(employee_id: int):
 
 
 @router.get("/api/teams")
-async def get_teams():
+async def get_teams(_user: dict = Depends(get_current_user)):
     """Get all teams."""
     response = supabase.from_("Team").select("*").execute()
     return response.data or []
 
 
 @router.get("/api/teams/{team_id}/members")
-async def get_team_members(team_id: int):
+async def get_team_members(team_id: int, _user: dict = Depends(get_current_user)):
     """Get all members of a team."""
     response = supabase.from_("Employee").select(
         "id,name,position,role,photoUrl,phone,email,status,jobCategory"
