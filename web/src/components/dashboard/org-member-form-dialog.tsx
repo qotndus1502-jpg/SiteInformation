@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { User } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,12 +12,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { type OrgMemberInput } from "@/lib/api/org";
-import type { Department, OrgMember, OrgRole } from "@/types/org-chart";
+import type {
+  Department,
+  OrgMember,
+  OrgRole,
+  ResumeAppointment,
+  ResumeCertification,
+  ResumeData,
+  ResumeEducation,
+  ResumeExperience,
+} from "@/types/org-chart";
+import { ResumeListEditor, dropEmptyResumeRows } from "./_internal/ResumeListEditor";
+import { PhoneInput, WorkPhoneInput } from "./_internal/PhoneInput";
 
-type OrgTypeCode = "OWN" | "JV";
 type EmpType = "일반직" | "전문직" | "현채직" | "공동사";
+type TabValue = "basic" | "profile" | "resume";
 
 const EMPLOYEE_TYPES: { value: EmpType; label: string; dot: string }[] = [
   { value: "일반직", label: "일반직", dot: "bg-slate-400" },
@@ -108,6 +121,7 @@ export function OrgMemberFormDialog({
     return roles.find((r) => r.code === targetCode)?.id ?? roles[0]?.id ?? 0;
   }, [initialMember, presetRoleCode, presetDepartmentId, roles, members]);
 
+  // ── Basic ──
   const [name, setName] = useState("");
   const [roleId, setRoleId] = useState<number>(0);
   const [departmentId, setDepartmentId] = useState<number | null>(null);
@@ -116,11 +130,31 @@ export function OrgMemberFormDialog({
   const [rank, setRank] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+
+  // ── Profile (migration 002 columns) ──
+  const [birthDate, setBirthDate] = useState("");
+  const [address, setAddress] = useState("");
+  const [phoneWork, setPhoneWork] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [jobCategory, setJobCategory] = useState("");
+  const [entryType, setEntryType] = useState("");
+  const [taskDetail, setTaskDetail] = useState("");
+  const [hobby, setHobby] = useState("");
+  const [skills, setSkills] = useState("");
+
+  // ── Resume (resume_data JSONB) ──
+  const [education, setEducation] = useState<ResumeEducation[]>([]);
+  const [experience, setExperience] = useState<ResumeExperience[]>([]);
+  const [appointmentHistory, setAppointmentHistory] = useState<ResumeAppointment[]>([]);
+  const [certifications, setCertifications] = useState<ResumeCertification[]>([]);
+
+  const [activeTab, setActiveTab] = useState<TabValue>("basic");
   const [error, setError] = useState<string | null>(null);
 
   // Reset on open.
   useEffect(() => {
     if (!open) return;
+    setActiveTab("basic");
     if (initialMember) {
       setName(initialMember.name);
       setRoleId(initialMember.role_id);
@@ -136,6 +170,22 @@ export function OrgMemberFormDialog({
       setRank(initialMember.rank ?? "");
       setPhone(initialMember.phone ?? "");
       setEmail(initialMember.email ?? "");
+
+      setBirthDate(initialMember.birth_date ?? "");
+      setAddress(initialMember.address ?? "");
+      setPhoneWork(initialMember.phone_work ?? "");
+      setPhotoUrl(initialMember.photo_url ?? "");
+      setJobCategory(initialMember.job_category ?? "");
+      setEntryType(initialMember.entry_type ?? "");
+      setTaskDetail(initialMember.task_detail ?? "");
+      setHobby(initialMember.hobby ?? "");
+      setSkills(initialMember.skills ?? "");
+
+      const rd = initialMember.resume_data as Partial<ResumeData> | null | undefined;
+      setEducation(Array.isArray(rd?.education) ? rd!.education! : []);
+      setExperience(Array.isArray(rd?.experience) ? rd!.experience! : []);
+      setAppointmentHistory(Array.isArray(rd?.appointmentHistory) ? rd!.appointmentHistory! : []);
+      setCertifications(Array.isArray(rd?.certifications) ? rd!.certifications! : []);
     } else {
       setName("");
       setRoleId(defaultRoleId);
@@ -145,6 +195,21 @@ export function OrgMemberFormDialog({
       setRank("");
       setPhone("");
       setEmail("");
+
+      setBirthDate("");
+      setAddress("");
+      setPhoneWork("");
+      setPhotoUrl("");
+      setJobCategory("");
+      setEntryType("");
+      setTaskDetail("");
+      setHobby("");
+      setSkills("");
+
+      setEducation([]);
+      setExperience([]);
+      setAppointmentHistory([]);
+      setCertifications([]);
     }
     setError(null);
   }, [open, initialMember, defaultRoleId, presetDepartmentId, defaultCompanyName]);
@@ -172,18 +237,22 @@ export function OrgMemberFormDialog({
     setError(null);
     const trimmedName = name.trim();
     if (!trimmedName) {
+      setActiveTab("basic");
       setError("이름을 입력해주세요");
       return;
     }
     if (!roleId) {
+      setActiveTab("basic");
       setError("직책을 선택해주세요");
       return;
     }
     if (!isTopLevelRole && departmentId == null) {
+      setActiveTab("basic");
       setError("소속 팀을 선택해주세요");
       return;
     }
     if (empType === "공동사" && !companyName.trim()) {
+      setActiveTab("basic");
       setError("공동사인 경우 회사명을 입력해주세요");
       return;
     }
@@ -196,6 +265,13 @@ export function OrgMemberFormDialog({
       roles
     );
 
+    const cleanEducation = dropEmptyResumeRows("education", education);
+    const cleanExperience = dropEmptyResumeRows("experience", experience);
+    const cleanAppointment = dropEmptyResumeRows("appointment", appointmentHistory);
+    const cleanCertifications = dropEmptyResumeRows("certification", certifications);
+    const hasResume =
+      cleanEducation.length + cleanExperience.length + cleanAppointment.length + cleanCertifications.length > 0;
+
     const payload: OrgMemberInput = {
       name: trimmedName,
       role_id: roleId,
@@ -207,6 +283,23 @@ export function OrgMemberFormDialog({
       rank: rank.trim() || null,
       phone: phone.trim() || null,
       email: email.trim() || null,
+      birth_date: birthDate.trim() || null,
+      address: address.trim() || null,
+      phone_work: phoneWork.trim() || null,
+      photo_url: photoUrl.trim() || null,
+      job_category: jobCategory.trim() || null,
+      entry_type: entryType.trim() || null,
+      task_detail: taskDetail.trim() || null,
+      hobby: hobby.trim() || null,
+      skills: skills.trim() || null,
+      resume_data: hasResume
+        ? {
+            education: cleanEducation,
+            experience: cleanExperience,
+            appointmentHistory: cleanAppointment,
+            certifications: cleanCertifications,
+          }
+        : null,
     };
 
     onSubmit(payload, initialMember?.id ?? null);
@@ -215,153 +308,284 @@ export function OrgMemberFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[460px] p-5 gap-4">
+      <DialogContent className="sm:max-w-[680px] p-5 gap-4 max-h-[90vh] overflow-y-auto">
         <DialogHeader className="gap-1">
           <DialogTitle className="text-[16px] font-semibold leading-none">
             {isEdit ? "인원 수정" : "인원 추가"}
           </DialogTitle>
           <p className="text-[12px] text-muted-foreground">
-            기본 정보만 입력합니다. 상세 프로필(사진·이력서)은 조직도 카드에서 별도 편집하세요.
+            기본 정보·프로필·이력을 입력합니다. 사진은 저장 후 카드에서 업로드하세요.
           </p>
         </DialogHeader>
 
-        <div
-          className={cn(
-            "grid grid-cols-2 gap-3",
-            "[&_label]:text-[12px] [&_label]:font-medium",
-            "[&_input]:!h-9 [&_input]:!text-[13px] [&_input]:!py-2 [&_input]:!rounded-md",
-            "[&_[data-slot=select-trigger]]:!h-9 [&_[data-slot=select-trigger]]:!text-[13px] [&_[data-slot=select-trigger]]:!py-2 [&_[data-slot=select-trigger]]:!rounded-md"
-          )}
-        >
-          <div className="col-span-2 flex flex-col gap-1.5">
-            <Label htmlFor="om-name">이름 *</Label>
-            <Input id="om-name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
+          <TabsList className="grid grid-cols-3 w-full">
+            <TabsTrigger value="basic">기본정보</TabsTrigger>
+            <TabsTrigger value="profile">프로필</TabsTrigger>
+            <TabsTrigger value="resume">이력</TabsTrigger>
+          </TabsList>
 
-          {/* 2행: 사원 유형 (full width) */}
-          <div className="col-span-2 flex flex-col gap-1.5">
-            <Label>사원 유형 *</Label>
-            <div className="grid grid-cols-4 gap-1 rounded-md bg-slate-100 p-1">
-              {EMPLOYEE_TYPES.map((t) => {
-                const active = empType === t.value;
-                return (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setEmpType(t.value)}
-                    className={cn(
-                      "h-8 flex items-center justify-center gap-1.5 rounded-md text-[12px] font-medium transition-colors",
-                      active
-                        ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
-                        : "text-slate-500 hover:text-slate-700"
-                    )}
-                  >
-                    <span className={cn("w-2 h-2 rounded-full", t.dot)} />
-                    {t.label}
-                  </button>
-                );
-              })}
+          {/* ── 기본정보 ── */}
+          <TabsContent
+            value="basic"
+            className={cn(
+              "mt-4 grid grid-cols-2 gap-3",
+              "[&_label]:text-[12px] [&_label]:font-medium",
+              "[&_input]:h-9! [&_input]:text-[13px]! [&_input]:py-2! [&_input]:rounded-md!",
+              "[&_[data-slot=select-trigger]]:h-9! [&_[data-slot=select-trigger]]:text-[13px]! [&_[data-slot=select-trigger]]:py-2! [&_[data-slot=select-trigger]]:rounded-md!"
+            )}
+          >
+            <div className="col-span-2 flex flex-col gap-1.5">
+              <Label htmlFor="om-name">이름 *</Label>
+              <Input id="om-name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
-          </div>
 
-          {/* 3행: 회사명 | 소속 팀 */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="om-company">
-              회사명 {empType === "공동사" && "*"}
-            </Label>
-            <Input
-              id="om-company"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              readOnly={empType !== "공동사"}
-              placeholder={empType === "공동사" ? "공동사명 입력" : undefined}
-              className={empType !== "공동사" ? "bg-slate-50! text-slate-500!" : undefined}
+            {/* 사원 유형 */}
+            <div className="col-span-2 flex flex-col gap-1.5">
+              <Label>사원 유형 *</Label>
+              <div className="grid grid-cols-4 gap-1 rounded-md bg-slate-100 p-1">
+                {EMPLOYEE_TYPES.map((t) => {
+                  const active = empType === t.value;
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setEmpType(t.value)}
+                      className={cn(
+                        "h-8 flex items-center justify-center gap-1.5 rounded-md text-[12px] font-medium transition-colors",
+                        active
+                          ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                          : "text-slate-500 hover:text-slate-700"
+                      )}
+                    >
+                      <span className={cn("w-2 h-2 rounded-full", t.dot)} />
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 회사명 | 소속 팀 */}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="om-company">
+                회사명 {empType === "공동사" && "*"}
+              </Label>
+              <Input
+                id="om-company"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                readOnly={empType !== "공동사"}
+                placeholder={empType === "공동사" ? "공동사명 입력" : undefined}
+                className={empType !== "공동사" ? "bg-slate-50! text-slate-500!" : undefined}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>소속 팀 {!isTopLevelRole && "*"}</Label>
+              <Select
+                value={departmentId != null ? String(departmentId) : ""}
+                onValueChange={(v) => setDepartmentId(Number(v))}
+                disabled={isTopLevelRole}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={isTopLevelRole ? "해당 없음" : "선택"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((d) => (
+                    <SelectItem key={d.id} value={String(d.id)}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 직책 | 직급 */}
+            <div className="flex flex-col gap-1.5">
+              <Label>직책 *</Label>
+              <Select
+                value={roleId ? String(roleId) : ""}
+                onValueChange={(v) => {
+                  const next = Number(v);
+                  setRoleId(next);
+                  const nextCode = roles.find((r) => r.id === next)?.code ?? "";
+                  if (TOP_LEVEL_ROLE_CODES.has(nextCode)) setDepartmentId(null);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map((r) => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>직급</Label>
+              <Select value={rank || ""} onValueChange={(v) => setRank(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {RANK_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+          </TabsContent>
+
+          {/* ── 프로필 ── */}
+          <TabsContent
+            value="profile"
+            className={cn(
+              "mt-4 space-y-3",
+              "[&_label]:text-[12px] [&_label]:font-medium",
+              "[&_input]:h-9! [&_input]:text-[13px]! [&_input]:py-2! [&_input]:rounded-md!"
+            )}
+          >
+            {/* 사진 미리보기 */}
+            <div className="flex items-start gap-3 rounded-md border border-border bg-muted/20 p-3">
+              <div className="w-[70px] h-[84px] rounded-md bg-muted overflow-hidden shrink-0 flex items-center justify-center">
+                {photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photoUrl} alt="profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="h-6 w-6 text-muted-foreground" />
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                사진 업로드는 저장 후 조직도 카드에 마우스를 올리면 나타나는 카메라 버튼으로 진행하세요.
+                여기서는 현재 등록된 사진을 미리 확인할 수 있습니다.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="om-birth">생년월일</Label>
+                <Input
+                  id="om-birth"
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="om-entry-type">입사 형태</Label>
+                <Input
+                  id="om-entry-type"
+                  value={entryType}
+                  onChange={(e) => setEntryType(e.target.value)}
+                  placeholder="예: 정규직 / 계약직 / 경력직"
+                />
+              </div>
+
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <Label htmlFor="om-address">주소</Label>
+                <Input
+                  id="om-address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="예: 서울특별시 강남구 ..."
+                />
+              </div>
+
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <Label htmlFor="om-job-category">직무 분류</Label>
+                <Input
+                  id="om-job-category"
+                  value={jobCategory}
+                  onChange={(e) => setJobCategory(e.target.value)}
+                  placeholder="예: 공무 / 안전 / 품질"
+                />
+              </div>
+
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <Label htmlFor="om-task-detail">담당 업무</Label>
+                <Input
+                  id="om-task-detail"
+                  value={taskDetail}
+                  onChange={(e) => setTaskDetail(e.target.value)}
+                  placeholder="예: 시공계획 수립, 품질관리 ..."
+                />
+              </div>
+
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <Label htmlFor="om-skills">스킬 (콤마로 구분)</Label>
+                <Input
+                  id="om-skills"
+                  value={skills}
+                  onChange={(e) => setSkills(e.target.value)}
+                  placeholder="예: AutoCAD, Revit, MS Project"
+                />
+              </div>
+
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <Label htmlFor="om-hobby">취미</Label>
+                <Input
+                  id="om-hobby"
+                  value={hobby}
+                  onChange={(e) => setHobby(e.target.value)}
+                  placeholder="예: 등산, 독서"
+                />
+              </div>
+
+              {/* ── 연락처 섹션 ── */}
+              <div className="col-span-2 mt-2 pt-3 border-t border-border/60">
+                <h3 className="text-[11px] font-semibold text-muted-foreground mb-2">연락처</h3>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="om-phone">휴대폰</Label>
+                <PhoneInput
+                  id="om-phone"
+                  value={phone}
+                  onChange={setPhone}
+                  placeholder="010-0000-0000"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="om-phone-work">회사 전화</Label>
+                <WorkPhoneInput
+                  id="om-phone-work"
+                  value={phoneWork}
+                  onChange={setPhoneWork}
+                />
+              </div>
+
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <Label htmlFor="om-email">이메일</Label>
+                <Input
+                  id="om-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ── 이력 ── */}
+          <TabsContent value="resume" className="mt-4 space-y-5">
+            <ResumeListEditor kind="education" value={education} onChange={setEducation} />
+            <ResumeListEditor
+              kind="appointment"
+              value={appointmentHistory}
+              onChange={setAppointmentHistory}
             />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label>소속 팀 {!isTopLevelRole && "*"}</Label>
-            <Select
-              value={departmentId != null ? String(departmentId) : ""}
-              onValueChange={(v) => setDepartmentId(Number(v))}
-              disabled={isTopLevelRole}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={isTopLevelRole ? "해당 없음" : "선택"} />
-              </SelectTrigger>
-              <SelectContent>
-                {departments.map((d) => (
-                  <SelectItem key={d.id} value={String(d.id)}>
-                    {d.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* 3행: 직책 | 직급 */}
-          <div className="flex flex-col gap-1.5">
-            <Label>직책 *</Label>
-            <Select
-              value={roleId ? String(roleId) : ""}
-              onValueChange={(v) => {
-                const next = Number(v);
-                setRoleId(next);
-                const nextCode = roles.find((r) => r.id === next)?.code ?? "";
-                if (TOP_LEVEL_ROLE_CODES.has(nextCode)) setDepartmentId(null);
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((r) => (
-                  <SelectItem key={r.id} value={String(r.id)}>
-                    {r.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label>직급</Label>
-            <Select value={rank || ""} onValueChange={(v) => setRank(v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {RANK_OPTIONS.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {r}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* 5행: 전화번호 (full width) */}
-          <div className="col-span-2 flex flex-col gap-1.5">
-            <Label htmlFor="om-phone">전화번호</Label>
-            <Input
-              id="om-phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="010-0000-0000"
-            />
-          </div>
-
-          {/* 6행: 이메일 (full width) */}
-          <div className="col-span-2 flex flex-col gap-1.5">
-            <Label htmlFor="om-email">이메일</Label>
-            <Input
-              id="om-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-        </div>
+            <ResumeListEditor kind="experience" value={experience} onChange={setExperience} />
+            <ResumeListEditor kind="certification" value={certifications} onChange={setCertifications} />
+          </TabsContent>
+        </Tabs>
 
         {error && (
           <p className="text-[12px] text-red-600 -mt-1">{error}</p>

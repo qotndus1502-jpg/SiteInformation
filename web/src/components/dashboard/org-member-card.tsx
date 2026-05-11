@@ -9,6 +9,13 @@ import { uploadOrgPhoto } from "@/lib/api/org";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
+// 기존 업로드 사진은 photo_url 컬럼에 안 적힌 채 storage에만 있을 수 있음
+// (백필 전 데이터). 예측 가능한 경로로 fallback해서 onError 시에만 빈 칸으로.
+function initialPhotoSrc(member: OrgMember): string | null {
+  if (member.photo_url) return member.photo_url;
+  if (SUPABASE_URL) return `${SUPABASE_URL}/storage/v1/object/public/org-photos/member_${member.id}.jpg`;
+  return null;
+}
 
 interface PhotoSettings {
   x: number;
@@ -50,9 +57,7 @@ export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps)
   const { isAdmin } = useAuth();
   const [imgError, setImgError] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [imgSrc, setImgSrc] = useState(
-    SUPABASE_URL ? `${SUPABASE_URL}/storage/v1/object/public/org-photos/member_${member.id}.jpg` : null
-  );
+  const [imgSrc, setImgSrc] = useState<string | null>(() => initialPhotoSrc(member));
   const [settings, setSettings] = useState<PhotoSettings>(() => loadPhotoSettings(member.id));
   const [draft, setDraft] = useState<PhotoSettings>(settings);
 
@@ -76,9 +81,10 @@ export function OrgMemberCard({ member, primary, onSelect }: OrgMemberCardProps)
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      await uploadOrgPhoto(file, member.id);
+      const res = await uploadOrgPhoto(file, member.id);
       const reset = { x: 0, y: 0, scale: 1 };
-      setImgSrc(`${SUPABASE_URL}/storage/v1/object/public/org-photos/member_${member.id}.jpg?t=${Date.now()}`);
+      // Backend returns the cache-busted URL it just persisted to photo_url.
+      setImgSrc(res.url);
       setImgError(false);
       setSettings(reset);
       setDraft(reset);
