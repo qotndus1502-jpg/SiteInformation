@@ -18,14 +18,25 @@ export function DashboardScaler({ children }: { children: React.ReactNode }) {
   const [scale, setScale] = useState<number | null>(null);
 
   useIsomorphicLayoutEffect(() => {
+    let rafId: number | null = null;
     function update() {
       const s = Math.max(window.innerWidth / BASE_W, 0.5);
-      setScale(s);
+      setScale((prev) => (prev === s ? prev : s));
       document.documentElement.style.setProperty("--dashboard-zoom", String(s));
     }
+    function scheduleUpdate() {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        update();
+      });
+    }
     update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    window.addEventListener("resize", scheduleUpdate);
+    return () => {
+      window.removeEventListener("resize", scheduleUpdate);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   return (

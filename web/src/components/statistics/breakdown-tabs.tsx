@@ -1,7 +1,7 @@
 "use client";
 
+import { memo } from "react";
 import type { RingEntry } from "./chart-types";
-import { RadialRingChart } from "./radial-ring-chart";
 import { KoreaMapChart } from "./korea-map-chart";
 import { StatusDonutChart } from "./status-donut-chart";
 import { CorpDivisionChart } from "./corp-division-chart";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { charts } from "@/lib/chart-colors";
 
@@ -119,7 +119,7 @@ function HalfBar({
   );
 }
 
-export function AmountHeatmapChart({ data, series: which = "both", mirror = false, selectedRangeKey, onRangeClick }: AmountHeatmapChartProps) {
+export const AmountHeatmapChart = memo(function AmountHeatmapChart({ data, series: which = "both", mirror = false, selectedRangeKey, onRangeClick }: AmountHeatmapChartProps) {
   const labels = data.labels ?? [];
   const contractRows = data.by_contract_division ?? [];
   const shareRows = data.by_our_share_division ?? [];
@@ -217,7 +217,7 @@ export function AmountHeatmapChart({ data, series: which = "both", mirror = fals
                 return (
                   <div
                     key={label}
-                    className="flex items-center gap-0 relative cursor-pointer transition-opacity"
+                    className="flex items-center gap-0 relative cursor-pointer transition-opacity duration-300"
                     style={{ height: heatStyle.rowH, opacity: isDimmed ? 0.4 : 1 }}
                     onMouseEnter={() => setHovIdx(i)}
                     onClick={() => {
@@ -263,4 +263,4 @@ export function AmountHeatmapChart({ data, series: which = "both", mirror = fals
       </div>
     </div>
   );
-}
+});

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { memo, useState, useEffect, useMemo } from "react";
 import { MapPin, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { geoMercator, geoPath, geoCentroid } from "d3-geo";
 import type { FeatureCollection, Feature, Geometry } from "geojson";
 import { charts } from "@/lib/chart-colors";
+import { KoreaMapSkeleton } from "./_skeletons/KoreaMapSkeleton";
 
 /* ── Types ──────────────────────────────────────────────── */
 
@@ -168,7 +169,7 @@ function resolveOverlaps(bubbles: BubblePos[], iterations = 30): BubblePos[] {
 
 type ViewMode = "region" | "area";
 
-export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegion, onRegionClick }: KoreaMapChartProps) {
+export const KoreaMapChart = memo(function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegion, onRegionClick }: KoreaMapChartProps) {
   const [geo, setGeo] = useState<FeatureCollection | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("region");
@@ -265,11 +266,7 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
   };
 
   if (!geo || !pathGen) {
-    return (
-      <div className="bg-card border border-border rounded-xl p-2 shadow-sm flex items-center justify-center min-h-[400px]">
-        <p className="text-sm text-muted-foreground">지도 로딩 중...</p>
-      </div>
-    );
+    return <KoreaMapSkeleton />;
   }
 
   // Build raw bubble positions
@@ -431,7 +428,7 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
               const big = r > 20;
 
               return (
-                <g key={key} className="cursor-pointer"
+                <g key={key} className="cursor-pointer transition-opacity duration-300"
                   style={{ opacity: isDimmed ? 0.35 : 1 }}
                   onMouseEnter={() => setHovered(key)}
                   onMouseLeave={() => setHovered(null)}
@@ -571,4 +568,4 @@ export function KoreaMapChart({ data: initialData, onShowDetailMap, selectedRegi
       </div>
     </div>
   );
-}
+});

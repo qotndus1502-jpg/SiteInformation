@@ -1,4 +1,5 @@
 import { StatisticsClient } from "@/components/statistics/statistics-client";
+import { getServerAuthToken } from "@/lib/api/auth-server";
 import { fetchSites, fetchFilterOptions, type FilterOptions } from "@/lib/api/sites";
 import { fetchStatisticsSummary, type StatisticsSummary } from "@/lib/api/statistics";
 import type { SiteDashboard } from "@/types/database";
@@ -41,16 +42,27 @@ export default async function StatisticsPage() {
   let filterOptions: FilterOptions = EMPTY_FILTER_OPTIONS;
   let sites: SiteDashboard[] = [];
 
+  // Forward the user's JWT (read from request cookies) to the Python
+  // backend on every server-side fetch — the backend's read endpoints
+  // now require a valid bearer token.
+  const token = await getServerAuthToken();
+
   try {
     const [summaryData, filterData, sitesData] = await Promise.all([
-      fetchStatisticsSummary(),
-      fetchFilterOptions(),
-      fetchSites(),
+      fetchStatisticsSummary("", { token }),
+      fetchFilterOptions({ token }),
+      fetchSites({}, { token }),
     ]);
     if (summaryData) summary = { ...EMPTY_SUMMARY, ...summaryData };
     if (filterData) filterOptions = filterData;
     if (sitesData) sites = sitesData;
   } catch {}
 
+  // The skeleton-to-dashboard transition is handled by Next.js's standard
+  // Suspense flow: `loading.tsx` shows DashboardSkeleton while this page's
+  // server fetches resolve, then it's swapped out for StatisticsClient.
+  // No bespoke overlay / cross-fade — too many moving parts for too little
+  // visual gain in dev mode (Turbopack CSS HMR throttling) and production
+  // (the swap is fast enough that a fade isn't perceptible).
   return <StatisticsClient summary={summary} filterOptions={filterOptions} initialSites={sites} />;
 }

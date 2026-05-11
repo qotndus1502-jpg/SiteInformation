@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { charts } from "@/lib/chart-colors";
 
@@ -89,7 +89,7 @@ function HorizontalTimeline({
             <div key={d.year} onMouseEnter={() => setHovIdx(i)}>
               {/* Bubble — center pinned to (cx, BUBBLE_CY) */}
               <div
-                className="absolute rounded-full flex items-center justify-center transition-all duration-200 z-10 cursor-pointer"
+                className="absolute rounded-full flex items-center justify-center transition-all duration-300 z-10 cursor-pointer"
                 onClick={() => onYearClick?.(isSelected ? null : d.year)}
                 style={{
                   left: cx,
@@ -134,7 +134,7 @@ function HorizontalTimeline({
   );
 }
 
-export function CompletionYearChart({ preStartData, activeData, selectedStartYear, selectedEndYear, onStartYearClick, onEndYearClick }: CompletionYearChartProps) {
+export const CompletionYearChart = memo(function CompletionYearChart({ preStartData, activeData, selectedStartYear, selectedEndYear, onStartYearClick, onEndYearClick }: CompletionYearChartProps) {
   const allCounts = [...preStartData.map((d) => d.count), ...activeData.map((d) => d.count)];
   const maxCount = Math.max(...allCounts, 1);
   const maxSlots = Math.max(preStartData.length, activeData.length, 1);
@@ -151,4 +151,4 @@ export function CompletionYearChart({ preStartData, activeData, selectedStartYea
       </div>
     </div>
   );
-}
+});

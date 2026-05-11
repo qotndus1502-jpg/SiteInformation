@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { charts } from "@/lib/chart-colors";
 
@@ -146,7 +146,7 @@ function BarCell({
 
 /* ── Main Component ────────────────────────────────── */
 
-export function CorpDivisionChart({ data, selectedCorp, onCorpClick }: CorpDivisionChartProps) {
+export const CorpDivisionChart = memo(function CorpDivisionChart({ data, selectedCorp, onCorpClick }: CorpDivisionChartProps) {
   const [hovIdx, setHovIdx] = useState<number | null>(null);
 
   const cellStyle: BarCellStyle = {
@@ -215,7 +215,7 @@ export function CorpDivisionChart({ data, selectedCorp, onCorpClick }: CorpDivis
           return (
             <div
               key={corp}
-              className="flex items-center gap-0 cursor-pointer transition-opacity"
+              className="flex items-center gap-0 cursor-pointer transition-opacity duration-300"
               style={{ opacity: isDimmed ? 0.4 : 1 }}
               onMouseEnter={() => setHovIdx(i)}
               onClick={() => onCorpClick?.(isSelected ? null : corp)}
@@ -249,4 +249,4 @@ export function CorpDivisionChart({ data, selectedCorp, onCorpClick }: CorpDivis
       </div>
     </div>
   );
-}
+});

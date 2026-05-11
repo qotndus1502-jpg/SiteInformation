@@ -54,9 +54,13 @@ export function SiteListWithDetail({
   useEffect(() => {
     const el = sectionRef.current;
     if (!el) return;
+    // rootMargin shrinks the bottom of the viewport by a small amount so the
+    // floating card hides only when the user has truly scrolled past the
+    // list. Earlier value (-20%) made the card disappear while users were
+    // still interacting with the bottom rows.
     const io = new IntersectionObserver(
       ([entry]) => setSectionInView(entry.isIntersecting),
-      { root: null, threshold: 0, rootMargin: "0px 0px -20% 0px" },
+      { root: null, threshold: 0, rootMargin: "0px 0px -5% 0px" },
     );
     io.observe(el);
     return () => io.disconnect();

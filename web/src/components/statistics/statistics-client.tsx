@@ -54,12 +54,21 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     clearTimeout(closingTimer.current);
     setSelectedSite(site);
     setDisplayedSite(site);
+    // One rAF so `displayedSite` mounts (with cardVisible=false → maxWidth:0)
+    // before `panelOpen` flips, otherwise the slide-in animation has nothing
+    // to animate from. Two frames was overkill (~32ms of perceived lag).
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setPanelOpen(true);
-        siteListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      setPanelOpen(true);
     });
+    // Center the clicked row in the viewport. Earlier code scrolled the list
+    // section as a whole with block:"start", which snapped the LIST top to
+    // the viewport top and left the actually-clicked row far below the fold
+    // for any click past the first few rows. Targeting the row itself makes
+    // the click feel "stay where I am" instead of "yank back to list top".
+    const rowEl = document.querySelector<HTMLDivElement>(
+      `[data-site-row="${site.id}"]`,
+    );
+    rowEl?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, []);
 
   const handleCloseSite = useCallback(() => {
@@ -130,11 +139,36 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
     };
   }, [showDetailMap]);
 
+  // Keep `--dashboard-zoom` fresh while the detail map is active. DashboardScaler
+  // is unmounted in this mode, so its resize listener that normally maintains the
+  // CSS var doesn't run — meaning the floating detail card (which scales itself
+  // by var(--dashboard-zoom) to match the dashboard's card size) would use a
+  // stale value after a window resize. Same formula as DashboardScaler.
   useEffect(() => {
+    if (!showDetailMap) return;
+    const update = () => {
+      const s = Math.max(window.innerWidth / BASE_W, 0.5);
+      document.documentElement.style.setProperty("--dashboard-zoom", String(s));
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [showDetailMap]);
+
+  // Sticky header sizing: track the inner content's actual height + the page's
+  // zoom factor so the outer sticky div can clamp to the right scaled height.
+  // Effect runs once on mount; resize/RO callbacks update state directly. We
+  // rAF-throttle window resize so a drag-resize doesn't fire setState 30+
+  // times per second across the dashboard subtree. The previous version put
+  // stickyContentH in the deps array, which forced the RO to disconnect/
+  // re-observe on every height change — wasteful churn during font load
+  // and filter-driven layout shifts.
+  useEffect(() => {
+    let rafId: number | null = null;
     function update() {
       const nextScale = Math.max(window.innerWidth / BASE_W, 0.5);
       setPageScale(nextScale);
-      let nextStickyH = stickyContentH;
+      let nextStickyH = 0;
       if (stickyContentRef.current) {
         nextStickyH = stickyContentRef.current.offsetHeight;
         setStickyContentH(nextStickyH);
@@ -142,21 +176,38 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
       const headerBottom = 44 + nextStickyH * nextScale;
       document.documentElement.style.setProperty("--sticky-header-bottom", `${headerBottom}px`);
     }
+    function scheduleUpdate() {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        update();
+      });
+    }
     update();
-    window.addEventListener("resize", update);
+    window.addEventListener("resize", scheduleUpdate);
 
-    // Observe inner content size changes (flex-wrap, font loading, data changes)
     let ro: ResizeObserver | undefined;
     if (stickyContentRef.current && typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(() => update());
+      ro = new ResizeObserver(scheduleUpdate);
       ro.observe(stickyContentRef.current);
     }
 
     return () => {
-      window.removeEventListener("resize", update);
+      window.removeEventListener("resize", scheduleUpdate);
       ro?.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [stickyContentH]);
+  }, []);
+
+  // H7 — clear close-animation timer on unmount so we don't try to update
+  // state after the component is gone (React 18 ignores it but the ref
+  // is on the GC root via the closure until the effect cleans up).
+  useEffect(() => {
+    return () => {
+      clearTimeout(closingTimer.current);
+      clearTimeout(searchTimer.current);
+    };
+  }, []);
 
   const buildParams = useCallback((f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>, sYear?: string | null, eYear?: string | null) => {
     const params = new URLSearchParams();
@@ -177,62 +228,89 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
   }, []);
 
   const [isFetching, setIsFetching] = useState(false);
+  const fetchAbortRef = useRef<AbortController | null>(null);
   const fetchSummary = useCallback(async (f: SiteFilter, aRanges: Set<string>, pRanges: Set<string>, sRanges: Set<string>, sYear?: string | null, eYear?: string | null) => {
+    fetchAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    fetchAbortRef.current = ctrl;
+
     const params = buildParams(f, aRanges, pRanges, sRanges, sYear, eYear);
     const filterDict = Object.fromEntries(params.entries());
     setIsFetching(true);
     try {
       const [summaryData, sitesData] = await Promise.all([
-        fetchStatisticsSummary(params.toString()),
-        fetchSites(filterDict),
+        fetchStatisticsSummary(params.toString(), { signal: ctrl.signal }),
+        fetchSites(filterDict, { signal: ctrl.signal }),
       ]);
+      if (ctrl.signal.aborted) return;
       if (summaryData) {
         setSummary({ ...initialSummary, ...summaryData });
       }
       if (sitesData) {
         setSites(sitesData);
       }
-    } catch {} finally {
-      setIsFetching(false);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    } finally {
+      // Only the latest fetch should clear the loading flag — earlier ones
+      // were superseded and their finally would otherwise flicker the UI.
+      if (fetchAbortRef.current === ctrl) {
+        setIsFetching(false);
+        fetchAbortRef.current = null;
+      }
     }
   }, [initialSummary, buildParams]);
 
+  // Latest-state ref so click handlers can stay referentially stable. Earlier
+  // each handler had `filters`, `amountRanges`, etc. in its useCallback deps,
+  // which meant *every* handler recreated on *any* filter change. Charts that
+  // received those handlers as props couldn't be memoized — the whole chart
+  // subtree re-rendered on every cross-filter click. Reading from a ref lets
+  // us keep handler identity stable while still seeing the freshest state.
+  const stateRef = useRef({ filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear });
+  stateRef.current = { filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear };
+
   const handleFilterChange = useCallback((key: keyof SiteFilter, value: string) => {
-    const next = { ...filters, [key]: value };
+    const s = stateRef.current;
+    const next = { ...s.filters, [key]: value };
     setFilters(next);
     if (key === "search") {
       if (searchTimer.current) clearTimeout(searchTimer.current);
-      searchTimer.current = setTimeout(() => fetchSummary(next, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear), 300);
+      searchTimer.current = setTimeout(() => fetchSummary(next, s.amountRanges, s.progressRanges, s.shareRanges, s.selectedStartYear, s.selectedEndYear), 300);
     } else {
-      fetchSummary(next, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
+      fetchSummary(next, s.amountRanges, s.progressRanges, s.shareRanges, s.selectedStartYear, s.selectedEndYear);
     }
-  }, [filters, amountRanges, progressRanges, shareRanges, fetchSummary]);
+  }, [fetchSummary]);
 
   const handleAmountChange = useCallback((v: Set<string>) => {
     setAmountRanges(v);
-    fetchSummary(filters, v, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
-  }, [filters, progressRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
+    const s = stateRef.current;
+    fetchSummary(s.filters, v, s.progressRanges, s.shareRanges, s.selectedStartYear, s.selectedEndYear);
+  }, [fetchSummary]);
 
   const handleProgressChange = useCallback((v: Set<string>) => {
     setProgressRanges(v);
-    fetchSummary(filters, amountRanges, v, shareRanges, selectedStartYear, selectedEndYear);
-  }, [filters, amountRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
+    const s = stateRef.current;
+    fetchSummary(s.filters, s.amountRanges, v, s.shareRanges, s.selectedStartYear, s.selectedEndYear);
+  }, [fetchSummary]);
 
   const handleRefreshAfterSave = useCallback(() => {
-    fetchSummary(filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
-  }, [filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
+    const s = stateRef.current;
+    fetchSummary(s.filters, s.amountRanges, s.progressRanges, s.shareRanges, s.selectedStartYear, s.selectedEndYear);
+  }, [fetchSummary]);
 
   const handleExport = useCallback(() => {
-    const corps = filters.corporation && filters.corporation !== "all"
-      ? filters.corporation.split(",").filter(Boolean)
+    const f = stateRef.current.filters;
+    const corps = f.corporation && f.corporation !== "all"
+      ? f.corporation.split(",").filter(Boolean)
       : [];
-    const regions = filters.region && filters.region !== "all"
-      ? filters.region.split(",").filter(Boolean)
+    const regions = f.region && f.region !== "all"
+      ? f.region.split(",").filter(Boolean)
       : [];
     void exportSitesToExcel(sites, {
       filterSummary: { corporations: corps, regions },
     });
-  }, [sites, filters.corporation, filters.region]);
+  }, [sites]);
 
   const handleResetFilters = useCallback(() => {
     const empty: SiteFilter = {};
@@ -254,10 +332,10 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
      same element again clears it. The shared `handleFilterChange` already
      re-fetches summary + sites, so all charts and the site list update. */
   const handleCrossFilter = useCallback((key: keyof SiteFilter, value: string | null) => {
-    const current = filters[key];
+    const current = stateRef.current.filters[key];
     const next = value == null || current === value ? "all" : value;
     handleFilterChange(key, next);
-  }, [filters, handleFilterChange]);
+  }, [handleFilterChange]);
 
   const handleRegionCrossFilter = useCallback((region: string | null) => {
     handleCrossFilter("region", region);
@@ -270,44 +348,48 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
   }, [handleCrossFilter]);
 
   const handleAmountRangeCrossFilter = useCallback((rangeKey: string | null) => {
+    const s = stateRef.current;
     if (rangeKey == null) {
       const empty = new Set<string>();
       setAmountRanges(empty);
-      fetchSummary(filters, empty, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
+      fetchSummary(s.filters, empty, s.progressRanges, s.shareRanges, s.selectedStartYear, s.selectedEndYear);
       return;
     }
     // Toggle: if already the only selected one, clear; otherwise select just it.
-    const isOnlySelected = amountRanges.size === 1 && amountRanges.has(rangeKey);
+    const isOnlySelected = s.amountRanges.size === 1 && s.amountRanges.has(rangeKey);
     const next = new Set<string>(isOnlySelected ? [] : [rangeKey]);
     setAmountRanges(next);
-    fetchSummary(filters, next, progressRanges, shareRanges, selectedStartYear, selectedEndYear);
-  }, [filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
+    fetchSummary(s.filters, next, s.progressRanges, s.shareRanges, s.selectedStartYear, s.selectedEndYear);
+  }, [fetchSummary]);
 
   // 자사 도급액 별 — 백엔드 필터(`groupShareRanges`)에는 적용되지만 FilterBar에는 안 보임
   const handleShareRangeCrossFilter = useCallback((rangeKey: string | null) => {
+    const s = stateRef.current;
     if (rangeKey == null) {
       const empty = new Set<string>();
       setShareRanges(empty);
-      fetchSummary(filters, amountRanges, progressRanges, empty, selectedStartYear, selectedEndYear);
+      fetchSummary(s.filters, s.amountRanges, s.progressRanges, empty, s.selectedStartYear, s.selectedEndYear);
       return;
     }
-    const isOnlySelected = shareRanges.size === 1 && shareRanges.has(rangeKey);
+    const isOnlySelected = s.shareRanges.size === 1 && s.shareRanges.has(rangeKey);
     const next = new Set<string>(isOnlySelected ? [] : [rangeKey]);
     setShareRanges(next);
-    fetchSummary(filters, amountRanges, progressRanges, next, selectedStartYear, selectedEndYear);
-  }, [filters, amountRanges, progressRanges, shareRanges, selectedStartYear, selectedEndYear, fetchSummary]);
+    fetchSummary(s.filters, s.amountRanges, s.progressRanges, next, s.selectedStartYear, s.selectedEndYear);
+  }, [fetchSummary]);
 
   const handleStartYearClick = useCallback((year: string | null) => {
     setSelectedStartYear(year);
     setSelectedEndYear(null);
-    fetchSummary(filters, amountRanges, progressRanges, shareRanges, year, null);
-  }, [filters, amountRanges, progressRanges, shareRanges, fetchSummary]);
+    const s = stateRef.current;
+    fetchSummary(s.filters, s.amountRanges, s.progressRanges, s.shareRanges, year, null);
+  }, [fetchSummary]);
 
   const handleEndYearClick = useCallback((year: string | null) => {
     setSelectedEndYear(year);
     setSelectedStartYear(null);
-    fetchSummary(filters, amountRanges, progressRanges, shareRanges, null, year);
-  }, [filters, amountRanges, progressRanges, shareRanges, fetchSummary]);
+    const s = stateRef.current;
+    fetchSummary(s.filters, s.amountRanges, s.progressRanges, s.shareRanges, null, year);
+  }, [fetchSummary]);
 
   // Single-value selection state derived from current filter strings.
   // (Filter strings can be comma-separated; we treat exactly one value as "selected".)
@@ -367,121 +449,73 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
         onSaved={handleRefreshAfterSave}
       />
 
+    {!showDetailMap ? (
     <DashboardScaler>
+      {/* ── Charts area ── */}
+      <div className={cn("flex-1 min-h-0 transition-opacity duration-300", isFetching ? "opacity-60" : "opacity-100")}>
+        <BreakdownTabs
+          by_corporation={summary.by_corporation ?? []}
+          by_division_detail={summary.by_division_detail ?? []}
+          by_region_group={summary.by_region_group ?? []}
+          by_status={summary.by_status ?? []}
+          by_amount_range={summary.by_amount_range ?? []}
+          by_region={summary.by_region ?? []}
+          pre_start_by_completion_year={summary.pre_start_by_completion_year ?? []}
+          active_by_completion_year={summary.active_by_completion_year ?? []}
+          amount_heatmap={summary.amount_heatmap ?? { by_contract: [], by_our_share: [], by_contract_division: [], by_our_share_division: [], labels: [], no_contract_count: 0, no_share_count: 0 }}
+          corpDivisionData={summary.by_corporation_division ?? []}
+          onShowDetailMap={handleShowDetailMap}
+          selectedRegion={selectedRegion}
+          selectedCorp={selectedCorp}
+          selectedStatus={selectedStatus}
+          selectedAmountRange={selectedAmountRange}
+          selectedShareRange={selectedShareRange}
+          onRegionClick={handleRegionCrossFilter}
+          onCorpClick={handleCorpCrossFilter}
+          onStatusClick={handleStatusCrossFilter}
+          onAmountRangeClick={handleAmountRangeCrossFilter}
+          onShareRangeClick={handleShareRangeCrossFilter}
+          selectedStartYear={selectedStartYear}
+          selectedEndYear={selectedEndYear}
+          onStartYearClick={handleStartYearClick}
+          onEndYearClick={handleEndYearClick}
+        />
+      </div>
 
-      {!showDetailMap ? (
-        <>
-          {/* ── Charts area ── */}
-          <div className={cn("flex-1 min-h-0 transition-opacity duration-200", isFetching ? "opacity-60" : "opacity-100")}>
-            <BreakdownTabs
-              by_corporation={summary.by_corporation ?? []}
-              by_division_detail={summary.by_division_detail ?? []}
-              by_region_group={summary.by_region_group ?? []}
-              by_status={summary.by_status ?? []}
-              by_amount_range={summary.by_amount_range ?? []}
-              by_region={summary.by_region ?? []}
-              pre_start_by_completion_year={summary.pre_start_by_completion_year ?? []}
-              active_by_completion_year={summary.active_by_completion_year ?? []}
-              amount_heatmap={summary.amount_heatmap ?? { by_contract: [], by_our_share: [], by_contract_division: [], by_our_share_division: [], labels: [], no_contract_count: 0, no_share_count: 0 }}
-              corpDivisionData={summary.by_corporation_division ?? []}
-              onShowDetailMap={handleShowDetailMap}
-              selectedRegion={selectedRegion}
-              selectedCorp={selectedCorp}
-              selectedStatus={selectedStatus}
-              selectedAmountRange={selectedAmountRange}
-              selectedShareRange={selectedShareRange}
-              onRegionClick={handleRegionCrossFilter}
-              onCorpClick={handleCorpCrossFilter}
-              onStatusClick={handleStatusCrossFilter}
-              onAmountRangeClick={handleAmountRangeCrossFilter}
-              onShareRangeClick={handleShareRangeCrossFilter}
-              selectedStartYear={selectedStartYear}
-              selectedEndYear={selectedEndYear}
-              onStartYearClick={handleStartYearClick}
-              onEndYearClick={handleEndYearClick}
-            />
-          </div>
-
-          {/* ── Site List area ── */}
-          {/* Add-site action moved to the header ("현장 관리") — admins
-           *  reach the form via that link, not a floating button on the list. */}
-          <div ref={siteListRef} className={cn("transition-opacity duration-200", isFetching ? "opacity-60" : "opacity-100")}>
-            <SiteListWithDetail
-              isAdmin={isAdmin}
-              sites={sites}
-              selectedSite={selectedSite}
-              displayedSite={displayedSite}
-              panelOpen={panelOpen}
-              onSelectSite={handleSelectSite}
-              onCloseSite={handleCloseSite}
-              onSavedSite={handleRefreshAfterSave}
-            />
-          </div>
-        </>
-      ) : (
-        /* ── Detail map fills the whole body under the header (no heading row, no page scroll) ── */
-        <div ref={detailMapRef} className="pt-1.5 overflow-hidden">
-          {/* Map + animated detail card side-by-side — fills viewport, no page scroll */}
-          <div
-            className="flex gap-3"
-            style={{
-              height:
-                "calc((100vh - var(--sticky-header-bottom, 200px) - 50px) / var(--dashboard-zoom, 1))",
-            }}
-          >
+      {/* ── Site List area ── */}
+      {/* Add-site action moved to the header ("현장 관리") — admins
+       *  reach the form via that link, not a floating button on the list. */}
+      <div ref={siteListRef} className={cn("transition-opacity duration-300", isFetching ? "opacity-60" : "opacity-100")}>
+        <SiteListWithDetail
+          isAdmin={isAdmin}
+          sites={sites}
+          selectedSite={selectedSite}
+          displayedSite={displayedSite}
+          panelOpen={panelOpen}
+          onSelectSite={handleSelectSite}
+          onCloseSite={handleCloseSite}
+          onSavedSite={handleRefreshAfterSave}
+        />
+      </div>
+    </DashboardScaler>
+    ) : (
+      /* ── Detail map renders OUTSIDE DashboardScaler. CSS `zoom` on the
+       *  parent breaks maplibregl's hit-test (mousePos uses
+       *  getBoundingClientRect/clientWidth which don't agree under `zoom`),
+       *  killing hover/click on markers. Native scale = working interaction. */
+      <div ref={detailMapRef} className="-mx-4 sm:-mx-6 px-6 pt-1.5 overflow-hidden">
+        {/* Map + animated detail card side-by-side — fills viewport, no page scroll */}
+        <div
+          className="flex gap-3"
+          style={{
+            height:
+              "calc(100vh - var(--sticky-header-bottom, 200px) - 50px)",
+          }}
+        >
             <div className="relative flex-1 min-w-0">
-              {/* Floating return button — top-left of map (same position as "상세 지도 보기") */}
-              <button
-                type="button"
-                onClick={() => setShowDetailMap(false)}
-                className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors duration-150"
-              >
-                ← 대시보드로 돌아가기
-              </button>
-              {/* 안내 문구 — 상단 중앙 */}
-              <div className="absolute top-3 right-16 z-20 bg-card/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-sm border border-border/50 text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
-                <Info className="h-3.5 w-3.5" />
-                주소가 입력되지 않은 현장은 지도에 표시되지 않습니다
-              </div>
-              {/* Color category selector + legend — top-left overlay (shifted down to avoid return button) */}
-              <div className="absolute top-12 left-3 z-10 flex flex-col gap-1.5">
-                <div className="flex bg-card/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50">
-                  {([
-                    { key: "corporation" as ColorCategory, label: "법인별" },
-                    { key: "division" as ColorCategory, label: "부문별" },
-                    { key: "status" as ColorCategory, label: "상태별" },
-                  ]).map((c) => (
-                    <button
-                      key={c.key}
-                      type="button"
-                      onClick={() => setMapColorCategory(c.key)}
-                      className={cn(
-                        "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all",
-                        mapColorCategory === c.key
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-                {/* Legend — varies by category */}
-                <div className="flex flex-col gap-0.5 bg-card/90 backdrop-blur-sm rounded-lg px-2.5 py-1.5 shadow-sm border border-border/50">
-                  {(mapColorCategory === "corporation"
-                    ? charts.siteMap.corporation
-                    : mapColorCategory === "division"
-                    ? charts.siteMap.division
-                    : charts.siteMap.status
-                  ).map((item) => (
-                    <div key={item.label} className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="text-[10px] text-foreground font-medium">{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {/* Force SiteMap (which has its own h-[calc(100vh-280px)]) to fill the parent box */}
+              {/* Map fills the box. Must NOT be wrapped in CSS zoom — maplibregl's
+                  hit-test reads getBoundingClientRect / clientWidth which disagree
+                  under zoom, breaking hover/click on markers. */}
               <div className="absolute inset-0 [&>div]:h-full [&>div>div]:!h-full [&>div>div]:!min-h-0">
                 <SiteMap
                   sites={sites}
@@ -490,25 +524,94 @@ export function StatisticsClient({ summary: initialSummary, filterOptions, initi
                   colorCategory={mapColorCategory}
                 />
               </div>
+              {/* Overlay UI (return button, info banner, color selector, legend)
+                  is zoomed to match DashboardScaler — otherwise these chrome
+                  elements render at native size while the dashboard's identical
+                  buttons (e.g. "상세 지도 보기" on KoreaMap) render at zoom-scaled
+                  size, making them visibly inconsistent. Map stays unzoomed. */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ zoom: "var(--dashboard-zoom, 1)" }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowDetailMap(false)}
+                  className="pointer-events-auto absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors duration-150"
+                >
+                  ← 대시보드로 돌아가기
+                </button>
+                <div className="pointer-events-auto absolute top-3 right-16 z-20 bg-card/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-sm border border-border/50 text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
+                  <Info className="h-3.5 w-3.5" />
+                  주소가 입력되지 않은 현장은 지도에 표시되지 않습니다
+                </div>
+                <div className="pointer-events-auto absolute top-12 left-3 z-10 flex flex-col gap-1.5">
+                  <div className="flex bg-card/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-border/50">
+                    {([
+                      { key: "corporation" as ColorCategory, label: "법인별" },
+                      { key: "division" as ColorCategory, label: "부문별" },
+                      { key: "status" as ColorCategory, label: "상태별" },
+                    ]).map((c) => (
+                      <button
+                        key={c.key}
+                        type="button"
+                        onClick={() => setMapColorCategory(c.key)}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all",
+                          mapColorCategory === c.key
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-col gap-0.5 bg-card/90 backdrop-blur-sm rounded-lg px-2.5 py-1.5 shadow-sm border border-border/50">
+                    {(mapColorCategory === "corporation"
+                      ? charts.siteMap.corporation
+                      : mapColorCategory === "division"
+                      ? charts.siteMap.division
+                      : charts.siteMap.status
+                    ).map((item) => (
+                      <div key={item.label} className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="text-[10px] text-foreground font-medium">{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
             {displayedSite && (
               <div
                 className="shrink-0 hidden lg:block h-full overflow-hidden transition-[max-width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] self-start"
                 style={{
-                  maxWidth: panelOpen ? 500 : 0,
+                  /* 카드 화면상 폭 = 500 × dashboard-zoom — 대시보드의 floating
+                     detail card(SiteListWithDetail)와 정확히 같은 크기로 맞춘다.
+                     이 페이지는 DashboardScaler 밖이라 zoom이 자동 적용되지 않으므로
+                     수동으로 같은 공식을 사용. */
+                  maxWidth: panelOpen ? "calc(500px * var(--dashboard-zoom, 1))" : 0,
                   opacity: panelOpen ? 1 : 0,
                 }}
               >
-                <div className="w-[500px] h-full overflow-y-auto overscroll-contain">
+                <div
+                  className="w-[500px] overflow-y-auto overscroll-contain"
+                  style={{
+                    zoom: "var(--dashboard-zoom, 1)",
+                    /* zoom 적용 전 CSS 높이 = 화면상 목표 높이 / zoom — 그래야 zoom으로
+                       축소된 후 outer flex container(높이 = 100vh - sticky - 50)를
+                       정확히 채운다. SiteListWithDetail과 동일한 공식. */
+                    height:
+                      "calc((100vh - var(--sticky-header-bottom, 200px) - 50px) / var(--dashboard-zoom, 1))",
+                  }}
+                >
                   <SiteDetail site={displayedSite} onClose={handleCloseSite} onSaved={handleRefreshAfterSave} />
                 </div>
               </div>
             )}
-          </div>
         </div>
-      )}
-
-    </DashboardScaler>
+      </div>
+    )}
     </>
   );
 }

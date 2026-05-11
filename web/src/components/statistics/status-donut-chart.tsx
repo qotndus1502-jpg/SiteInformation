@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { charts } from "@/lib/chart-colors";
 
 interface StatusData {
@@ -25,7 +25,7 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
 
-export function StatusDonutChart({ data, selectedStatus, onStatusClick }: StatusDonutChartProps) {
+export const StatusDonutChart = memo(function StatusDonutChart({ data, selectedStatus, onStatusClick }: StatusDonutChartProps) {
   const [hovSlice, setHovSlice] = useState<string | null>(null);
 
   const active = data.find((d) => d.status === "ACTIVE")?.count ?? 0;
@@ -119,4 +119,4 @@ export function StatusDonutChart({ data, selectedStatus, onStatusClick }: Status
       </div>
     </div>
   );
-}
+});
