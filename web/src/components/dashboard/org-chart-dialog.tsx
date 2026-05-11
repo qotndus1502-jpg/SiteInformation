@@ -270,7 +270,11 @@ export function OrgChartDialog({ site, open, onOpenChange, onSaved }: OrgChartDi
     return [...updated, ...created];
   })();
 
-  const topLevel = displayMembers.filter((m) => m.parent_id == null);
+  // PM은 더이상 조직도에 표시하지 않는다 (project_site.pm_name으로 이관).
+  // soft-delete 안 된 잔존 데이터 대비 방어적으로 클라이언트에서도 필터링.
+  const topLevel = displayMembers.filter(
+    (m) => m.parent_id == null && m.role_code !== "PM"
+  );
 
   // 부서별 그룹핑 — departments 상태를 source of truth로 사용.
   type DeptEntry = { id: number | null; name: string; sort_order: number; members: OrgMember[] };

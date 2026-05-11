@@ -417,11 +417,13 @@ export function OrgMemberFormDialog({
                   <SelectValue placeholder="선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.map((r) => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
+                  {roles
+                    .filter((r) => r.code !== "PM")
+                    .map((r) => (
+                      <SelectItem key={r.id} value={String(r.id)}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

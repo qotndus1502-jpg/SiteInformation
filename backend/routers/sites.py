@@ -174,7 +174,7 @@ EDITABLE_SITE_COLUMNS = {
     "region_code", "facility_type_code", "order_type", "client_org_id",
     "contract_amount", "start_date", "end_date",
     "office_address", "site_address", "latitude", "longitude",
-    "status", "managing_entity_id",
+    "status", "managing_entity_id", "pm_name",
 }
 
 REQUIRED_SITE_COLUMNS = {"name", "corporation_id", "division", "category"}

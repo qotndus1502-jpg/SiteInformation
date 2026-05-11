@@ -41,6 +41,7 @@ interface FormState {
   site_address: string;
   status: string;
   managing_entity_id: string;
+  pm_name: string;
   jv_partners: JvPartnerRow[];
 }
 
@@ -48,7 +49,8 @@ const EMPTY: FormState = {
   name: "", corporation_id: "", division: "", category: "",
   region_code: "", facility_type_code: "", order_type: "", client_name: "",
   contract_amount: "", our_share_ratio: "", start_date: "", end_date: "",
-  office_address: "", site_address: "", status: "", managing_entity_id: "", jv_partners: [],
+  office_address: "", site_address: "", status: "", managing_entity_id: "",
+  pm_name: "", jv_partners: [],
 };
 
 /* Parse jv_summary text "법인A 50.00%, 회사B 30.00%" → [{name, ratio}]. */
@@ -86,6 +88,7 @@ function siteToForm(site: SiteDashboard, corps: Corporation[], regions: Region[]
     site_address: "",
     status: site.status ?? "",
     managing_entity_id: site.managing_entity_id != null ? String(site.managing_entity_id) : "",
+    pm_name: site.pm_name ?? "",
     jv_partners: others.map((o) => ({ name: o.name, share_pct: String(o.pct) })),
   };
 }
@@ -213,6 +216,7 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
       site_address: form.site_address || null,
       status: form.status || null,
       managing_entity_id: form.managing_entity_id ? Number(form.managing_entity_id) : null,
+      pm_name: form.pm_name.trim() || null,
       our_share_ratio: form.our_share_ratio ? Number(form.our_share_ratio) : null,
       jv_partners: form.jv_partners
         .filter((p) => p.name.trim() && p.share_pct)
@@ -340,7 +344,7 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
             </Select>
           </div>
 
-          <div className="col-span-2 flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>현장관리부서</Label>
             <Select
               value={form.managing_entity_id}
@@ -356,6 +360,15 @@ export function SiteFormDialog({ open, onOpenChange, site, onSaved }: SiteFormDi
                   .map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>PM</Label>
+            <Input
+              value={form.pm_name}
+              onChange={(e) => set("pm_name", e.target.value)}
+              placeholder="예: 김지훈"
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">
